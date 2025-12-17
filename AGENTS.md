@@ -105,7 +105,7 @@ en get-bullets --limit 20 --sort-by helpful
 
 [Bullet #ccb-021, helpful:0, harmful:0] Harbor job outputs must be collected to `jobs/` directory - After Harbor executions, archive job outputs to `jobs/` with timestamped naming convention: `jobs/run-YYYY-MM-DD-HH-MM-SS/`
 
-[Bullet #ccb-022, helpful:0, harmful:0] NeMo observability must be enabled for all benchmark runs - Initialize nemo_observer.py in benchmark runners to capture standardized metrics across all agent implementations
+[Bullet #ccb-022, helpful:0, harmful:0] Lightweight JSON observability replaces NeMo - Use ManifestWriter and MetricsCollector from observability/ module to capture execution metrics; write run_manifest.json with tool usage and performance data (see docs/OBSERVABILITY.md)
 
 ### Testing & Validation Patterns
 
