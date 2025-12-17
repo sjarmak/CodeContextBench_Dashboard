@@ -194,28 +194,38 @@ The validator expects:
 
 ## Environment Variables
 
-### Required
+### Quick Setup
 
 ```bash
-# API credentials (all agents)
-export ANTHROPIC_API_KEY="sk-ant-..."
+# 1. Create .env.local from example
+cp .env.local.example .env.local
 
-# Corpus location (defaults to /10figure)
-export HARBOR_10FIGURE="/Users/sjarmak/harbor-10figure-dataset"
+# 2. Edit with your credentials
+nano .env.local
 
-# Sourcegraph token (Claude+MCP agent only)
-export SRC_ACCESS_TOKEN="sgp_..."
+# 3. Load environment
+source infrastructure/load-env.sh
+
+# 4. Run benchmarks
+bash runners/harbor_benchmark.sh --benchmark 10figure --agent claude-baseline
 ```
 
-### Optional
+### Configuration
 
-```bash
-# Sourcegraph instance (defaults to https://sourcegraph.sourcegraph.com)
-export SOURCEGRAPH_URL="https://sourcegraph.example.com"
+Store credentials in `.env.local` (created from `.env.local.example`):
 
-# Container runtime (podman or docker, defaults to podman)
-export CONTAINER_RUNTIME="podman"
-```
+**Required:**
+- `ANTHROPIC_API_KEY`: Claude API key (get from https://console.anthropic.com/)
+
+**For Claude+MCP agent:**
+- `SRC_ACCESS_TOKEN`: Sourcegraph API token (get from https://sourcegraph.sourcegraph.com/user/settings/tokens)
+
+**Optional (with defaults):**
+- `SOURCEGRAPH_URL`: Sourcegraph instance (default: https://sourcegraph.sourcegraph.com)
+- `HARBOR_10FIGURE`: Corpus path (default: /10figure in containers)
+- `CONTAINER_RUNTIME`: Container system - podman or docker (default: podman)
+
+**Important:** Never commit `.env.local` to version control. It's in `.gitignore`.
 
 ## Running Tasks in Harbor
 

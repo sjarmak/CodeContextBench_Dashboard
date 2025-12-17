@@ -133,6 +133,8 @@ en get-bullets --limit 20 --sort-by helpful
 
 [Bullet #ccb-106, helpful:0, harmful:0] 10Figure corpus setup requires container image + environment variable - Use harbor-10figure:base image (pre-loaded with corpus) and HARBOR_10FIGURE env var. See docs/10FIGURE.md for full setup instructions.
 
+[Bullet #ccb-107, helpful:0, harmful:0] All credentials must be in .env.local (never committed) - Create from .env.local.example, fill in ANTHROPIC_API_KEY and SRC_ACCESS_TOKEN, source infrastructure/load-env.sh before running benchmarks. load-env.sh validates required vars and masks sensitive values.
+
 ## Development & Operations
 
 **See development guide:** `docs/DEVELOPMENT.md`

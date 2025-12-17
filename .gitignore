@@ -36,3 +36,10 @@ history/
 # Large external datasets (reference by symlink or variable)
 10figure/
 harbor-10figure-dataset/
+
+# Environment variables and credentials (never commit)
+.env
+.env.local
+.env.*.local
+*.key
+*.pem

@@ -43,10 +43,32 @@ The 10Figure-Codebases corpus (~5GB) is not version-controlled. Instead:
 
 ## Environment Variables
 
-- **CONTAINER_RUNTIME**: "podman" (default) or "docker"
-- **HARBOR_10FIGURE**: Path to 10Figure dataset (default: /10figure)
-- **SRC_ACCESS_TOKEN**: Sourcegraph API token (for Sourcegraph MCP tests)
-- **SOURCEGRAPH_URL**: Sourcegraph instance URL (default: https://sourcegraph.sourcegraph.com)
+All required credentials should be set in `.env.local` (created from `.env.local.example`):
+
+### Setup
+
+```bash
+# 1. Copy example to local config
+cp .env.local.example .env.local
+
+# 2. Edit with your actual credentials
+# ANTHROPIC_API_KEY: Get from https://console.anthropic.com/
+# SRC_ACCESS_TOKEN: Get from https://sourcegraph.sourcegraph.com/user/settings/tokens
+nano .env.local
+
+# 3. Load before running benchmarks
+source infrastructure/load-env.sh
+```
+
+### Variables
+
+- **ANTHROPIC_API_KEY** (required): Claude API key
+- **SRC_ACCESS_TOKEN** (optional): Sourcegraph API token (required for Claude+MCP agent)
+- **SOURCEGRAPH_URL** (optional): Sourcegraph instance URL (default: https://sourcegraph.sourcegraph.com)
+- **HARBOR_10FIGURE** (optional): Path to 10Figure dataset (default: /10figure in containers)
+- **CONTAINER_RUNTIME** (optional): "podman" (default) or "docker"
+
+**Never commit .env.local to version control.** The file is in `.gitignore`.
 
 ## Troubleshooting
 
