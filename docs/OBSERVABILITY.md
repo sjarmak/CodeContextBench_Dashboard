@@ -36,13 +36,18 @@ Each benchmark run produces a `run_manifest.json` containing:
         "invocation_count": 5,
         "success_count": 4,
         "failure_count": 1,
-        "avg_duration_sec": 2.5
+        "avg_duration_sec": 2.5,
+        "input_tokens": 1000,
+        "output_tokens": 500
       }
     },
     "total_tool_invocations": 5,
     "total_unique_tools": 1,
     "search_queries_count": 5,
-    "file_operations_count": 0
+    "file_operations_count": 0,
+    "total_input_tokens": 12345,
+    "total_output_tokens": 4567,
+    "total_tokens": 16912
   },
   "result": {
     "task_id": "cross_file_reasoning_01",
@@ -53,7 +58,13 @@ Each benchmark run produces a `run_manifest.json` containing:
     "patch_size_bytes": 2048,
     "files_changed": 3,
     "error_type": null,
-    "error_message": null
+    "error_message": null,
+    "tokens": {
+      "input_tokens": 12345,
+      "output_tokens": 4567,
+      "total_tokens": 16912
+    },
+    "cost_usd": 0.087
   },
   "retrieval_metrics": {
     "total_searches": 5,
@@ -68,7 +79,7 @@ Each benchmark run produces a `run_manifest.json` containing:
 
 ### Writing Manifests
 
-After a Harbor benchmark run completes, write a manifest:
+After a Harbor benchmark run completes, write a manifest with token/cost data:
 
 ```python
 from pathlib import Path
@@ -76,11 +87,19 @@ from observability import ManifestWriter
 
 job_dir = Path('jobs/claude-baseline-10figure-20251217/task-001')
 
-writer = ManifestWriter(job_dir)
+# Initialize writer (specifies model for cost calculation)
+writer = ManifestWriter(job_dir, model='claude-haiku-4-5')
+
+# Extract token counts from agent output (e.g., Claude API response)
+input_tokens = 12345
+output_tokens = 4567
+
 manifest_path = writer.write_manifest(
     harness_name='harbor-v1',
     agent_name='claude-baseline',
-    benchmark_name='10figure'
+    benchmark_name='10figure',
+    input_tokens=input_tokens,
+    output_tokens=output_tokens
 )
 
 print(f"Manifest written to: {manifest_path}")
@@ -156,16 +175,23 @@ Extracted from Harbor `result.json`:
 - `files_changed` - Number of modified files
 - `error_type` - Type of error (if failed)
 - `error_message` - Error description
+- `tokens.input_tokens` - Number of input tokens consumed
+- `tokens.output_tokens` - Number of output tokens generated
+- `tokens.total_tokens` - Sum of input and output tokens
+- `cost_usd` - Calculated cost in USD based on model pricing
 
 ### Tool Profile
 
 Aggregated tool usage:
 
-- `tool_usage` - Map of tool name to ToolUsage details
+- `tool_usage` - Map of tool name to ToolUsage details (includes per-tool token counts)
 - `total_tool_invocations` - Sum of all tool calls
 - `total_unique_tools` - Number of distinct tools used
 - `search_queries_count` - Count of code search queries
 - `file_operations_count` - Count of file operations
+- `total_input_tokens` - Aggregate input tokens across all tools
+- `total_output_tokens` - Aggregate output tokens across all tools
+- `total_tokens` - Sum of input and output tokens
 
 ### Retrieval Metrics
 

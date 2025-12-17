@@ -17,6 +17,17 @@ from dataclasses import dataclass, asdict
 
 
 @dataclass
+class TokenUsage:
+    """Track token consumption for a model call."""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+
+
+@dataclass
 class ToolUsage:
     """Track a single tool invocation."""
     tool_name: str
@@ -25,6 +36,12 @@ class ToolUsage:
     success_count: int = 0
     failure_count: int = 0
     avg_duration_sec: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
 
 
 @dataclass
@@ -35,6 +52,12 @@ class ToolProfile:
     total_unique_tools: int = 0
     search_queries_count: int = 0
     file_operations_count: int = 0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    
+    @property
+    def total_tokens(self) -> int:
+        return self.total_input_tokens + self.total_output_tokens
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary, handling dataclass fields."""
@@ -47,11 +70,42 @@ class ToolProfile:
             'total_unique_tools': self.total_unique_tools,
             'search_queries_count': self.search_queries_count,
             'file_operations_count': self.file_operations_count,
+            'total_input_tokens': self.total_input_tokens,
+            'total_output_tokens': self.total_output_tokens,
+            'total_tokens': self.total_tokens,
         }
 
 
 class ManifestWriter:
     """Write execution manifests from Harbor benchmark runs."""
+    
+    # Model pricing (cost per 1M tokens) - update as API prices change
+    MODEL_PRICING = {
+        'claude-haiku-4-5': {
+            'input_cost_per_1m': 0.8,
+            'output_cost_per_1m': 4.0,
+        },
+        'claude-sonnet-4-5': {
+            'input_cost_per_1m': 3.0,
+            'output_cost_per_1m': 15.0,
+        },
+        'claude-3-5-sonnet': {
+            'input_cost_per_1m': 3.0,
+            'output_cost_per_1m': 15.0,
+        },
+        'claude-3-opus': {
+            'input_cost_per_1m': 15.0,
+            'output_cost_per_1m': 75.0,
+        },
+        'claude-3-sonnet': {
+            'input_cost_per_1m': 3.0,
+            'output_cost_per_1m': 15.0,
+        },
+        'claude-3-haiku': {
+            'input_cost_per_1m': 0.25,
+            'output_cost_per_1m': 1.25,
+        },
+    }
     
     # Tool detection patterns
     TOOL_PATTERNS = {
@@ -77,16 +131,35 @@ class ManifestWriter:
         ),
     }
     
-    def __init__(self, job_dir: Path):
+    def __init__(self, job_dir: Path, model: str = 'claude-haiku-4-5'):
         """Initialize manifest writer for a Harbor job directory.
         
         Args:
             job_dir: Path to Harbor job output directory
+            model: Model name for pricing calculation (default: claude-3-5-sonnet)
         """
         self.job_dir = Path(job_dir)
         self.result_file = self.job_dir / 'result.json'
         self.logs_dir = self.job_dir / 'logs'
         self.artifact_dir = self.job_dir / 'artifacts'
+        self.model = model
+    
+    def calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
+        """Calculate cost in USD for token usage.
+        
+        Args:
+            input_tokens: Number of input tokens
+            output_tokens: Number of output tokens
+            
+        Returns:
+            Cost in USD
+        """
+        pricing = self.MODEL_PRICING.get(self.model, self.MODEL_PRICING['claude-haiku-4-5'])
+        
+        input_cost = (input_tokens / 1_000_000) * pricing['input_cost_per_1m']
+        output_cost = (output_tokens / 1_000_000) * pricing['output_cost_per_1m']
+        
+        return round(input_cost + output_cost, 6)
     
     def parse_harbor_result(self) -> Dict[str, Any]:
         """Parse Harbor result.json file.
@@ -174,13 +247,20 @@ class ManifestWriter:
         
         return profile
     
-    def build_result_summary(self, result: Dict[str, Any]) -> Dict[str, Any]:
+    def build_result_summary(
+        self,
+        result: Dict[str, Any],
+        input_tokens: int = 0,
+        output_tokens: int = 0
+    ) -> Dict[str, Any]:
         """Build result summary from Harbor result.json.
         
-        Extracts: task name, success/failure, reward, execution time, errors.
+        Extracts: task name, success/failure, reward, execution time, errors, tokens, costs.
         
         Args:
             result: Parsed Harbor result dictionary
+            input_tokens: Number of input tokens used
+            output_tokens: Number of output tokens used
             
         Returns:
             Standardized result summary
@@ -193,6 +273,9 @@ class ManifestWriter:
         patch_info = result.get('patch_info', {})
         exception_info = result.get('exception_info', {})
         
+        # Calculate cost from tokens
+        cost_usd = self.calculate_cost(input_tokens, output_tokens)
+        
         return {
             'task_name': result.get('task_name', 'unknown'),
             'task_id': result.get('task_id', result.get('task_name', 'unknown')),
@@ -203,6 +286,12 @@ class ManifestWriter:
             'files_changed': int(patch_info.get('files_changed', 0)),
             'error_type': exception_info.get('type') if exception_info else None,
             'error_message': exception_info.get('message') if exception_info else None,
+            'tokens': {
+                'input_tokens': input_tokens,
+                'output_tokens': output_tokens,
+                'total_tokens': input_tokens + output_tokens,
+            },
+            'cost_usd': cost_usd,
         }
     
     def build_retrieval_metrics(self, tool_profile: ToolProfile) -> Dict[str, Any]:
@@ -228,7 +317,9 @@ class ManifestWriter:
         harness_name: str,
         agent_name: str,
         benchmark_name: str,
-        override_result: Optional[Dict[str, Any]] = None
+        override_result: Optional[Dict[str, Any]] = None,
+        input_tokens: int = 0,
+        output_tokens: int = 0
     ) -> Path:
         """Write run_manifest.json with all execution data.
         
@@ -237,6 +328,8 @@ class ManifestWriter:
             agent_name: Agent implementation (e.g., "claude-baseline", "claude-mcp")
             benchmark_name: Benchmark set name (e.g., "10figure", "terminal-bench")
             override_result: Optional override for result (for testing)
+            input_tokens: Number of input tokens used in the run
+            output_tokens: Number of output tokens used in the run
             
         Returns:
             Path to written manifest file
@@ -247,8 +340,12 @@ class ManifestWriter:
         # Extract tool usage from logs
         tool_profile = self.extract_tool_usage()
         
+        # Update tool profile with token information
+        tool_profile.total_input_tokens = input_tokens
+        tool_profile.total_output_tokens = output_tokens
+        
         # Build summaries
-        result_summary = self.build_result_summary(result)
+        result_summary = self.build_result_summary(result, input_tokens, output_tokens)
         retrieval_metrics = self.build_retrieval_metrics(tool_profile)
         
         # Create manifest
