@@ -27,16 +27,35 @@ artifacts/           # Ephemeral results, logs, job outputs
 
 ## Core Components
 
-### BasePatchAgent (agents/base.py)
+### Agent Implementations
+
+#### BasePatchAgent (agents/base.py)
 Abstract base class for all CLI agents. Provides:
 - Repository discovery (task.toml or /10figure/src/)
 - Git diff capture (baseline → patch)
 - Harbor integration
 - Extensible environment/command customization
 
-Subclasses implement `get_agent_command()` and `get_agent_env()` for:
-- ClaudeCodeAgent (baseline, no Sourcegraph)
-- ClaudeCodeSourcegraphMCPAgent (with MCP server)
+Subclasses must implement:
+- `get_agent_command(instruction, repo_dir)`: Shell command to run the agent
+- `get_agent_env()`: Environment variables required by the agent
+- `_install_agent_template_path`: Path to Jinja2 installation script
+
+#### ClaudeCodeAgent (agents/claude_agent.py)
+Claude Code baseline (no code search augmentation):
+- Uses Claude Code CLI (`claude -p` print mode)
+- JSON output format for structured results
+- Requires `ANTHROPIC_API_KEY` environment variable
+- Runs with `--dangerously-skip-permissions` for unattended execution
+- Suitable for baseline evaluation without Sourcegraph tools
+
+#### ClaudeCodeSourcegraphMCPAgent (agents/claude_sourcegraph_mcp_agent.py)
+Claude Code with Sourcegraph MCP server integration:
+- Inherits baseline Claude functionality
+- Adds `SRC_ACCESS_TOKEN` and `SOURCEGRAPH_URL` credentials
+- Enables Deep Search APIs via Model Context Protocol
+- MCP server configuration handled via `--mcp-config` at runtime
+- Measures ROI of Sourcegraph code intelligence on agent performance
 
 ## Datasets
 
@@ -47,9 +66,13 @@ Subclasses implement `get_agent_command()` and `get_agent_env()` for:
 
 ✅ Directory skeleton created
 ✅ BasePatchAgent ported (generalized for multi-agent)
-⏳ Agent implementations (Claude Code baseline)
-⏳ Benchmark task loaders
-⏳ Harbor configuration
+✅ ClaudeCodeAgent (baseline, no code search)
+✅ ClaudeCodeSourcegraphMCPAgent (with Sourcegraph tools)
+✅ Installation templates (install-claude.sh.j2)
+✅ Tests for agent implementations (14 passing)
+⏳ Benchmark task runners
+⏳ Harbor configuration & integration
+⏳ 10Figure task generator
 ⏳ Smoke tests
 
 See `.beads/issues.jsonl` for full task list (14 beads total).

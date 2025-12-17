@@ -12,11 +12,16 @@ import os
 import shlex
 from pathlib import Path
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
-from harbor.agents.installed.base import BaseInstalledAgent, ExecInput
-from harbor.models.agent.context import AgentContext
-from harbor.environments.base import BaseEnvironment
+try:
+    from harbor.agents.installed.base import BaseInstalledAgent, ExecInput
+    from harbor.models.agent.context import AgentContext
+    from harbor.environments.base import BaseEnvironment
+except ImportError:
+    # Fall back to stub implementation for development
+    from ._harbor_base import BaseInstalledAgent, ExecInput, AgentContext
+    BaseEnvironment = None  # Not needed in stub
 
 
 class BasePatchAgent(BaseInstalledAgent, ABC):
@@ -60,7 +65,7 @@ class BasePatchAgent(BaseInstalledAgent, ABC):
         """
         pass
     
-    def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
+    def create_run_agent_commands(self, instruction: str) -> List[ExecInput]:
         """Create commands to run agent and capture git diff patch.
         
         This method orchestrates:
