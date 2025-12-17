@@ -129,6 +129,10 @@ en get-bullets --limit 20 --sort-by helpful
 
 [Bullet #ccb-104, helpful:0, harmful:0] Root directory contains ONLY permanent documentation - No ephemeral status files (MIGRATION_STATUS.md, SMOKE_TEST_RESULTS.md). Status is tracked in beads; planning docs go in history/ directory.
 
+[Bullet #ccb-105, helpful:0, harmful:0] External corpus contracts belong in infrastructure/datasets.yaml - Define image name, env vars, paths, validator contract, resource requirements, and reference detailed docs. Never hardcode dataset paths in code.
+
+[Bullet #ccb-106, helpful:0, harmful:0] 10Figure corpus setup requires container image + environment variable - Use harbor-10figure:base image (pre-loaded with corpus) and HARBOR_10FIGURE env var. See docs/10FIGURE.md for full setup instructions.
+
 ## Development & Operations
 
 **See development guide:** `docs/DEVELOPMENT.md`
