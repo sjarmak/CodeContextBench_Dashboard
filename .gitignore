@@ -1,0 +1,38 @@
+# Build and virtualenv
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# System
+.DS_Store
+*.log
+
+# Ephemeral
+artifacts/*.json
+artifacts/*.log
+jobs/
+results/
+.ace/
+.engram/
+
+# AI planning documents
+history/
+
+# Large external datasets (reference by symlink or variable)
+10figure/
+harbor-10figure-dataset/

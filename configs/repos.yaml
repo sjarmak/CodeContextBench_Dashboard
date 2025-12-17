@@ -1,0 +1,35 @@
+# Repository configuration for CodeContextBench
+# Sourced from 10Figure-Codebases dataset (~5GB external, referenced via symlink)
+
+repositories:
+  # Each repo is expected to be at /10figure/src/<repo_name>
+  - name: kubernetes
+    language: go
+    size: large
+    source: 10Figure-Codebases
+    tasks_count: 0  # Populated by task discovery
+  
+  - name: envoy
+    language: cpp
+    size: large
+    source: 10Figure-Codebases
+    tasks_count: 0
+  
+  - name: django
+    language: python
+    size: large
+    source: 10Figure-Codebases
+    tasks_count: 0
+  
+  - name: tensorflow
+    language: python
+    size: large
+    source: 10Figure-Codebases
+    tasks_count: 0
+
+# Configuration for agent-repo assignments
+evaluation:
+  agent_timeout_sec: 3600  # 1 hour per task
+  allow_external_internet: false
+  container_memory_gb: 8
+  container_cpus: 4
