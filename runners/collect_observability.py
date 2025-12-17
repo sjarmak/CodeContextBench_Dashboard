@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from observability import ManifestWriter, MetricsCollector
+from observability import ManifestWriter, MetricsCollector, ClaudeOutputParser
 
 
 def collect_manifests(jobs_dir: Path, agent_filter: str = None) -> int:
@@ -73,12 +73,20 @@ def collect_manifests(jobs_dir: Path, agent_filter: str = None) -> int:
         # Write manifest
         try:
             writer = ManifestWriter(task_dir)
+            
+            # Extract token usage from Claude output if available
+            token_usage = ClaudeOutputParser.extract_from_task_execution(task_dir)
+            
             manifest_path = writer.write_manifest(
                 harness_name='harbor-v1',
                 agent_name=agent_name,
-                benchmark_name=benchmark_name
+                benchmark_name=benchmark_name,
+                input_tokens=token_usage.input_tokens,
+                output_tokens=token_usage.output_tokens
             )
             print(f"✓ Wrote manifest: {manifest_path}")
+            if token_usage.total_tokens > 0:
+                print(f"  Token usage: {token_usage.input_tokens} input, {token_usage.output_tokens} output")
             manifests_written += 1
         except Exception as e:
             print(f"✗ Failed to write manifest for {task_dir}: {e}")

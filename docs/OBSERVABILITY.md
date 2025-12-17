@@ -77,33 +77,106 @@ Each benchmark run produces a `run_manifest.json` containing:
 
 ## Usage
 
-### Writing Manifests
+### Writing Manifests with Automatic Token Extraction
 
-After a Harbor benchmark run completes, write a manifest with token/cost data:
+After a Harbor benchmark run completes, the observability system automatically extracts token counts from Claude CLI output logs:
 
 ```python
 from pathlib import Path
-from observability import ManifestWriter
+from observability import ManifestWriter, ClaudeOutputParser
 
 job_dir = Path('jobs/claude-baseline-10figure-20251217/task-001')
 
 # Initialize writer (specifies model for cost calculation)
 writer = ManifestWriter(job_dir, model='claude-haiku-4-5')
 
-# Extract token counts from agent output (e.g., Claude API response)
-input_tokens = 12345
-output_tokens = 4567
+# Automatically extract token counts from Claude output logs
+# Searches logs/agent/claude.txt and other standard log locations
+token_usage = ClaudeOutputParser.extract_from_task_execution(job_dir)
 
 manifest_path = writer.write_manifest(
     harness_name='harbor-v1',
     agent_name='claude-baseline',
     benchmark_name='10figure',
-    input_tokens=input_tokens,
-    output_tokens=output_tokens
+    input_tokens=token_usage.input_tokens,
+    output_tokens=token_usage.output_tokens
 )
 
 print(f"Manifest written to: {manifest_path}")
+print(f"Tokens: {token_usage.input_tokens} input, {token_usage.output_tokens} output")
+print(f"Cost: ${writer.calculate_cost(token_usage.input_tokens, token_usage.output_tokens):.6f}")
 ```
+
+### Token Extraction from Claude CLI Output
+
+The `ClaudeOutputParser` class handles extracting token usage from Claude's JSON output:
+
+```python
+from pathlib import Path
+from observability import ClaudeOutputParser
+
+task_dir = Path('jobs/claude-baseline-10figure-20251217/task-001')
+
+# Extracts tokens from logs/agent/claude.txt and other log locations
+token_usage = ClaudeOutputParser.extract_from_task_execution(task_dir)
+
+print(f"Input tokens: {token_usage.input_tokens}")
+print(f"Output tokens: {token_usage.output_tokens}")
+print(f"Total tokens: {token_usage.total_tokens}")
+print(f"Model: {token_usage.model}")
+```
+
+**Token extraction supports multiple formats:**
+
+1. **Claude JSON Output** (preferred):
+   ```json
+   {
+     "usage": {
+       "input_tokens": 1234,
+       "output_tokens": 567
+     },
+     "model": "claude-3-5-sonnet-20241022"
+   }
+   ```
+
+2. **Human-readable text format**:
+   ```
+   input_tokens: 1234
+   output_tokens: 567
+   model: claude-3-5-sonnet-20241022
+   ```
+
+3. **Key-value format**:
+   ```
+   input_tokens=1234, output_tokens=567
+   ```
+
+#### Log File Locations
+
+ClaudeOutputParser searches these locations in order:
+- `logs/agent/claude.txt`
+- `logs/agent/stdout.log`
+- `logs/agent/output.json`
+- `logs/agent.txt`
+- `logs/stdout.txt`
+
+### Batch Manifest Collection
+
+The `collect_observability.py` runner automatically collects manifests and extracts tokens:
+
+```bash
+# Collect manifests from all job directories
+python runners/collect_observability.py collect --jobs-dir jobs/
+
+# Filter by agent
+python runners/collect_observability.py collect --jobs-dir jobs/ --agent claude-baseline
+```
+
+This will:
+1. Scan for all `result.json` files
+2. Extract token counts from Claude logs
+3. Write `run_manifest.json` with token and cost data
+4. Print summary showing tokens and costs for each run
 
 ### Collecting Metrics
 
