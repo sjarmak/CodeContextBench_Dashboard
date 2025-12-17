@@ -12,9 +12,14 @@
 # 3. Validates required variables are set
 # 4. Provides helpful error messages if missing
 
-set -e
+# Get the directory where this script is located
+# Handle both 'source' and direct execution
+if [ -n "${BASH_SOURCE[0]}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 ENV_LOCAL="$REPO_ROOT/.env.local"
 ENV_EXAMPLE="$REPO_ROOT/.env.local.example"
@@ -29,12 +34,12 @@ if [ ! -f "$ENV_LOCAL" ]; then
     _error "Missing .env.local file"
     echo "" >&2
     _info "Create .env.local from the example:"
-    echo "  cp $ENV_EXAMPLE .env.local" >&2
+    echo "  cp .env.local.example .env.local" >&2
     echo "" >&2
     _info "Then edit and fill in your credentials:"
     echo "  ANTHROPIC_API_KEY=sk-ant-..." >&2
     echo "  SRC_ACCESS_TOKEN=sgp_..." >&2
-    return 1
+    return 1 2>/dev/null || exit 1
 fi
 
 # Load environment variables
@@ -61,7 +66,7 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
     for var in "${MISSING_VARS[@]}"; do
         echo "  $var=..." >&2
     done
-    return 1
+    return 1 2>/dev/null || exit 1
 fi
 
 # Validate optional variables have reasonable defaults
