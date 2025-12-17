@@ -141,6 +141,14 @@ en get-bullets --limit 20 --sort-by helpful
 
 [Bullet #ccb-107, helpful:0, harmful:0] All credentials must be in .env.local (never committed) - Create from .env.local.example, fill in ANTHROPIC_API_KEY and SRC_ACCESS_TOKEN, source infrastructure/load-env.sh before running benchmarks. load-env.sh validates required vars and masks sensitive values.
 
+[Bullet #ccb-111, helpful:0, harmful:0] Docker wrapper script (docker-wrapper.sh) translates docker commands to podman - Located at infrastructure/docker-wrapper.sh; handles docker compose exec/cp commands with special flags that podman-compose doesn't support (e.g., -it, cp). Install to ~/.bin/docker and add to PATH.
+
+[Bullet #ccb-112, helpful:0, harmful:0] Harbor configuration belongs in infrastructure/harbor-config.yaml - Defines container runtime, agent timeouts, memory limits, task execution parallelism, benchmark environments, agent profiles, and observability settings. Read by runners and infrastructure scripts.
+
+[Bullet #ccb-113, helpful:0, harmful:0] Podman requires explicit setup on macOS via podman machine - Use `podman machine init --cpus 4 --memory 4096 && podman machine start` before running benchmarks. Allocate sufficient resources (4+ CPU, 4GB+ RAM). See infrastructure/PODMAN.md for full setup.
+
+[Bullet #ccb-114, helpful:0, harmful:0] Infrastructure documentation should be modular and Podman-first - PODMAN.md covers setup/troubleshooting, docker-wrapper.sh is executable wrapper, harbor-config.yaml is configuration file. All referenced in infrastructure/README.md. Users should read PODMAN.md first.
+
 ## Development & Operations
 
 **See development guide:** `docs/DEVELOPMENT.md`
