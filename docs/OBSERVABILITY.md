@@ -1,13 +1,14 @@
 # Observability and Metrics Collection
 
-CodeContextBench uses lightweight, JSON-based observability to track benchmark execution metrics without heavy dependencies like NeMo. The system captures tool usage, execution performance, and failure patterns for downstream analysis.
+CodeContextBench provides structured observability through **NeMo-Agent-Toolkit integration** and lightweight JSON-based metrics. The system captures per-tool metrics, execution performance, failure patterns, and cost analysis for downstream benchmarking and optimization.
 
 ## Overview
 
-Two main modules provide observability:
+Three main modules provide observability:
 
-1. **ManifestWriter** - Writes `run_manifest.json` from Harbor benchmark runs
-2. **MetricsCollector** - Collects and analyzes execution metrics across runs
+1. **NeMoTraceParser** - Parse NeMo-Agent-Toolkit structured execution traces
+2. **ManifestWriter** - Writes `run_manifest.json` from Harbor benchmark runs (with NeMo trace support)
+3. **MetricsCollector** - Collects and analyzes execution metrics across runs
 
 ## Key Concepts
 
@@ -75,9 +76,128 @@ Each benchmark run produces a `run_manifest.json` containing:
 }
 ```
 
+## NeMo-Agent-Toolkit Integration
+
+CodeContextBench now integrates with **NeMo-Agent-Toolkit** for structured execution tracing. When NeMo traces are available, the system automatically extracts:
+
+- **Per-tool metrics**: Token counts, latency, success/failure rates for each tool
+- **Operation timeline**: Complete execution sequence with timestamps
+- **Failure analysis**: Error types, failure modes, tools with highest failure rates
+- **Cost breakdown**: Cost per tool for granular cost analysis
+
+### When to Use NeMo Traces
+
+NeMo traces should be used when:
+- Running agents built with NeMo-Agent-Toolkit (ReAct, Tool-Calling, ReWOO agents)
+- You need detailed per-tool performance metrics
+- You want failure analysis at the tool level
+- You need accurate token counts per tool call
+
+### Automatic Trace Extraction
+
+```bash
+# Extract NeMo traces from Harbor jobs and generate manifests
+python runners/extract_nemo_traces.py --jobs-dir jobs/ --agent claude-baseline
+
+# Or process all jobs
+python runners/extract_nemo_traces.py --jobs-dir jobs/ --all
+
+# Output JSON summary
+python runners/extract_nemo_traces.py --jobs-dir jobs/ --json --output trace_summary.json
+```
+
+The runner automatically:
+1. Finds all NeMo trace files (`logs/nemo/trace.json`, `logs/trace.json`, etc.)
+2. Parses structured tool call data
+3. Falls back to Claude log parsing if no traces found
+4. Writes `run_manifest.json` with full metrics
+
+### Manual NeMo Trace Processing
+
+```python
+from pathlib import Path
+from observability import NeMoTraceParser, NeMoMetricsExtractor, ManifestWriter
+
+job_dir = Path('jobs/claude-baseline-10figure-20251217/task-001')
+
+# Extract NeMo trace
+trace = NeMoTraceParser.extract_from_task_execution(job_dir)
+
+if trace:
+    print(f"Tool calls: {trace.tool_call_count}")
+    print(f"Tokens: {trace.total_input_tokens} input, {trace.total_output_tokens} output")
+    print(f"Failure rate: {trace.failure_rate:.1f}%")
+    
+    # Per-tool breakdown
+    print(f"Tool call counts: {trace.tool_call_count_by_tool}")
+    print(f"Avg latency per tool: {trace.tool_latency_by_tool}")
+    print(f"Failures by tool: {trace.failure_rate_by_tool}")
+    
+    # Write manifest with NeMo metrics
+    writer = ManifestWriter(job_dir, model='claude-haiku-4-5')
+    manifest_path = writer.write_manifest(
+        harness_name='harbor-v1',
+        agent_name='claude-baseline',
+        benchmark_name='10figure',
+        nemo_trace=trace  # Pass NeMo trace for structured metrics
+    )
+```
+
+### NeMo Trace Structure
+
+```json
+{
+  "workflow_name": "my_agent",
+  "start_time": "2025-12-17T16:00:00.000Z",
+  "end_time": "2025-12-17T16:00:15.000Z",
+  "duration_sec": 15.0,
+  "tool_calls": [
+    {
+      "tool_name": "sourcegraph_deep_search",
+      "invocation_id": "tc_001",
+      "duration_sec": 2.5,
+      "input_tokens": 1000,
+      "output_tokens": 500,
+      "success": true,
+      "timestamp": "2025-12-17T16:00:01.000Z"
+    }
+  ],
+  "total_input_tokens": 1000,
+  "total_output_tokens": 500,
+  "success": true
+}
+```
+
+### NeMo Metrics in Manifests
+
+When written with a NeMo trace, manifests include a `nemo_metrics` section:
+
+```json
+{
+  "nemo_metrics": {
+    "workflow_name": "my_agent",
+    "total_duration_sec": 15.0,
+    "tool_call_count": 3,
+    "failed_tool_calls": 0,
+    "failure_rate_percent": 0.0,
+    "tool_latency_by_tool": {
+      "sourcegraph_deep_search": 2.5,
+      "git_operations": 1.5
+    },
+    "failure_analysis": {
+      "total_failures": 0,
+      "failure_rate_percent": 0.0,
+      "failures_by_type": {},
+      "failures_by_tool": {},
+      "failure_rate_by_tool": {}
+    }
+  }
+}
+```
+
 ## Usage
 
-### Writing Manifests with Automatic Token Extraction
+### Writing Manifests with NeMo Traces (Preferred)
 
 After a Harbor benchmark run completes, the observability system automatically extracts token counts from Claude CLI output logs:
 

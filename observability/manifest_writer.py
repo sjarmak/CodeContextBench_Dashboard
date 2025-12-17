@@ -319,9 +319,12 @@ class ManifestWriter:
         benchmark_name: str,
         override_result: Optional[Dict[str, Any]] = None,
         input_tokens: int = 0,
-        output_tokens: int = 0
+        output_tokens: int = 0,
+        nemo_trace: Optional[Any] = None  # NeMoExecutionTrace
     ) -> Path:
         """Write run_manifest.json with all execution data.
+        
+        Supports both legacy token extraction and structured NeMo traces.
         
         Args:
             harness_name: Name of benchmark harness (e.g., "harbor-v1")
@@ -330,6 +333,7 @@ class ManifestWriter:
             override_result: Optional override for result (for testing)
             input_tokens: Number of input tokens used in the run
             output_tokens: Number of output tokens used in the run
+            nemo_trace: Optional NeMoExecutionTrace for structured metrics
             
         Returns:
             Path to written manifest file
@@ -337,16 +341,32 @@ class ManifestWriter:
         # Parse Harbor result
         result = override_result or self.parse_harbor_result()
         
-        # Extract tool usage from logs
-        tool_profile = self.extract_tool_usage()
-        
-        # Update tool profile with token information
-        tool_profile.total_input_tokens = input_tokens
-        tool_profile.total_output_tokens = output_tokens
+        # If NeMo trace provided, extract structured metrics
+        if nemo_trace:
+            from .nemo_trace_parser import NeMoMetricsExtractor
+            
+            # Use NeMo trace for tool profile and tokens
+            tool_profile_dict = NeMoMetricsExtractor.extract_tool_profile(nemo_trace)
+            input_tokens = input_tokens or nemo_trace.total_input_tokens
+            output_tokens = output_tokens or nemo_trace.total_output_tokens
+        else:
+            # Legacy: Extract tool usage from logs
+            tool_profile = self.extract_tool_usage()
+            tool_profile.total_input_tokens = input_tokens
+            tool_profile.total_output_tokens = output_tokens
+            tool_profile_dict = tool_profile.to_dict()
         
         # Build summaries
         result_summary = self.build_result_summary(result, input_tokens, output_tokens)
-        retrieval_metrics = self.build_retrieval_metrics(tool_profile)
+        
+        # Build retrieval metrics from tool profile
+        tools_used = list(tool_profile_dict.get('tool_usage', {}).keys())
+        retrieval_metrics = {
+            'total_searches': tool_profile_dict.get('total_tool_invocations', 0),  # Approximation
+            'total_file_ops': 0,  # Would need categorization
+            'tools_used': tools_used,
+            'tool_diversity': len(tools_used),
+        }
         
         # Create manifest
         manifest = {
@@ -361,10 +381,23 @@ class ManifestWriter:
                 'benchmark': benchmark_name,
                 'job_dir': str(self.job_dir),
             },
-            'tool_profile': tool_profile.to_dict(),
+            'tool_profile': tool_profile_dict,
             'result': result_summary,
             'retrieval_metrics': retrieval_metrics,
         }
+        
+        # Add NeMo-specific metrics if trace provided
+        if nemo_trace:
+            from .nemo_trace_parser import NeMoMetricsExtractor
+            manifest['nemo_metrics'] = {
+                'workflow_name': nemo_trace.workflow_name,
+                'total_duration_sec': nemo_trace.total_duration_sec,
+                'tool_call_count': nemo_trace.tool_call_count,
+                'failed_tool_calls': len(nemo_trace.failed_tool_calls),
+                'failure_rate_percent': nemo_trace.failure_rate,
+                'tool_latency_by_tool': nemo_trace.tool_latency_by_tool,
+                'failure_analysis': NeMoMetricsExtractor.extract_failure_analysis(nemo_trace),
+            }
         
         # Write manifest
         manifest_path = self.job_dir / 'run_manifest.json'

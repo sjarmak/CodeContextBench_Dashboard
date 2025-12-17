@@ -127,6 +127,12 @@ en get-bullets --limit 20 --sort-by helpful
 
 [Bullet #ccb-103, helpful:0, harmful:0] Engram learning must be triggered on bead closure - Do NOT skip `en learn` after completing work. Learning is the mechanism for improving future agent performance across the codebase.
 
+[Bullet #ccb-108, helpful:0, harmful:0] NeMo-Agent-Toolkit integration provides structured execution tracing - Use NeMoTraceParser to extract per-tool metrics (latency, token counts, failure rates). Falls back to Claude log parsing if traces unavailable. Always pass nemo_trace to ManifestWriter.write_manifest() when available.
+
+[Bullet #ccb-109, helpful:0, harmful:0] Use extract_nemo_traces.py runner for batch manifest generation - Automatically discovers NeMo traces in job directories, extracts metrics, and generates run_manifest.json files with failure analysis and per-tool breakdowns.
+
+[Bullet #ccb-110, helpful:0, harmful:0] NeMo metrics enable per-tool cost analysis and failure debugging - Extract tool_latency_by_tool, token_count_by_tool, and failure_rate_by_tool for detailed performance and cost breakdown. Use in cost optimization and bottleneck analysis.
+
 [Bullet #ccb-104, helpful:0, harmful:0] Root directory contains ONLY permanent documentation - No ephemeral status files (MIGRATION_STATUS.md, SMOKE_TEST_RESULTS.md). Status is tracked in beads; planning docs go in history/ directory.
 
 [Bullet #ccb-105, helpful:0, harmful:0] External corpus contracts belong in infrastructure/datasets.yaml - Define image name, env vars, paths, validator contract, resource requirements, and reference detailed docs. Never hardcode dataset paths in code.
