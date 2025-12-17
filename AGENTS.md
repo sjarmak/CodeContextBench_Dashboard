@@ -302,49 +302,61 @@ bd automatically syncs with git:
 - Link discovered work with `discovered-from` dependencies.
 - Check `bd ready` before asking "what should I work on?"
 
-### Managing AI-Generated Planning Documents
+### Managing Status & Progress Documents
 
-AI assistants often create planning and design documents during development:
+**CRITICAL RULE: No status/progress documents in repository root. EVER.**
+
+Root-level markdown files like STATUS.md, PROGRESS.md, MIGRATION_STATUS.md, SMOKE_TEST_RESULTS.md have NO BUSINESS being in the root directory. All issue status, testing status, and project progress must be tracked in beads.
+
+**The Single Source of Truth:**
+
+- **Issue status** → tracked in `.beads/issues.jsonl` via `bd` CLI
+- **Test results** → captured in bead description/comments (e.g., "Smoke test: 49/49 passing")
+- **Migration progress** → each bead represents a migration step; closed beads = completed work
+- **Execution traces** → stored in bead metadata via `ace capture` or `en learn`
+
+**Why this matters:**
+
+- Repository root should only contain permanent, high-level documentation (README.md, AGENTS.md, setup docs)
+- Status documents are ephemeral—they become stale and create duplicate tracking systems
+- Beads are the actual source of truth for task state; markdown files create confusion
+- Clean root directory improves navigation and reduces noise
+
+### AI-Generated Planning Documents
+
+AI assistants often create temporary planning documents during development:
 
 - PLAN.md, IMPLEMENTATION.md, ARCHITECTURE.md
 - DESIGN.md, CODEBASE_SUMMARY.md, INTEGRATION_PLAN.md
 - TESTING_GUIDE.md, TECHNICAL_DESIGN.md, and similar files
 
-**Best Practice: Use a dedicated directory for these ephemeral files**
+**Required approach:**
 
-**Recommended approach:**
-
-- Create a `history/` directory in the project root
-- Store ALL AI-generated planning/design docs in `history/`
+- Store ALL AI-generated planning/design docs in `history/` directory (never root)
 - Keep the repository root clean and focused on permanent project files
 - Only access `history/` when explicitly asked to review past planning
 
-**Example .gitignore entry (optional):**
+**Rationale:**
 
-```
-# AI planning documents (ephemeral)
-history/
-```
-
-**Benefits:**
-
-- ✅ Clean repository root
+- ✅ Clean repository root (no clutter)
 - ✅ Clear separation between ephemeral and permanent documentation
-- ✅ Easy to exclude from version control if desired
-- ✅ Preserves planning history for archeological research
+- ✅ Beads are the source of truth, not ephemeral docs
+- ✅ Preserves planning history for archeological research (in history/ dir)
 - ✅ Reduces noise when browsing the project
 
 ### Important Rules
 
-- ✅ Use bd for ALL task tracking
+- ✅ Use bd for ALL task tracking and status
 - ✅ Always use `--json` flag for programmatic use
 - ✅ Link discovered work with `discovered-from` dependencies
 - ✅ Check `bd ready` before asking "what should I work on?"
-- ✅ Store AI planning docs in `history/` directory
-- ❌ Do NOT create markdown TODO lists
+- ✅ Store AI planning/design docs in `history/` directory only
+- ✅ Record test results in bead metadata (via `ace capture` or test execution)
+- ❌ Do NOT create markdown TODO lists in root
+- ❌ Do NOT create status/progress markdown files in root
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
-- ❌ Do NOT clutter repo root with planning documents
+- ❌ Do NOT clutter repo root with planning, status, or progress documents
 
 ### Landing the Plane
 
