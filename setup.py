@@ -13,6 +13,7 @@ setup(
         "harbor-cli",  # Harbor framework for agent orchestration
         "toml",        # Task manifest parsing
         "pyyaml",      # Config files
+        "jsonschema",  # Task specification validation
     ],
     extras_require={
         "dev": [
