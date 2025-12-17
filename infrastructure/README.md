@@ -4,10 +4,12 @@ Container, dataset, and deployment configuration for CodeContextBench.
 
 ## Directory Structure
 
-- **PODMAN.md** - Podman setup and configuration (primary container runtime)
-- **docker-wrapper.sh** - Docker compatibility layer
-- **harbor-config.yaml** - Harbor orchestration settings
+- **PODMAN.md** - Podman setup and configuration (primary container runtime) - detailed guide for setup
+- **docker-wrapper.sh** - Docker compatibility layer - executable wrapper that translates docker commands to podman
+- **harbor-config.yaml** - Harbor orchestration settings - defines container runtime, agents, benchmarks, timeouts
 - **datasets.yaml** - External dataset references (10Figure corpus contract definition)
+- **load-env.sh** - Load environment variables from .env.local before running benchmarks
+- **README.md** - This file
 
 See **docs/10FIGURE.md** for detailed 10Figure corpus setup and usage instructions.
 
