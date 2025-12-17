@@ -2,6 +2,12 @@
 
 This file documents agent-specific patterns, workflows, and best practices for the CodeContextBench repository.
 
+**Note:** Keep this file at ~500 lines max. If adding content, consider:
+- Moving detailed docs to `docs/` directory
+- Archiving past examples to `history/` directory
+- Linking to external resources rather than duplicating
+- This file should be the **quick reference**, not comprehensive documentation
+
 ## Project Overview
 
 CodeContextBench is a benchmark evaluation framework for assessing how improved codebase understanding through Sourcegraph tools improves coding agent output. It supports multiple agent implementations (Amp, Claude Code, etc.) running against standardized benchmark task sets.
