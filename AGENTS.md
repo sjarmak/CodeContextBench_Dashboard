@@ -10,39 +10,9 @@ This file documents agent-specific patterns, workflows, and best practices for t
 
 ## Project Overview
 
-CodeContextBench is a benchmark evaluation framework for assessing how improved codebase understanding through Sourcegraph tools improves coding agent output. It supports multiple agent implementations (Amp, Claude Code, etc.) running against standardized benchmark task sets.
+CodeContextBench is a benchmark evaluation framework for assessing how improved codebase understanding through Sourcegraph tools improves coding agent output. It supports multiple agent implementations (Claude Code, Claude+MCP, etc.) running against standardized benchmark task sets.
 
-## Directory Structure & Patterns
-
-### Agent Development (`agents/`)
-- **BasePatchAgent** in `base.py`: Abstract base class for all agent implementations
-- **Amp-specific adapters** in `amp_agent.py`: Sourcegraph Deep Search integration, MCP client setup
-- Agent implementations should inherit from BasePatchAgent and implement required methods
-- Installation templates (`install-amp.sh.j2`, `install-mcp.sh.j2`) are Jinja2-based; use `jinja2` CLI for rendering
-
-### Benchmark Task Sets (`benchmarks/`)
-- **Terminal-Bench 2.0**: Original terminal-based tasks in `terminal-bench/`
-- **10Figure-Codebases**: Real-world codebase evaluation tasks in `10figure/`
-- **Custom tasks**: Project-specific benchmarks in `custom/`
-- Task format: Each benchmark should include context files, expected outputs, and a task manifest
-
-### Benchmark Runners (`runners/`)
-- **harbor_benchmark.sh**: Primary execution orchestrator (works with Harbor container system)
-- **compare_results.py**: Comparative analysis across runs and agents
-- **aggregator.py**: Cross-benchmark result aggregation and reporting
-- All runners expect result JSON output in a standard format (see `docs/API.md`)
-
-### Infrastructure (`infrastructure/`)
-- **Podman-first approach**: Primary container system (see `PODMAN.md` for setup)
-- **docker-wrapper.sh**: Docker compatibility layer for hybrid environments
-- **NeMo-Agent-Toolkit config** (`nemo-config.yaml`): Observability and agent metrics
-- **Harbor config** (`harbor-config.yaml`): Container orchestration settings
-- Docker-Compose optional for local development environments
-
-### Observability (`observability/`)
-- **nemo_observer.py**: Wraps agent execution for metrics capture
-- **metrics_exporter.py**: Exports metrics to external systems (Prometheus, S3, etc.)
-- Integration with NeMo-Agent-Toolkit for standardized observability across agents
+**See detailed architecture:** `docs/ARCHITECTURE.md`
 
 ## Engram Integration: Continuous Learning Loop
 
@@ -159,97 +129,23 @@ en get-bullets --limit 20 --sort-by helpful
 
 [Bullet #ccb-104, helpful:0, harmful:0] Root directory contains ONLY permanent documentation - No ephemeral status files (MIGRATION_STATUS.md, SMOKE_TEST_RESULTS.md). Status is tracked in beads; planning docs go in history/ directory.
 
-## Common Workflows
+## Development & Operations
 
-### Setting Up a New Agent Implementation
+**See development guide:** `docs/DEVELOPMENT.md`
 
-1. Create agent class in `agents/<agent_name>_agent.py` inheriting from BasePatchAgent
-2. Implement required methods: `initialize()`, `execute_task()`, `cleanup()`
-3. Register any tool integrations (Sourcegraph, file operations, etc.) in `initialize()`
-4. Create installation template in `agents/install-<agent_name>.sh.j2` with Jinja2 variables
-5. Add agent to `runners/harbor_benchmark.sh` execution loop
-6. Run smoke tests: `bash tests/smoke_test.sh`
+- Setting up new agent implementations
+- Running benchmarks and comparing performance
+- Debugging agent execution
+- Development commands and code quality standards
 
-### Executing a Benchmark Run
+**See troubleshooting guide:** `docs/TROUBLESHOOTING.md`
 
-1. Verify environment: `bash tests/smoke_test.sh`
-2. Run benchmark: `bash runners/harbor_benchmark.sh --benchmark terminal-bench --agent amp`
-3. Monitor Harbor: Check job output in logs/ and Harbor UI
-4. Collect results: `bash runners/harbor_benchmark.sh --collect-results`
-5. Aggregate results: `python runners/aggregator.py --runs results/ --output results/report.json`
-
-### Comparing Agent Performance
-
-1. Run multiple agents on same benchmark: 
-   ```bash
-   bash runners/harbor_benchmark.sh --benchmark 10figure --agents "amp,claude"
-   ```
-2. Generate comparison report:
-   ```bash
-   python runners/compare_results.py --results1 results/amp-run/ --results2 results/claude-run/
-   ```
-
-### Debugging Agent Execution
-
-1. Check NeMo observability: `python observability/metrics_exporter.py --trace-id <id>`
-2. Inspect task context: `bash tools/get-task-context <task-id>`
-3. Validate result format: `python tests/result_validation_test.py --result results/task-output.json`
-4. Review agent logs: Check `jobs/run-*/logs/agent.log`
-
-## Development Commands
-
-```bash
-# Validate Python package
-python setup.py check
-
-# Run all tests
-bash tests/smoke_test.sh && python -m pytest tests/
-
-# Format code
-black agents/ runners/ observability/ tests/
-
-# Type check
-mypy agents/ runners/ observability/
-
-# Run single benchmark
-bash runners/harbor_benchmark.sh --benchmark terminal-bench --agent amp --task-filter "task-001"
-
-# Export metrics
-python observability/metrics_exporter.py --format prometheus --output metrics.txt
-```
-
-## Key Files & Their Purpose
-
-| File | Purpose |
-|------|---------|
-| `agents/base.py` | Abstract base class and shared agent infrastructure |
-| `agents/amp_agent.py` | Amp-specific implementation with Sourcegraph integration |
-| `runners/harbor_benchmark.sh` | Main benchmark orchestrator script |
-| `docs/API.md` | Result format specification (required reading) |
-| `infrastructure/PODMAN.md` | Container setup and configuration |
-| `QUICK_START.md` | Getting started guide for new contributors |
-
-## Troubleshooting
-
-### Agent fails to initialize
-- Check `SRC_ACCESS_TOKEN` environment variable
-- Verify MCP client installation: `which mcp`
-- Review agent logs in Harbor output
-
-### Benchmark tasks don't find context files
-- Validate task manifest syntax in `benchmarks/<name>/manifest.json`
-- Verify file paths are relative to task directory
-- Check `bash tools/get-task-context <task-id>` for resolution
-
-### Results fail validation
-- Review result schema in `docs/API.md`
-- Run `python tests/result_validation_test.py --result <file>`
-- Check for missing required fields (agent_name, task_id, status, timestamp)
-
-### Container execution issues
-- For Podman: `podman ps` and check logs with `podman logs <container>`
-- For Docker compatibility: Ensure docker-wrapper.sh is in PATH
-- Review Harbor config in `infrastructure/harbor-config.yaml`
+- Agent initialization issues
+- Benchmark execution problems
+- Container and infrastructure issues
+- Result aggregation and comparison
+- Engram learning troubleshooting
+- Git and beads synchronization
 
 ---
 
