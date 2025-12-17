@@ -38,6 +38,73 @@ CodeContextBench is a benchmark evaluation framework for assessing how improved 
 - **metrics_exporter.py**: Exports metrics to external systems (Prometheus, S3, etc.)
 - Integration with NeMo-Agent-Toolkit for standardized observability across agents
 
+## Engram Integration: Continuous Learning Loop
+
+CodeContextBench uses **Engram** for structured learning from task execution. Every completed bead creates a learning signal that improves future agent performance.
+
+### Engram Workflow
+
+**For each completed bead:**
+
+```bash
+# 1. Work on the task (implement, test, commit)
+bd update <bead-id> --status in_progress
+
+# ... do the work ...
+
+# 2. Run quality gates
+python -m pytest tests/ -q
+
+# 3. Close the bead (triggers automatic learning)
+bd close <bead-id> --reason "Completed: [brief summary of what was done]"
+```
+
+**Engram automatically:**
+- Captures execution traces (test results, build outcomes, errors)
+- Extracts patterns from logs and traces
+- Generates insights about failure modes and success patterns
+- Stores learnings in `.engram/engram.db`
+- Updates knowledge base for future work
+
+### Learning Signals
+
+Each bead closure generates learning data:
+
+- **Successful tasks** → Extract what approach worked
+- **Failed tasks** → Extract error patterns and root causes
+- **Test results** → Correlate failures with code patterns
+- **Execution metadata** → Track tool usage and performance
+
+### Manual Learning (if needed)
+
+If you need to capture learning without closing a bead:
+
+```bash
+en learn --beads <bead-id>
+```
+
+This runs the learning pipeline on a specific bead's execution traces.
+
+### Querying Learned Knowledge
+
+```bash
+# See learned patterns
+en get-insights --limit 10 --sort-by confidence
+
+# Get specific patterns by tag
+en get-insights --tags error-handling --min-confidence 0.8
+
+# Review bullets (formatted learnings)
+en get-bullets --limit 20 --sort-by helpful
+```
+
+### Key Engram Concepts
+
+- **Trace**: Execution record (test pass/fail, build errors, etc.)
+- **Insight**: Extracted learning from one or more traces
+- **Bullet**: Formatted insight for reuse (stored in knowledge base)
+- **engram.db**: SQLite database containing all learnings
+
 ## Learned Patterns
 
 ### Agent Implementation Patterns
@@ -73,6 +140,18 @@ CodeContextBench is a benchmark evaluation framework for assessing how improved 
 [Bullet #ccb-032, helpful:0, harmful:0] Result validation must check for required fields - All benchmark results must validate against the Result schema defined in `docs/API.md`
 
 [Bullet #ccb-033, helpful:0, harmful:0] Fixture data in `tests/fixtures/` should be small and self-contained - Fixtures should be under 1MB each to ensure fast test execution; use symbolic references to `benchmarks/` for larger datasets
+
+### CodeContextBench-Specific Patterns
+
+[Bullet #ccb-100, helpful:0, harmful:0] Harbor task validation requires all 5 files - Tasks must have: instruction.md, task.toml, task.yaml, environment/Dockerfile, tests/test.sh. Use gen_harbor_tasks.py to ensure completeness.
+
+[Bullet #ccb-101, helpful:0, harmful:0] Task instructions must be type-specific - Each task type (cross_file_reasoning, refactor_rename, api_upgrade, bug_localization) needs specialized instruction language tailored to the problem domain.
+
+[Bullet #ccb-102, helpful:0, harmful:0] Claude baseline and Claude+MCP differ only in credentials and MCP config - Both agents use identical command generation; differentiation happens via SRC_ACCESS_TOKEN and --mcp-config at runtime, not in agent class code.
+
+[Bullet #ccb-103, helpful:0, harmful:0] Engram learning must be triggered on bead closure - Do NOT skip `en learn` after completing work. Learning is the mechanism for improving future agent performance across the codebase.
+
+[Bullet #ccb-104, helpful:0, harmful:0] Root directory contains ONLY permanent documentation - No ephemeral status files (MIGRATION_STATUS.md, SMOKE_TEST_RESULTS.md). Status is tracked in beads; planning docs go in history/ directory.
 
 ## Common Workflows
 
@@ -275,14 +354,21 @@ bd close bd-42 --reason "Completed" --json
 
 ### Workflow for AI Agents
 
+**Standard workflow with Engram learning:**
+
 1. **Check ready work**: `bd ready` shows unblocked issues
 2. **Claim your task**: `bd update <id> --status in_progress`
 3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked issue:
+4. **Run quality gates**: `python -m pytest tests/ -q` (or equivalent)
+5. **Discover new work?** Create linked issue:
    - `bd create "Found bug" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
+6. **Complete and learn**: `bd close <id> --reason "Completed: [summary]"`
    - A git hook automatically runs `en learn` to capture knowledge from completed work
-6. **Commit together**: Always commit the `.beads/issues.jsonl` file together with the code changes so issue state stays in sync with code state
+   - Engram extracts patterns from test results, errors, and execution traces
+   - Learnings stored in `.engram/engram.db` for future reference
+7. **Commit together**: Always commit the `.beads/issues.jsonl` file together with the code changes so issue state stays in sync with code state
+
+**Key principle:** Learning is NOT optional. Closing a bead triggers Engram to extract patterns that improve future performance.
 
 ### Auto-Sync
 
