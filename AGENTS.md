@@ -147,6 +147,23 @@ en get-bullets --limit 20 --sort-by helpful
 - Engram learning troubleshooting
 - Git and beads synchronization
 
+### Documentation Maintenance
+
+When working on CodeContextBench, keep these docs in sync with your changes:
+
+- **docs/ARCHITECTURE.md** - Update when directory structure, file organization, or agent architecture changes
+- **docs/DEVELOPMENT.md** - Update when adding new development workflows, commands, or setup procedures
+- **docs/TROUBLESHOOTING.md** - Update whenever you encounter and fix an issue not already documented
+- **AGENTS.md** - Update learned patterns section when discovering new patterns; keep file at ~500 lines max
+
+**Workflow:**
+1. Complete your work and commit code changes
+2. Update corresponding docs in `docs/` to reflect what you did
+3. Commit documentation updates together with code
+4. Close bead via `bd close` (triggers Engram learning)
+
+Documentation is part of the deliverable, not an afterthought.
+
 ---
 
 ## Deep Search CLI (ds)
