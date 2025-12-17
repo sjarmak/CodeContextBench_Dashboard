@@ -149,6 +149,8 @@ en get-bullets --limit 20 --sort-by helpful
 
 [Bullet #ccb-114, helpful:0, harmful:0] Infrastructure documentation should be modular and Podman-first - PODMAN.md covers setup/troubleshooting, docker-wrapper.sh is executable wrapper, harbor-config.yaml is configuration file. All referenced in infrastructure/README.md. Users should read PODMAN.md first.
 
+[Bullet #ccb-115, helpful:0, harmful:0] Task mining infrastructure enables real-world OSS task generation - src/task_mining/ provides GitHub API integration for mining issues/PRs from 7 target repos (Firefox, Kubernetes, PyTorch, VSCode, FFmpeg, TensorRT-LLM, Servo). Pipeline: mine → generate TaskSpecification → filter by CodeContextBench eligibility criteria (multi-file, token budget, test commands).
+
 ## Development & Operations
 
 **See development guide:** `docs/DEVELOPMENT.md`
