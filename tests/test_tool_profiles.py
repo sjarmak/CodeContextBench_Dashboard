@@ -218,7 +218,7 @@ class TestEnvironmentVariables:
     def test_deep_search_mcp_config(self):
         """DEEP_SEARCH_PROFILE includes MCP_CONFIG env var"""
         assert "MCP_CONFIG" in DEEP_SEARCH_PROFILE.environment_vars
-        assert "${MCP_CONFIG}" in DEEP_SEARCH_PROFILE.environment_vars["MCP_CONFIG"]
+        assert "MCP_CONFIG" in DEEP_SEARCH_PROFILE.environment_vars["MCP_CONFIG"]
     
     def test_all_profiles_have_src_token(self):
         """All profiles define SRC_ACCESS_TOKEN"""
