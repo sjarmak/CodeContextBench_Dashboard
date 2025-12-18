@@ -4,6 +4,15 @@
 **Difficulty:** MEDIUM  
 **Category:** cross_module_bug_fix
 
+
+## Sourcegraph Deep Search Available
+
+You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
+- Find relevant code patterns and implementations
+- Locate test cases and examples
+- Understand the architecture and dependencies
+- Search for similar fixes or related changes
+
 ## Description
 
 For `test_graph_partition_with_memory_plan_reuse`, before this PR, when using graph partition, it would error ([P1992728479](https://www.internalfb.com/phabricator/paste/view/P1992728479)):

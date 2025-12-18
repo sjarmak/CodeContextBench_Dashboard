@@ -4,6 +4,15 @@
 **Difficulty:** MEDIUM  
 **Category:** cross_module_bug_fix
 
+
+## Sourcegraph Deep Search Available
+
+You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
+- Find relevant code patterns and implementations
+- Locate test cases and examples
+- Understand the architecture and dependencies
+- Search for similar fixes or related changes
+
 ## Description
 
 Proper fix for #164048, fixes gather too, reverts #164049 Pull Request resolved: https://github.com/pytorch/pytorch/pull/166974 Approved by: https://github.com/eqy

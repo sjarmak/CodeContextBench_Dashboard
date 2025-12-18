@@ -4,6 +4,14 @@
 **Difficulty:** MEDIUM  
 **Category:** cross_module_bug_fix
 
+## Sourcegraph Deep Search Available
+
+You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
+- Find where `ncclCommGetAsyncError` is called
+- Understand thread safety issues in the distributed C10d code
+- Locate existing mutex/lock patterns for reference
+- Search for test cases related to NCCL async errors
+
 ## Description
 
 Fixes #169484

@@ -4,6 +4,15 @@
 **Difficulty:** MEDIUM  
 **Category:** cross_module_bug_fix
 
+
+## Sourcegraph Deep Search Available
+
+You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
+- Find relevant code patterns and implementations
+- Locate test cases and examples
+- Understand the architecture and dependencies
+- Search for similar fixes or related changes
+
 ## Description
 
 …in runtime_assert pass (#169497)"

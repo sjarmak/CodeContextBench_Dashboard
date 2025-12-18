@@ -4,6 +4,15 @@
 **Difficulty:** HARD  
 **Category:** cross_module_bug_fix
 
+
+## Sourcegraph Deep Search Available
+
+You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
+- Find relevant code patterns and implementations
+- Locate test cases and examples
+- Understand the architecture and dependencies
+- Search for similar fixes or related changes
+
 ## Description
 
 cuDNN dispatching heuristics rely on versions checks but currently only that compile-time version is exposed, if we want to allow users to resolve https://github.com/pytorch/pytorch/issues/166643 on their end by updating their cuDNN version locally we need to check the runtime version rather than compile-time version.

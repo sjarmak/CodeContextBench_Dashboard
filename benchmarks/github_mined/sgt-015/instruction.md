@@ -4,6 +4,15 @@
 **Difficulty:** EASY  
 **Category:** cross_module_bug_fix
 
+
+## Sourcegraph Deep Search Available
+
+You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
+- Find relevant code patterns and implementations
+- Locate test cases and examples
+- Understand the architecture and dependencies
+- Search for similar fixes or related changes
+
 ## Description
 
 Scheduler relies on node.last_usage to free buffers. `last_usage` may contain a buffer that is allocated in previous graph partition AND not directly accessed in the current graph partition.

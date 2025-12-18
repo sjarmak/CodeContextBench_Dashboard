@@ -4,6 +4,15 @@
 **Difficulty:** EASY  
 **Category:** feature_implementation
 
+
+## Sourcegraph Deep Search Available
+
+You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
+- Find relevant code patterns and implementations
+- Locate test cases and examples
+- Understand the architecture and dependencies
+- Search for similar fixes or related changes
+
 ## Description
 
 Stack from [ghstack](https://github.com/ezyang/ghstack/tree/0.12.0) (oldest at bottom):

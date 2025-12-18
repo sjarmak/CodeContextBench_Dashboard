@@ -4,6 +4,15 @@
 **Difficulty:** MEDIUM  
 **Category:** cross_module_bug_fix
 
+
+## Sourcegraph Deep Search Available
+
+You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
+- Find relevant code patterns and implementations
+- Locate test cases and examples
+- Understand the architecture and dependencies
+- Search for similar fixes or related changes
+
 ## Description
 
 When trying to bring cu129 back in https://github.com/pytorch/pytorch/pull/163029, I mainly looked at https://github.com/pytorch/pytorch/pull/163029 and missed another tweak coming from https://github.com/pytorch/pytorch/pull/162455
