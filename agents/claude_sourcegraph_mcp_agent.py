@@ -92,13 +92,8 @@ echo "=== Test Complete ==="
             # Ensure URL doesn't end with trailing slash
             sg_url = sg_url.rstrip('/')
 
-            # Test network connectivity before setting up MCP
-            network_ok = await self._test_network_connectivity(environment, sg_url)
-            if not network_ok:
-                self.logger.warning(
-                    "⚠ Network connectivity test failed. MCP may not work in this container. "
-                    "Continuing with MCP setup anyway, but watch for connection errors."
-                )
+            # Prepare network test script (but don't run it, just create it)
+            await self._test_network_connectivity(environment, sg_url)
 
             # Create .mcp.json with Sourcegraph MCP configuration
             mcp_config = {
