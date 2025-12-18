@@ -53,14 +53,28 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
             with open(config_path, "w") as f:
                 json.dump(mcp_config, f, indent=2)
             
-            # CRITICAL: Upload MCP config BEFORE calling super().setup()
-            # Claude needs to find this before it initializes
+            # Create the .claude directory and write mcp.json directly in container
+            # This must happen before Claude initializes
+            mcp_json_content = json.dumps(mcp_config, indent=2)
+            setup_cmd = f"""
+mkdir -p /root/.claude
+cat > /root/.claude/mcp.json << 'EOF'
+{mcp_json_content}
+EOF
+"""
+            result = await environment.exec(setup_cmd)
+            if result.return_code == 0:
+                self.logger.info(f"✓ Created /root/.claude/mcp.json in container")
+            else:
+                self.logger.warning(f"Failed to create MCP config: {result.stderr}")
+            
+            # Also upload for backup
             await environment.upload_file(
                 source_path=config_path,
                 target_path="/root/.claude/mcp.json"
             )
             
-            self.logger.info(f"✓ Uploading Sourcegraph MCP config before Claude initialization")
+            self.logger.info(f"✓ Configured Sourcegraph MCP: {sg_instance}")
             
             # Create CLAUDE.md with instructions for using Sourcegraph MCP
             claude_instructions = """# Sourcegraph MCP Available
