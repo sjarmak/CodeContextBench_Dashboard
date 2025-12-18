@@ -25,8 +25,8 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
     async def setup(self, environment: BaseEnvironment) -> None:
         """Setup Claude Code with Sourcegraph MCP configuration.
         
-        Creates MCP configuration file and uploads it to the task environment,
-        along with instructions for using the Sourcegraph MCP.
+        Creates MCP configuration file and uploads it to the task environment BEFORE
+        starting Claude, along with instructions for using the Sourcegraph MCP.
         Then runs standard Claude Code setup.
         """
         
@@ -53,13 +53,14 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
             with open(config_path, "w") as f:
                 json.dump(mcp_config, f, indent=2)
             
-            # Upload to Claude's config directory
+            # CRITICAL: Upload MCP config BEFORE calling super().setup()
+            # Claude needs to find this before it initializes
             await environment.upload_file(
                 source_path=config_path,
                 target_path="/root/.claude/mcp.json"
             )
             
-            self.logger.info(f"✓ Configured Sourcegraph MCP: {sg_instance}")
+            self.logger.info(f"✓ Uploading Sourcegraph MCP config before Claude initialization")
             
             # Create CLAUDE.md with instructions for using Sourcegraph MCP
             claude_instructions = """# Sourcegraph MCP Available
@@ -94,12 +95,12 @@ This is much more efficient than grep for understanding large codebases.
                 target_path="/workspace/CLAUDE.md"
             )
             
-            self.logger.info(f"✓ Created Sourcegraph MCP instructions")
+            self.logger.info(f"✓ Configured Sourcegraph MCP: {sg_instance}")
         else:
             self.logger.warning(
                 "⚠ Sourcegraph MCP not configured. Set SOURCEGRAPH_INSTANCE "
                 "and SOURCEGRAPH_ACCESS_TOKEN environment variables."
             )
         
-        # Run standard Claude Code setup
+        # NOW run standard Claude Code setup (which initializes Claude and picks up .mcp.json)
         await super().setup(environment)
