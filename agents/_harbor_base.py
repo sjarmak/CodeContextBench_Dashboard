@@ -16,6 +16,7 @@ class ExecInput:
     command: str
     env: Optional[Dict[str, str]] = None
     timeout_sec: Optional[int] = None
+    cwd: Optional[str] = None
 
 
 class AgentContext:
