@@ -18,20 +18,25 @@ from .claude_agent import ClaudeCodeAgent
 
 
 # MCP guidance to prepend to all instructions
-MCP_GUIDANCE = """You have access to Sourcegraph Deep Search via Model Context Protocol (MCP).
+MCP_GUIDANCE = """You have access to Sourcegraph via Model Context Protocol (MCP).
 
-IMPORTANT: Use the deep_search tool to understand the codebase structure before making changes:
-- Query for function/class definitions
-- Find usage patterns and references
-- Understand module relationships
-- Locate test files and examples
+USE THE MCP TOOLS TO UNDERSTAND THE CODEBASE:
+1. Use available tools to search for function definitions, class implementations, and usage patterns
+2. Find test files and understand how the code is tested
+3. Understand the module relationships and dependencies
+4. Make targeted, informed code changes based on this understanding
 
-Example queries:
+This deep codebase understanding will help you:
+- Make accurate, well-targeted changes
+- Avoid regressions
+- Write code consistent with the existing patterns
+- Understand the test infrastructure
+
+Example search queries:
 - "Find the definition of [function_name] and show how it's used"
 - "What modules import [module_name]?"
 - "Find all test files for [module_name]"
-
-This will help you make accurate, well-targeted changes.
+- "Where is [constant_name] defined and what references it?"
 
 ---
 

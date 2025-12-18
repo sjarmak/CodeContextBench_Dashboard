@@ -71,8 +71,9 @@ class BasePatchAgent(BaseInstalledAgent, ABC):
         This method orchestrates:
         1. Repository directory discovery (from /task/task.toml or /workspace)
         2. Git baseline capture
-        3. Agent execution
-        4. Patch extraction via git diff
+        3. Agent execution with explicit system prompt requiring task completion
+        4. Code changes validation (must be non-empty)
+        5. Patch extraction via git diff
         
         Args:
             instruction: The task instruction to pass to the agent
@@ -80,6 +81,19 @@ class BasePatchAgent(BaseInstalledAgent, ABC):
         Returns:
             List of ExecInput commands for Harbor to execute
         """
+        
+        # System prompt: Explicit requirement that agent must complete task
+        SYSTEM_PROMPT = """You are an expert coding agent. You MUST complete this coding task.
+
+CRITICAL REQUIREMENTS:
+1. This is NOT interactive - you cannot ask for approval or wait for human input
+2. You MUST make actual code changes to solve the problem
+3. Do NOT write placeholder code, pseudo-code, or incomplete solutions
+4. Work until the task is complete, including validating your solution
+5. Run tests to verify your implementation works
+6. Do NOT say "here's what I would do" - actually DO it
+
+Your goal is to implement the fix and pass all tests. Complete the task."""
         
         # Repo discovery shell script (supports Harbor's 10figure layout)
         repo_discovery_cmd = '''
@@ -99,8 +113,11 @@ if [ -z "$REPO_DIR" ]; then
 fi
 '''
         
+        # Combine system prompt with instruction
+        enhanced_instruction = f"{SYSTEM_PROMPT}\n\n---\n\n{instruction}"
+        
         # Get agent-specific command
-        agent_cmd = self.get_agent_command(instruction, "$REPO_DIR")
+        agent_cmd = self.get_agent_command(enhanced_instruction, "$REPO_DIR")
         
         # Assemble full execution script
         full_command = f"""
@@ -127,12 +144,29 @@ echo "Capturing git diff..."
 mkdir -p /logs/agent
 git diff --no-color --full-index "$BASE_SHA" > /logs/agent/patch.diff
 git diff --stat "$BASE_SHA" > /logs/agent/patch.stat
-echo "Patch saved to /logs/agent/patch.diff"
+
+# VALIDATE: Code changes must exist
+if [ ! -s /logs/agent/patch.diff ]; then
+    echo "ERROR: No code changes detected (patch.diff is empty)"
+    echo "Agent execution did not produce code modifications"
+    exit 1
+fi
+
+echo "✓ Patch saved to /logs/agent/patch.diff"
+echo "✓ Code changes validated (non-empty)"
+"""
+        
+        # Save system prompt for analysis
+        prompt_cmd = f"""
+mkdir -p /logs/agent
+cat > /logs/agent/system_prompt.txt << 'EOF'
+{SYSTEM_PROMPT}
+EOF
 """
         
         return [
             ExecInput(
-                command=full_command,
+                command=prompt_cmd + "\n" + full_command,
                 env=self.get_agent_env(),
                 timeout_sec=3600,  # 1 hour timeout for long-running tasks
             )

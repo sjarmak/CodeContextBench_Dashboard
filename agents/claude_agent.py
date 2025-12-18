@@ -39,6 +39,7 @@ class ClaudeCodeAgent(BasePatchAgent):
         
         Uses `-p` (print) mode with JSON output for:
         - Non-interactive, deterministic behavior
+        - Full streaming output capture for analysis
         - Structured output parsing
         - Script-friendly execution in Harbor containers
         
@@ -59,6 +60,7 @@ class ClaudeCodeAgent(BasePatchAgent):
         escaped_instruction = shlex.quote(instruction)
         
         # Claude Code in print mode with JSON output
+        # Captures both stdout and stderr to claude.txt for full conversation history
         # In Docker (running as root), use HOME=/root to fix permission issues
         return (
             f'export HOME=/root && cd {repo_path} && '
