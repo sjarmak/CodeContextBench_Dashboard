@@ -31,6 +31,7 @@ class ExecutionTrace:
     task_instruction: str
     agent_config: Dict[str, Any]
     agent_request: Optional[str]
+    agent_reasoning: str  # Plain text agent thinking/output
     agent_response: Optional[Dict[str, Any]]
     code_changes: str
     test_reward: float
@@ -66,6 +67,11 @@ class ExecutionTraceAggregator:
             # 3. Get agent request/response
             agent_request, agent_response = self._get_agent_interaction(task_dir)
             
+            # Extract readable agent reasoning
+            agent_reasoning = ""
+            if agent_response and 'agent_reasoning' in agent_response:
+                agent_reasoning = agent_response['agent_reasoning']
+            
             # 4. Get code changes
             patch = self._get_code_changes(task_dir)
             
@@ -84,6 +90,7 @@ class ExecutionTraceAggregator:
                 task_instruction=instruction,
                 agent_config=config,
                 agent_request=agent_request,
+                agent_reasoning=agent_reasoning,
                 agent_response=agent_response,
                 code_changes=patch,
                 test_reward=reward,
@@ -163,6 +170,10 @@ class ExecutionTraceAggregator:
                     pass
             
             # Request is implicit (the instruction), response is the JSON
+            # Extract agent reasoning from result field for readability
+            if response and 'result' in response:
+                response['agent_reasoning'] = response.get('result', '')
+            
             return None, response
         except Exception:
             return None, None
