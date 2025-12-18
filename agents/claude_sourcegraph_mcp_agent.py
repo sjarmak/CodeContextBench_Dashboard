@@ -33,6 +33,71 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
         # Just return parent's commands - MCP config is in .mcp.json file
         return super().create_run_agent_commands(instruction)
 
+    async def _test_network_connectivity(self, environment: BaseEnvironment, sg_url: str) -> bool:
+        """Test if container can reach Sourcegraph via HTTPS.
+        
+        Returns True if network test succeeds, False otherwise.
+        Logs detailed diagnostic information for debugging.
+        """
+        self.logger.info(f"Testing network connectivity to {sg_url}...")
+        
+        # Create a test script that will run in the container
+        test_script = f"""#!/bin/bash
+set -e
+echo "=== Container Network Connectivity Test ==="
+echo "Target: {sg_url}"
+echo ""
+
+# Test DNS resolution
+echo "1. Testing DNS resolution..."
+nslookup {sg_url.replace('https://', '').replace('http://', '').split('/')[0]} || echo "DNS resolution failed"
+
+# Test basic connectivity with curl
+echo ""
+echo "2. Testing HTTPS connectivity with curl..."
+curl -v --max-time 10 {sg_url}/health 2>&1 || echo "CURL failed with exit code $?"
+
+# Test with alternative method (wget)
+echo ""
+echo "3. Testing with wget..."
+wget --spider -v {sg_url}/health 2>&1 || echo "WGET failed with exit code $?"
+
+echo ""
+echo "=== Network Test Complete ==="
+"""
+        
+        test_script_path = self.logs_dir / "network_test.sh"
+        with open(test_script_path, "w") as f:
+            f.write(test_script)
+        
+        # Upload and run test script
+        await environment.upload_file(
+            source_path=test_script_path,
+            target_path="/workspace/network_test.sh"
+        )
+        
+        try:
+            # Run network test in container
+            result = await environment.exec(
+                ["bash", "/workspace/network_test.sh"],
+                timeout=30
+            )
+            
+            # Log the full output for diagnosis
+            self.logger.info(f"Network test output:\n{result.output}")
+            
+            # Check if test was successful (curl or wget succeeded)
+            success = result.exit_code == 0 or "200 OK" in result.output
+            if success:
+                self.logger.info(f"✓ Network connectivity test PASSED to {sg_url}")
+            else:
+                self.logger.warning(f"⚠ Network connectivity test FAILED. See output above.")
+            
+            return success
+        except Exception as e:
+            self.logger.error(f"Network test error: {e}")
+            return False
+
     async def setup(self, environment: BaseEnvironment) -> None:
         """Setup Claude Code environment.
 
@@ -51,6 +116,14 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
 
             # Ensure URL doesn't end with trailing slash
             sg_url = sg_url.rstrip('/')
+
+            # Test network connectivity before setting up MCP
+            network_ok = await self._test_network_connectivity(environment, sg_url)
+            if not network_ok:
+                self.logger.warning(
+                    "⚠ Network connectivity test failed. MCP may not work in this container. "
+                    "Continuing with MCP setup anyway, but watch for connection errors."
+                )
 
             # Create .mcp.json with Sourcegraph MCP configuration
             mcp_config = {
