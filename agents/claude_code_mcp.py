@@ -25,9 +25,12 @@ class ClaudeCodeMCP(ClaudeCode):
         """
         Create commands to run Claude Code with MCP server configured.
         
-        Adds MCP configuration setup before running Claude.
+        First get parent commands, then inject MCP configuration.
         """
         import shlex
+        
+        # Get parent's commands (handles auth, Claude setup, etc.)
+        parent_commands = super().create_run_agent_commands(instruction)
         
         # Get Sourcegraph credentials from environment
         src_token = os.environ.get("SRC_ACCESS_TOKEN", "")
@@ -36,30 +39,27 @@ class ClaudeCodeMCP(ClaudeCode):
         if not src_token:
             print("WARNING: SRC_ACCESS_TOKEN not set - MCP server will not work")
         
-        # Build environment for Claude
-        env = {
-            "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),
-            "CLAUDE_CODE_OAUTH_TOKEN": os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", ""),
-            "FORCE_AUTO_BACKGROUND_TASKS": "1",
-            "ENABLE_BACKGROUND_TASKS": "1",
-            "SRC_ACCESS_TOKEN": src_token,
-            "SOURCEGRAPH_URL": src_url,
-        }
+        # Find the Claude execution command (last command usually)
+        # and inject --mcp-config flag
+        modified_commands = []
+        for cmd in parent_commands:
+            if cmd.command and "claude " in cmd.command:
+                # Inject MCP config flag after "claude"
+                mcp_config_path = (EnvironmentPaths.agent_dir / "sessions" / "mcp.json").as_posix()
+                modified_cmd = cmd.command.replace(
+                    "claude ",
+                    f"claude --mcp-config {mcp_config_path} "
+                )
+                modified_commands.append(
+                    ExecInput(
+                        command=modified_cmd,
+                        env=cmd.env,
+                    )
+                )
+            else:
+                modified_commands.append(cmd)
         
-        # Remove empty credentials
-        env = {k: v for k, v in env.items() if v}
-        
-        if self.model_name:
-            env["ANTHROPIC_MODEL"] = self.model_name.split("/")[-1]
-        elif "ANTHROPIC_MODEL" in os.environ:
-            env["ANTHROPIC_MODEL"] = os.environ["ANTHROPIC_MODEL"]
-        
-        if "MAX_THINKING_TOKENS" in os.environ:
-            env["MAX_THINKING_TOKENS"] = os.environ["MAX_THINKING_TOKENS"]
-        
-        env["CLAUDE_CONFIG_DIR"] = (EnvironmentPaths.agent_dir / "sessions").as_posix()
-        
-        # MCP configuration
+        # Create MCP config before running Claude
         mcp_config = {
             "mcpServers": {
                 "sourcegraph": {
@@ -74,37 +74,16 @@ class ClaudeCodeMCP(ClaudeCode):
         }
         
         mcp_config_json = json.dumps(mcp_config, indent=2)
-        escaped_instruction = shlex.quote(instruction)
+        mcp_setup = ExecInput(
+            command=f"mkdir -p $CLAUDE_CONFIG_DIR && cat > $CLAUDE_CONFIG_DIR/mcp.json << 'MCPEOF'\n{mcp_config_json}\nMCPEOF",
+            env={"CLAUDE_CONFIG_DIR": (EnvironmentPaths.agent_dir / "sessions").as_posix()},
+        )
         
-        return [
-            # Create config directories
-            ExecInput(
-                command=(
-                    "mkdir -p $CLAUDE_CONFIG_DIR/debug $CLAUDE_CONFIG_DIR/projects/-app "
-                    "$CLAUDE_CONFIG_DIR/shell-snapshots $CLAUDE_CONFIG_DIR/statsig "
-                    "$CLAUDE_CONFIG_DIR/todos"
-                ),
-                env=env,
-            ),
-            # Write MCP configuration
-            ExecInput(
-                command=f"cat > $CLAUDE_CONFIG_DIR/mcp.json << 'MCPEOF'\n{mcp_config_json}\nMCPEOF",
-                env=env,
-            ),
-            # Verify MCP config was created
-            ExecInput(
-                command="echo 'MCP config:' && cat $CLAUDE_CONFIG_DIR/mcp.json",
-                env=env,
-            ),
-            # Run Claude with MCP enabled
-            ExecInput(
-                command=(
-                    f"claude --verbose --output-format stream-json "
-                    f"--mcp-config $CLAUDE_CONFIG_DIR/mcp.json "
-                    f"-p {escaped_instruction} --allowedTools "
-                    f"{' '.join(self.ALLOWED_TOOLS)} 2>&1 </dev/null | tee "
-                    f"/logs/agent/claude-code.txt"
-                ),
-                env=env,
-            )
-        ]
+        # Insert MCP setup before the claude command
+        result = []
+        for i, cmd in enumerate(modified_commands):
+            if cmd.command and "claude " in cmd.command:
+                result.append(mcp_setup)
+            result.append(cmd)
+        
+        return result
