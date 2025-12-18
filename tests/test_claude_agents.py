@@ -99,7 +99,7 @@ class TestClaudeCodeSourcegraphMCPAgent:
     
     @patch.dict(os.environ, {
         "ANTHROPIC_API_KEY": "test-key",
-        "SOURCEGRAPH_ACCESS_TOKEN": "sgp_test-token"
+        "SRC_ACCESS_TOKEN": "sgp_test-token"
     })
     def test_get_agent_env_with_sourcegraph(self):
         """Test environment variables include Sourcegraph MCP credentials."""
@@ -112,7 +112,7 @@ class TestClaudeCodeSourcegraphMCPAgent:
     
     @patch.dict(os.environ, {
         "ANTHROPIC_API_KEY": "test-key",
-        "SOURCEGRAPH_ACCESS_TOKEN": "sgp_test-token",
+        "SRC_ACCESS_TOKEN": "sgp_test-token",
         "SOURCEGRAPH_MCP_URL": "https://custom.sourcegraph.com/.api/mcp/v1"
     })
     def test_get_agent_env_custom_mcp_url(self):
@@ -130,15 +130,15 @@ class TestClaudeCodeSourcegraphMCPAgent:
                 agent.get_agent_env()
     
     def test_get_agent_env_missing_sourcegraph_token(self):
-        """Test that missing SOURCEGRAPH_ACCESS_TOKEN raises ValueError."""
+        """Test that missing SRC_ACCESS_TOKEN raises ValueError."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}, clear=True):
             agent = ClaudeCodeSourcegraphMCPAgent()
-            with pytest.raises(ValueError, match="SOURCEGRAPH_ACCESS_TOKEN"):
+            with pytest.raises(ValueError, match="SRC_ACCESS_TOKEN"):
                 agent.get_agent_env()
     
     @patch.dict(os.environ, {
         "ANTHROPIC_API_KEY": "test-key",
-        "SOURCEGRAPH_ACCESS_TOKEN": "sgp_test-token"
+        "SRC_ACCESS_TOKEN": "sgp_test-token"
     })
     def test_mcp_guidance_prepended_to_instruction(self):
         """Test that MCP guidance is prepended to instructions."""
@@ -156,7 +156,7 @@ class TestClaudeCodeSourcegraphMCPAgent:
     
     @patch.dict(os.environ, {
         "ANTHROPIC_API_KEY": "test-key",
-        "SOURCEGRAPH_ACCESS_TOKEN": "sgp_test-token"
+        "SRC_ACCESS_TOKEN": "sgp_test-token"
     })
     def test_create_mcp_setup_script_generates_config(self):
         """Test that _create_mcp_setup_script generates valid shell script."""

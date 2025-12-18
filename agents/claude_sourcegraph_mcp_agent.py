@@ -113,7 +113,8 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCodeAgent):
         
         Adds Sourcegraph credentials and MCP configuration to the base Claude environment:
         - ANTHROPIC_API_KEY: Claude API key for authentication
-        - SOURCEGRAPH_ACCESS_TOKEN: Sourcegraph API token for MCP
+        - SRC_ACCESS_TOKEN: Sourcegraph API token for MCP (read from env)
+        - SOURCEGRAPH_ACCESS_TOKEN: Passed to container (set from SRC_ACCESS_TOKEN)
         - SOURCEGRAPH_MCP_URL: URL of Sourcegraph MCP endpoint
         
         Returns:
@@ -126,10 +127,11 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCodeAgent):
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable must be set")
         
-        src_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN")
+        # Read from SRC_ACCESS_TOKEN (from .env.local)
+        src_token = os.environ.get("SRC_ACCESS_TOKEN")
         if not src_token:
             raise ValueError(
-                "SOURCEGRAPH_ACCESS_TOKEN environment variable must be set for Sourcegraph MCP. "
+                "SRC_ACCESS_TOKEN environment variable must be set for Sourcegraph MCP. "
                 "Get a token from https://sourcegraph.sourcegraph.com/user/settings/tokens"
             )
         
