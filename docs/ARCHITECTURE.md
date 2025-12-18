@@ -59,6 +59,39 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## Execution Phases
+
+### Phase 1: Setup (✅ Completed)
+- Installed Harbor framework (harborai v0.1.25)
+- Created isolated `.venv-harbor` environment
+- All 25 github_mined tasks converted to Harbor format
+
+### Phase 2: Docker Reproducibility (✅ Completed)
+- Fixed critical issue: Dockerfiles weren't cloning PyTorch repo
+- Updated all 25 Dockerfiles to include:
+  - `git clone https://github.com/pytorch/pytorch.git /workspace`
+  - `git checkout <commit>` (task-specific SHA or `main`)
+  - `git submodule update --init --recursive`
+- Single test validated: repo clones, Claude Code executes successfully
+
+### Phase 3: Real Benchmarks (🔄 In Progress)
+- **Baseline Pilot** (10 tasks, claude-code agent)
+  - Status: RUNNING
+  - Model: claude-haiku-4-5 (faster testing)
+  - Expected: 30-40% success rate
+  - ETA: 1.5-2 hours (15 min/task × 10)
+  
+- **MCP Pilot** (next, 10 tasks with Sourcegraph)
+  - Model: claude-haiku-4-5 with --mcp-config
+  - Expected: 70-90% success rate
+  - Hypothesis: +40-50% improvement from code search
+
+### Phase 4: Analysis & Publication
+- Extract metrics from Harbor job outputs
+- Compare baseline vs MCP results
+- Generate reproducibility documentation
+- Validate improvement hypothesis
+
 ## Directory Structure
 
 ### Core Components
@@ -104,14 +137,17 @@ Standardized benchmark task sets with consistent format:
 
 - **terminal-bench/** - Terminal-Bench 2.0 (89 self-contained implementation tasks)
 - **10figure/** - 10Figure-Codebases (25 reference cross-file reasoning tasks)
-- **github_mined/** - Real-world GitHub tasks (50 Kubernetes + PyTorch, Phase 2a)
+- **github_mined/** - Real-world GitHub tasks (25 PyTorch tasks, Phase 3 baseline)
 - **custom/** - Project-specific custom tasks
 
 Each task includes:
-- `instruction.md` - Task description
-- `task.toml` / `task.yaml` - Task metadata
-- `environment/Dockerfile` - Container setup
-- `tests/test.sh` - Validation script
+- `instruction.md` - Task description (includes commit SHA for reproducibility)
+- `task.toml` / `task.yaml` - Task metadata with `version = "1.0"` (Harbor requirement)
+- `environment/Dockerfile` - Container setup with repo clone
+  - **Critical**: Must include `git clone` + `git checkout` for reproducible execution
+  - Each task specifies exact commit (21 use `main`, 4 use specific SHAs extracted from instruction.md)
+  - Submodules initialized: `git submodule update --init --recursive`
+- `tests/test.sh` - Validation script with reward file output (`/logs/verifier/reward.txt`)
 
 #### `runners/` - Benchmark Execution
 

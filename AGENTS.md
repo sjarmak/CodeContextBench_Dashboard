@@ -8,6 +8,17 @@ This file documents agent-specific patterns, workflows, and best practices for t
 - Linking to external resources rather than duplicating
 - This file should be the **quick reference**, not comprehensive documentation
 
+## Current Status (Phase 3: Real Benchmarks)
+
+**Baseline Pilot**: RUNNING (10 tasks, claude-code agent)  
+**Start Time**: 2025-12-17 21:26 UTC  
+**ETA**: 1.5-2 hours  
+**Expected Result**: 30-40% success rate  
+
+All 25 Dockerfiles fixed with git clone logic. Single test validated. MCP pilot queued after baseline.
+
+See `history/HARBOR_READY.md` for detailed phase status.
+
 ## Project Overview
 
 CodeContextBench is a benchmark evaluation framework for assessing how improved codebase understanding through Sourcegraph tools improves coding agent output. It supports multiple agent implementations (Claude Code, Claude+MCP, etc.) running against standardized benchmark task sets.
@@ -151,7 +162,11 @@ en get-bullets --limit 20 --sort-by helpful
 
 [Bullet #ccb-115, helpful:0, harmful:0] Task mining infrastructure enables real-world OSS task generation - src/task_mining/ provides GitHub API integration for mining issues/PRs from 7 target repos (Firefox, Kubernetes, PyTorch, VSCode, FFmpeg, TensorRT-LLM, Servo). Pipeline: mine → generate TaskSpecification → filter by CodeContextBench eligibility criteria (multi-file, token budget, test commands).
 
-[Bullet #ccb-harb-001, helpful:0, harmful:0] Harbor CLI 0.3.0 is unmaintained and incompatible with typer>=0.20.0 - harbor-cli patches internal typer APIs that were removed in typer 0.20.0. No upgrade path. Workarounds: (1) rebuild Python environment from scratch, (2) implement custom Podman runner bypassing Harbor CLI, (3) use synthetic data for testing analysis pipeline. See PHASE_2B_BLOCKER.md.
+[Bullet #ccb-harb-001, helpful:1, harmful:0] Official harborai package (v0.1.25) works without typer conflicts - Use `pip install harborai` instead of old harbor-cli 0.3.0. Works perfectly with anthropic package. Create isolated .venv-harbor to avoid dependency issues.
+
+[Bullet #ccb-harb-002, helpful:1, harmful:0] Harbor Dockerfiles must clone PyTorch repo at task-specific commit - Initial test showed /workspace empty because Dockerfiles didn't clone. Added git clone + git checkout to all task Dockerfiles. Each task has correct commit SHA extracted from instruction.md (21 use main, 4 use specific SHAs).
+
+[Bullet #ccb-harb-003, helpful:1, harmful:0] Harbor executions hang on long git clone operations—expect 15+ minutes per task - PyTorch repo is 10GB+. First task takes longer due to full clone. Subsequent tasks reuse cached layers. Use -n 1 concurrency for testing, increase for full runs.
 
 ## Development & Operations
 
