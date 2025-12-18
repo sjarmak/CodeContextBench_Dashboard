@@ -1,8 +1,8 @@
-FROM golang:1.21
+FROM gcc:13
 
 WORKDIR /workspace
 
 # Install dependencies
-RUN go mod download
+RUN apt-get update && apt-get install -y cmake ninja-build
 
 # Task setup complete

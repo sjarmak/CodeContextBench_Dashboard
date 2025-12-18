@@ -4,6 +4,7 @@
 import json
 import sys
 from pathlib import Path
+import tomli_w
 
 def generate_task_dir(task_dict: dict, output_dir: Path) -> Path:
     """Generate a complete Harbor task directory from task dict."""
@@ -44,26 +45,29 @@ Run the test command to verify your implementation:
     
     (task_dir / "instruction.md").write_text(instruction)
     
-    # 2. task.toml
-    task_toml = f"""[metadata]
-name = "{task_id}"
-description = "{task_dict['description']}"
-license = "MIT"
-
-[task]
-id = "{task_id}"
-repo = "{task_dict['repo_key']}"
-category = "{task_dict['category']}"
-language = "{task_dict['language']}"
-difficulty = "{task_dict['difficulty']}"
-time_limit_sec = {task_dict['time_limit_seconds']}
-
-[verification]
-type = "{task_dict['verification_type']}"
-command = "{task_dict['test_command']}"
-"""
+    # 2. task.toml (use proper TOML library)
+    desc = task_dict['description'].split('\n')[0][:100]
+    task_toml_dict = {
+        'metadata': {
+            'name': task_id,
+            'description': desc,
+            'license': 'MIT',
+        },
+        'task': {
+            'id': task_id,
+            'repo': task_dict['repo_key'],
+            'category': task_dict['category'],
+            'language': task_dict['language'],
+            'difficulty': task_dict['difficulty'],
+            'time_limit_sec': task_dict['time_limit_seconds'],
+        },
+        'verification': {
+            'type': task_dict['verification_type'],
+            'command': task_dict['test_command'],
+        },
+    }
     
-    (task_dir / "task.toml").write_text(task_toml)
+    (task_dir / "task.toml").write_bytes(tomli_w.dumps(task_toml_dict).encode())
     
     # 3. environment/Dockerfile
     env_dir = task_dir / "environment"
