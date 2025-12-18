@@ -40,20 +40,32 @@ class ClaudeCodeMCP(ClaudeCode):
             print("WARNING: SRC_ACCESS_TOKEN not set - MCP server will not work")
         
         # Find the Claude execution command (last command usually)
-        # and inject --mcp-config flag
+        # and inject --mcp-config flag + env vars
         modified_commands = []
         for cmd in parent_commands:
             if cmd.command and "claude " in cmd.command:
                 # Inject MCP config flag after "claude"
                 mcp_config_path = (EnvironmentPaths.agent_dir / "sessions" / "mcp.json").as_posix()
+                
+                # Build env var prefix for command (env VAR=value ...)
+                env_prefix_parts = []
+                if cmd.env:
+                    for key, val in cmd.env.items():
+                        if val:  # Skip empty values
+                            env_prefix_parts.append(f"{key}={shlex.quote(val)}")
+                
+                env_prefix = " ".join(env_prefix_parts)
+                if env_prefix:
+                    env_prefix += " "
+                
                 modified_cmd = cmd.command.replace(
                     "claude ",
-                    f"claude --mcp-config {mcp_config_path} "
+                    f"{env_prefix}claude --mcp-config {mcp_config_path} "
                 )
                 modified_commands.append(
                     ExecInput(
                         command=modified_cmd,
-                        env=cmd.env,
+                        env={},  # Env already in command
                     )
                 )
             else:
