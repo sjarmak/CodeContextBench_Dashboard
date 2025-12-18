@@ -7,11 +7,7 @@
 
 ## Sourcegraph Deep Search Available
 
-You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
-- Find relevant code patterns and implementations
-- Locate test cases and examples
-- Understand the architecture and dependencies
-- Search for similar fixes or related changes
+You have access to **Sourcegraph Deep Search** via MCP. Use it instead of grep or manual code exploration to quickly understand the codebase and locate relevant patterns.
 
 ## Description
 

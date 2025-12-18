@@ -6,11 +6,7 @@
 
 ## Sourcegraph Deep Search Available
 
-You have access to **Sourcegraph Deep Search** to understand the codebase. Use it to:
-- Find where `ncclCommGetAsyncError` is called
-- Understand thread safety issues in the distributed C10d code
-- Locate existing mutex/lock patterns for reference
-- Search for test cases related to NCCL async errors
+You have access to **Sourcegraph Deep Search** via MCP. Use it instead of grep or manual code exploration to quickly understand the codebase and locate relevant patterns.
 
 ## Description
 
