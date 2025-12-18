@@ -5,7 +5,7 @@ set -e
 
 # Configuration
 BENCHMARK_PATH="benchmarks/github_mined"
-MODEL="anthropic/claude-3-5-sonnet-20241022"
+MODEL="anthropic/claude-haiku-4-5"
 TASKS=1  # Number of concurrent tasks
 
 # Load environment
