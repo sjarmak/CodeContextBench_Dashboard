@@ -29,40 +29,41 @@ CodeContextBench is a benchmark evaluation framework for assessing how improved 
 
 CodeContextBench uses **Engram** for structured learning from task execution. Every completed bead creates a learning signal that improves future agent performance.
 
-### CRITICAL: The Bead Closure Workflow
+### Bead Closure: Only When Work is Actually Complete
 
-**MANDATORY FOR ALL AGENTS:** You MUST close beads when work is complete. Forgetting to close a bead means:
-- ❌ No learning happens (Engram has nothing to learn from)
-- ❌ Other agents can't tell what work is done
-- ❌ The project knowledge base doesn't improve
+**⚠️ DO NOT close beads prematurely.** Only close a bead when the work is FULLY DONE and tested. Closing beads early means:
+- ❌ Work appears complete to other agents but is actually incomplete
+- ❌ The next agent wastes time discovering the work isn't done
+- ❌ Engram learns from incomplete work (bad signal)
+
+**What "complete" means:**
+- ✅ All code changes implemented and committed
+- ✅ All tests pass locally (`python -m pytest tests/ -q`)
+- ✅ No known bugs or issues remaining
+- ✅ Documentation updated if needed
+- ✅ Ready for another agent to use or build upon
+
+**If work is NOT complete:** Keep the bead in `in_progress` status. Do NOT close it.
 
 ### Engram Workflow
 
-**For each completed bead:**
+**When work on a bead is COMPLETELY FINISHED:**
 
 ```bash
-# 1. Claim the bead
-bd update <bead-id> --status in_progress
+# 1. Verify all work is done (not in progress)
+# - Code changes committed
+# - Tests passing
+# - No known remaining issues
 
-# 2. Do the work (implement, test, commit code changes)
-# ... implement, write tests, run tests locally ...
-
-# 3. Run quality gates to verify work is complete
+# 2. Run final quality gates
 python -m pytest tests/ -q
-# OR for Harbor benchmarks:
-python -m src.runners.harbor_runner --task-set <task-set> --agent <agent>
 
-# 4. COMMIT YOUR CHANGES (important for git history)
-git add .
-git commit -m "Completed: <bead-id> - [brief description]"
-
-# 5. MUST: Close the bead using bd close
-# This triggers the git hook that runs Engram learning
-bd close <bead-id> --reason "Completed: [brief description of what was done]"
+# 3. Close the bead (only if work is truly complete)
+bd close <bead-id> --reason "Completed: [detailed description of what was accomplished]"
 ```
 
 **What happens on `bd close`:**
-- Bead gets `closedAt` timestamp and status is finalized
+- Bead gets `closedAt` timestamp (marks it as finished)
 - Git hook automatically detects closure and runs `en learn`
 - Engram captures execution traces from your test/build runs
 - Engram extracts patterns and stores learnings in `.engram/engram.db`
@@ -70,9 +71,10 @@ bd close <bead-id> --reason "Completed: [brief description of what was done]"
 
 ### Important Notes
 
-- **Don't forget the final `bd close`!** This is not optional. Without it, Engram learns nothing.
-- **Execution traces come from tests/builds you ran.** Make sure to run tests before closing.
-- **The git hook is automatic** - just `bd close` and `git commit`, the learning happens on post-commit.
+- **ONLY close when work is 100% complete.** Don't close to "finish" a bead if work remains.
+- **Closing a bead is a promise** that the next agent can pick it up and it will work.
+- **When in doubt, leave it in `in_progress`.** It's better to be conservative.
+- **Engram learns from complete, working code.** Incomplete code creates bad learning signals.
 
 ### Manual Learning Capture (if needed)
 
@@ -324,7 +326,7 @@ bd close bd-42 --reason "Completed" --json
 
 ### Workflow for AI Agents
 
-**MANDATORY WORKFLOW (enforce this for all agents):**
+**Standard workflow:**
 
 1. **Check ready work**: `bd ready` shows unblocked issues
 2. **Claim your task**: `bd update <id> --status in_progress`
@@ -335,23 +337,22 @@ bd close bd-42 --reason "Completed" --json
 6. **Commit your changes**:
    ```bash
    git add .
-   git commit -m "Completed: <bead-id> - [description]"
+   git commit -m "<bead-id>: [description of what was done]"
    ```
-7. **MANDATORY: Close the bead** (do NOT skip this step):
+7. **Only if work is 100% complete**: Close the bead
    ```bash
    bd close <id> --reason "Completed: [detailed summary]"
    ```
-   - This finalizes the bead with a `closedAt` timestamp
+   - Finalizes the bead with a `closedAt` timestamp
    - Git hook detects closure and auto-runs `en learn`
-   - Engram captures execution traces from your test/build runs
-   - Patterns extracted and stored in `.engram/engram.db`
-   - Knowledge automatically available for future work
+   - Engram extracts patterns from your test/build runs
+   - Knowledge stored in `.engram/engram.db` for future work
 
-**Key principle:** 
-- ⚠️ **Closing a bead is NOT optional** - it's how Engram learns
-- ✅ Always commit code BEFORE closing the bead
-- ✅ Run tests/builds BEFORE closing (so Engram has execution data to learn from)
-- ❌ Never skip the final `bd close` step
+**Key principles:** 
+- ✅ Close beads when work is truly complete (not before)
+- ✅ Keep beads in `in_progress` if more work remains
+- ✅ Run tests before closing (Engram learns from test results)
+- ❌ Don't close a bead to "finish" it if work is incomplete
 
 ### Auto-Sync
 
@@ -431,11 +432,18 @@ AI assistants often create temporary planning documents during development:
 
 **When the user says "let's land the plane"**, follow this clean session-ending protocol:
 
-1. **CRITICAL: Close all finished beads** - Any bead with completed work MUST be closed via `bd close`. This is NOT optional.
+1. **Review each bead you worked on** - Only close beads where work is COMPLETELY finished
    ```bash
-   bd close <bead-id> --reason "Completed: [summary]"
+   bd list --json | jq '.[] | select(.status == "in_progress")'
    ```
-   Do this for every bead you worked on today.
+   For each bead:
+   - Is all code done and committed? 
+   - Do all tests pass?
+   - Are there any remaining issues?
+   - If YES to all: Close it. If NO: Leave it open.
+   ```bash
+   bd close <bead-id> --reason "Completed: [detailed summary]"
+   ```
 
 2. **File beads issues for remaining work** that needs follow-up
    ```bash
@@ -478,19 +486,25 @@ AI assistants often create temporary planning documents during development:
 **Example "land the plane" session:**
 
 ```bash
-# 1. CLOSE ALL FINISHED BEADS (this must happen first)
-bd close bd-42 --reason "Completed: Implemented feature X"
-bd close bd-43 --reason "Completed: Fixed bug Y"
+# 1. Check what's in progress
+bd list --json | jq '.[] | select(.status == "in_progress") | {id, title}'
+
+# For EACH bead - check if work is truly complete
+# bd-42: Implemented feature X → Code done? Tests pass? YES → Close it
+# bd-43: Fixed bug Y → Code done? Tests pass? Remaining issues? → Leave open
+
+bd close bd-42 --reason "Completed: Implemented feature X and all tests pass"
+# bd-43 stays open (more work needed)
 
 # 2. File remaining work
-bd create "Add integration tests" -t task -p 2
+bd create "Complete feature Y implementation" -t task -p 1 --deps discovered-from:bd-43
 
 # 3. Run quality gates
 python -m pytest tests/ -q
 
 # 4. Commit everything
 git add .
-git commit -m "Session close: Completed bd-42 and bd-43"
+git commit -m "Session: Closed bd-42, filed follow-up work"
 
 # 5. Sync carefully
 git pull --rebase
@@ -502,12 +516,15 @@ git remote prune origin
 
 # 7. Verify
 git status
-bd ready  # See what's next
+bd ready  # See what's ready to work on
 
-# 8. Report back to user with recommended next prompt
+# 8. Report back to user
+# - Closed beads: bd-42 (complete)
+# - Open beads: bd-43 (more work needed)
+# - New issues: follow-up tasks filed
 ```
 
-**REMEMBER:** If you don't close beads, Engram never learns from the work you did. Learning is the entire point of Engram.
+**Key insight:** Closing beads too early creates false confidence. The next agent thinks work is done when it's not. Be conservative. When in doubt, leave it open.
 
 Then provide the user with:
 
