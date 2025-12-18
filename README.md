@@ -1,14 +1,14 @@
 # CodeContextBench
 
-Unified benchmark framework for evaluating coding agents with/without Sourcegraph code intelligence tools. Migrates and consolidates sg_benchmark and sourcegraph-benchmarks projects.
+Benchmark framework for evaluating how improved codebase understanding through Sourcegraph code intelligence tools improves coding agent performance.
 
 ## Quick Overview
 
 - **Goal**: Measure ROI of Sourcegraph code search (via MCP) for coding agents
 - **Primary Agent**: Claude Code (via CLI through Harbor)
-- **Task Corpus**: 10Figure-Codebases (23 real-world repos, 16k+ symbol/API tasks)
-- **Framework**: Harbor + Podman (proven working in sourcegraph-benchmarks)
-- **Evaluation**: JSON patches + git diff → test pass/fail → effectiveness metrics
+- **Task Corpus**: github_mined (25 real-world PyTorch tasks, Phase 3 baseline)
+- **Framework**: Harbor + Podman (reproducible container execution)
+- **Evaluation**: Agent executes task → git diff captured → tests run → success/failure metrics
 
 ## Architecture
 
@@ -59,8 +59,12 @@ Claude Code with Sourcegraph MCP server integration:
 
 ## Datasets
 
-- **10Figure-Codebases**: `/Users/sjarmak/10Figure-Codebases/` (~5GB, 23 repos)
-- **Harbor Task Manifest**: `/Users/sjarmak/harbor-10figure-dataset/`
+- **github_mined**: 25 real-world PyTorch tasks (Phase 3 baseline)
+  - `benchmarks/github_mined/sgt-001` through `sgt-025`
+  - Mixed difficulty levels, deterministic verification
+  - Exact commit SHAs locked in Dockerfiles for reproducibility
+- **10Figure-Codebases**: `/Users/sjarmak/10Figure-Codebases/` (~5GB, 23 repos, reference corpus)
+- **terminal-bench**: Self-contained implementation tasks (future corpus)
 
 ## Phase Status
 
@@ -78,15 +82,12 @@ Claude Code with Sourcegraph MCP server integration:
 ✅ Harbor task generation & validation infrastructure
 ✅ See [docs/MINING_EXECUTION_REPORT.md](docs/MINING_EXECUTION_REPORT.md)
 
-### Phase 2b: Benchmark Execution (IN PROGRESS)
-⏳ Pilot benchmark (10 tasks, both agents)
-⏳ Full benchmark suite (50 + 4 10figure tasks × 2 agents)
-⏳ Manifest generation and tool usage tracking
-
-### Phase 2c: Analysis (READY FOR EXECUTION)
-⏳ Comparative analysis (baseline vs +MCP)
-⏳ Failure mode analysis by category/difficulty/language
-⏳ Hypothesis validation report
+### Phase 3: Real Benchmarks (IN PROGRESS)
+✅ Fixed Docker repo cloning (all 25 tasks)
+🔄 Baseline pilot (10 tasks, claude-code agent) - RUNNING
+⏳ MCP pilot (10 tasks, +Sourcegraph Deep Search)
+⏳ Metric extraction and comparative analysis
+⏳ Hypothesis validation (30-40% baseline, 70-90% with MCP)
 
 See `.beads/issues.jsonl` for full task list.
 
