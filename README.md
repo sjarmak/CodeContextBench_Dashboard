@@ -93,7 +93,8 @@ See `.beads/issues.jsonl` for full task list.
 ## Contributing
 
 - Use `bd ready` to find unblocked work
-- All changes require `en learn` before closing beads
+- Always close beads with `bd close` (triggers Engram learning)
+- Run `en learn --beads <id>` manually if capturing learning without closure
 - Store AI planning docs in `history/` directory
 - Always use `--json` flag for programmatic tools
 

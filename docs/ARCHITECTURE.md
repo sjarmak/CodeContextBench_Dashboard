@@ -7,6 +7,7 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 - **Claude-first design**: Primary agents are Claude-based (baseline + MCP variants)
 - **Modular agent support**: Easy to add new agent types (Termius, Cursor, etc.)
 - **Structured observability**: NeMo-Agent-Toolkit integration for detailed metrics
+- **Continuous learning**: Engram framework captures execution patterns and improves future performance
 
 
 ## High-Level Architecture
@@ -155,6 +156,12 @@ Each task includes:
 - Tracks all work items: bugs, features, tasks, epics
 - Dependency-aware: tracks blockers and relationships
 - Auto-populated from `bd` CLI commands
+
+#### `.engram/` - Knowledge & Learning
+
+- **engram.db** - SQLite database with learned patterns
+- Populated automatically when beads are closed via `en learn`
+- Stores execution traces, insights, bullets (formatted learnings)
 
 ### Configuration Files
 
