@@ -203,6 +203,39 @@ sqlite3 .engram/engram.db "SELECT * FROM insights LIMIT 10;"
 - **Bullet**: Formatted insight for reuse (stored in knowledge base)
 - **engram.db**: SQLite database containing all learnings
 
+## Sourcegraph MCP Agent Implementation
+
+### ClaudeCodeSourcegraphMCPAgent Pattern
+
+**File**: `agents/claude_sourcegraph_mcp_agent.py`  
+**Import**: `agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent`
+
+The agent follows the practical approach of extending Harbor's built-in `ClaudeCode` agent without modifying the installed package:
+
+1. **Lazy Imports**: `agents/__init__.py` avoids importing Harbor at module load time
+2. **Credential Management**: Reads `SOURCEGRAPH_INSTANCE` and `SOURCEGRAPH_ACCESS_TOKEN` from environment
+3. **Configuration**: Generates `.mcp.json` with HTTP server configuration pointing to Sourcegraph
+4. **File Upload**: Uploads config to task container at `/app/.mcp.json`
+5. **Graceful Degradation**: Logs warning if credentials missing but agent continues
+
+**Usage**:
+```bash
+# Set credentials
+export SOURCEGRAPH_INSTANCE="sourcegraph.com"
+export SOURCEGRAPH_ACCESS_TOKEN="your-token"
+
+# Run with agent
+harbor run \
+  --path benchmarks/github_mined \
+  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
+  --model anthropic/claude-3-5-sonnet-20241022 \
+  -n 1
+```
+
+See `docs/MCP_SETUP.md` for full setup and troubleshooting guide.
+
+---
+
 ## Phase 4: Single-Task Validation (Current Focus)
 
 **Status**: In progress  
