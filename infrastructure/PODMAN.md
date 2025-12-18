@@ -1,33 +1,35 @@
-# Podman Setup for CodeContextBench
+# Harbor + Daytona on macOS (Podman-based)
 
-CodeContextBench supports **Podman** as the primary container runtime for Harbor benchmark execution.
+**Current Standard Setup**: We run Harbor using Podman (not Docker Desktop) with **Daytona** as the execution backend. This setup is permanent and should be assumed for all runs.
 
 ## Quick Start
 
 ### Prerequisites
 
-- Podman 5.0+ installed (`podman --version`)
+- Podman 5.0+ with machine (`podman --version`, `podman machine start`)
 - `podman-compose` installed (`pip install podman-compose`)
-- Harbor installed (`uv tool install harbor`)
-- `docker` wrapper script at `~/bin/docker` (see [Setup](#setup) below)
+- Harbor installed in dedicated venv (`source harbor/bin/activate`)
+- Docker compatibility shim at `~/.bin/docker`
+- Daytona API key in `~/.config/daytona/env.sh`
 
-### Environment Setup
-
-Set up your environment before running benchmarks:
+### Running Harbor (Standard)
 
 ```bash
-# 1. Ensure wrapper is in PATH
-export PATH="$HOME/bin:$PATH"
+# 1. Activate Harbor venv (sets up DOCKER_HOST, PATH, Daytona API key)
+source harbor/bin/activate
 
-# 2. Load credentials from .env.local
-source infrastructure/load-env.sh
-
-# 3. Run Harbor with Podman
-harbor run -d terminal-bench@2.0 \
-  --agent-import-path agents:ClaudeAgent \
-  --task-name "cross_file_reasoning_01" \
+# 2. Run Harbor with Daytona backend
+harbor run \
+  --dataset swebench-verified@1.0 \
+  --agent oracle \
+  --env daytona \
   -n 1
 ```
+
+That's it. The venv handles:
+- Setting `DOCKER_HOST` to Podman socket
+- Adding `~/.bin/docker` (Podman shim) to PATH
+- Loading Daytona credentials from `~/.config/daytona/env.sh`
 
 ## Why Podman?
 
@@ -36,17 +38,33 @@ harbor run -d terminal-bench@2.0 \
 - **Drop-in replacement** - Works with Harbor via our docker wrapper script
 - **CI/CD friendly** - Better container isolation, works in restricted environments
 
-## How It Works
+## Container Runtime
 
-Harbor hardcodes `docker` and `docker compose` commands. We intercept these with a wrapper script at `~/bin/docker` that:
+**Podman machine** is the actual container runtime. We expose a Docker-compatible API socket from Podman and point all tools at it.
 
-1. **Translates `docker compose` commands** to `podman-compose` or `podman` as needed
-2. **Handles incompatibilities** (e.g., `podman-compose` doesn't support `cp` or `-it` flags)
-3. **Maps container names** from Docker compose service names to Podman container IDs
+### Key Invariants
 
-### Command Translation
+```bash
+which docker
+# → ~/.bin/docker   (Podman shim)
 
-| Harbor Command | Translation |
+echo $DOCKER_HOST
+# → unix://$HOME/.local/share/containers/podman/machine/podman.sock
+
+# Verify socket is live:
+curl --unix-socket "$HOME/.local/share/containers/podman/machine/podman.sock" http://d/_ping
+# → OK
+```
+
+### How It Works
+
+- **Podman machine** - Actual container runtime (rootless VM on macOS)
+- **Docker socket** - Exposed at `$HOME/.local/share/containers/podman/machine/podman.sock`
+- **Docker shim** (`~/.bin/docker`) - Wrapper that translates Docker commands to Podman
+
+The shim handles incompatibilities that Docker API clients may have:
+
+| Harbor/Tool Command | Translation |
 |---|---|
 | `docker compose up` | `podman-compose up` |
 | `docker compose exec -it` | `podman exec` (with flags adjusted) |
@@ -96,54 +114,108 @@ docker --version
 
 ### Podman Machine (macOS)
 
-On macOS, start Podman machine before running benchmarks:
+On macOS, ensure Podman machine is running:
 
 ```bash
-# Initialize (one-time)
+# Initialize (one-time, ~10 mins)
 podman machine init --cpus 4 --memory 4096
 
 # Start for each session
 podman machine start
 
-# Verify
+# Verify it's running
 podman info
+
+# Stop when done
+podman machine stop
 ```
 
 To start Podman machine automatically on login, see Podman's documentation.
 
+## Daytona Authentication
+
+**Daytona will silently fail to create sandboxes** if the API key is missing. This shows up in Harbor as "Sandbox not found. Please build the environment first."
+
+### Setup (One-Time)
+
+The Daytona API key is stored permanently at:
+
+```bash
+# Canonical location (not in git):
+~/.config/daytona/env.sh
+
+# Contents:
+export DAYTONA_API_KEY="..."
+# optionally:
+# export DAYTONA_API_URL="https://app.daytona.io/api"
+# export DAYTONA_TARGET="..."
+```
+
+This file is sourced automatically during venv activation.
+
+### Verification
+
+After activating the Harbor venv, verify credentials are loaded:
+
+```bash
+source harbor/bin/activate
+
+# Check that Daytona API key is set
+env | grep DAYTONA_API_KEY
+
+# Check that docker is pointing to Podman
+which docker  # → ~/.bin/docker
+
+# Verify Podman socket is accessible
+curl --unix-socket "$HOME/.local/share/containers/podman/machine/podman.sock" http://d/_ping
+# → OK
+```
+
 ## Troubleshooting
+
+### "Sandbox not found. Please build the environment first."
+
+**Cause**: Daytona API key is missing or invalid.
+
+**Solution**: Verify Daytona credentials:
+
+```bash
+source harbor/bin/activate
+env | grep DAYTONA_API_KEY  # Should show the key
+
+# If not set, create or edit ~/.config/daytona/env.sh
+cat ~/.config/daytona/env.sh
+```
+
+### Harbor fails with "Harbor + Daytona on macOS (Podman-based)" in error
+
+**Cause**: Podman machine is not running or socket is inaccessible.
+
+**Solution**: Start Podman machine and verify socket:
+
+```bash
+podman machine start
+podman info  # Should work
+
+# Verify socket
+curl --unix-socket "$HOME/.local/share/containers/podman/machine/podman.sock" http://d/_ping
+# Should return: OK
+```
 
 ### "docker: command not found"
 
-**Solution**: Ensure wrapper is in PATH
+**Solution**: Ensure wrapper is in PATH and Harbor venv is activated
 
 ```bash
-which docker  # Should point to ~/bin/docker
-export PATH="$HOME/bin:$PATH"
+source harbor/bin/activate
+which docker  # Should point to ~/.bin/docker
 ```
 
-### "Error: Could not find container for project"
-
-**Cause**: Wrapper can't find the container Harbor created.
-
-**Solution**: Check what containers exist:
+If not in PATH after activation, verify `.bin/docker` exists:
 
 ```bash
-podman ps
-podman ps --all
-```
-
-Ensure Harbor has started containers successfully.
-
-### "podman-compose: command not found"
-
-**Solution**: Install podman-compose
-
-```bash
-pip install podman-compose
-
-# Verify
-podman-compose --version
+ls -la ~/.bin/docker
+chmod +x ~/.bin/docker
 ```
 
 ### Podman machine won't start (macOS)
@@ -167,6 +239,26 @@ podman info | grep -i rootless
 podman system migrate
 ```
 
+## Sanity Checks
+
+If something breaks, run these checks to diagnose:
+
+```bash
+# Check environment setup
+env | egrep '^(DAYTONA_|DOCKER_HOST=)'
+
+# Check docker wrapper is in use
+which docker  # Should be ~/.bin/docker
+
+# Check Podman is accessible
+docker ps
+
+# Check Daytona integration
+daytona target list
+```
+
+All of these should succeed if setup is correct.
+
 ## Performance Tips
 
 1. **Allocate resources to Podman machine** (macOS):
@@ -189,34 +281,6 @@ podman system migrate
    ```bash
    podman stats
    ```
-
-## Switching Between Podman and Docker
-
-### Use Podman (default)
-
-```bash
-export PATH="$HOME/bin:$PATH"
-export CONTAINER_RUNTIME=podman
-# Harbor will use podman via wrapper
-```
-
-### Use Docker Desktop (if installed)
-
-```bash
-# Remove wrapper from PATH or use direct path
-unset CONTAINER_RUNTIME
-/usr/local/bin/docker --version  # Use Docker directly
-```
-
-## Integration with Harbor
-
-Harbor expects a `docker` command in PATH. The wrapper at `~/bin/docker` satisfies this by:
-
-1. Accepting the same CLI flags as Docker
-2. Translating incompatible commands
-3. Delegating to `podman` or `podman-compose`
-
-This allows Harbor to work seamlessly with Podman without code changes.
 
 ## See Also
 

@@ -1,10 +1,12 @@
-# Development Setup
+# Development & Benchmark Setup
 
-CodeContextBench uses a dedicated Python virtual environment to manage dependencies, including integration with NeMo-Agent-Toolkit.
+CodeContextBench uses two separate Python environments:
+1. **`.venv`** - Development environment (tests, utilities, analysis)
+2. **`harbor/`** - Harbor environment (for running benchmarks with Daytona)
 
-## Quick Start
+## Quick Start: Development
 
-### 1. Create Virtual Environment
+### 1. Create Development Virtual Environment
 
 ```bash
 cd CodeContextBench
@@ -34,6 +36,24 @@ pytest tests/test_observability.py -v
 # With coverage
 pytest tests/ --cov=src --cov=observability --cov=runners
 ```
+
+## Running Benchmarks: Harbor + Daytona
+
+To run benchmarks, use the **Harbor venv** instead of `.venv`:
+
+```bash
+# Activate Harbor environment (sets up Daytona credentials, DOCKER_HOST, PATH)
+source harbor/bin/activate
+
+# Run Harbor with Daytona backend
+harbor run \
+  --dataset swebench-verified@1.0 \
+  --agent oracle \
+  --env daytona \
+  -n 1
+```
+
+See **infrastructure/PODMAN.md** for complete Harbor + Daytona setup and troubleshooting.
 
 ## Python Version
 
