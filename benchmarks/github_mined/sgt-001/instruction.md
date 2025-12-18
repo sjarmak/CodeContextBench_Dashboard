@@ -4,9 +4,6 @@
 **Difficulty:** MEDIUM  
 **Category:** cross_module_bug_fix
 
-## Sourcegraph Deep Search Available
-
-You have access to **Sourcegraph Deep Search** via MCP. Use it instead of grep or manual code exploration to quickly understand the codebase and locate relevant patterns.
 
 ## Description
 

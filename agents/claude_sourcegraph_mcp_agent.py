@@ -26,7 +26,8 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
         """Setup Claude Code with Sourcegraph MCP configuration.
         
         Creates MCP configuration file and uploads it to the task environment,
-        then runs standard Claude Code setup.
+        along with instructions for using the Sourcegraph MCP.
+        Then runs standard Claude Code setup.
         """
         
         # Get Sourcegraph credentials from environment
@@ -59,6 +60,41 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
             )
             
             self.logger.info(f"✓ Configured Sourcegraph MCP: {sg_instance}")
+            
+            # Create CLAUDE.md with instructions for using Sourcegraph MCP
+            claude_instructions = """# Sourcegraph MCP Available
+
+You have access to **Sourcegraph MCP** via the Sourcegraph server. Use it to understand the codebase instead of relying on grep or manual file exploration.
+
+## How to Use
+
+When you need to understand code patterns, find relevant files, or explore the repository structure:
+1. Use the Sourcegraph MCP tools to query the codebase intelligently
+2. Ask questions about code patterns, dependencies, and implementations
+3. Leverage Deep Search for complex queries across the entire codebase
+
+## Available Tools
+
+The Sourcegraph MCP server provides tools for:
+- Searching and exploring code
+- Understanding code structure and dependencies
+- Finding usage patterns and implementations
+- Analyzing code relationships
+
+This is much more efficient than grep for understanding large codebases.
+"""
+            
+            instructions_path = self.logs_dir / "CLAUDE.md"
+            with open(instructions_path, "w") as f:
+                f.write(claude_instructions)
+            
+            # Upload to task working directory
+            await environment.upload_file(
+                source_path=instructions_path,
+                target_path="/app/CLAUDE.md"
+            )
+            
+            self.logger.info(f"✓ Created Sourcegraph MCP instructions")
         else:
             self.logger.warning(
                 "⚠ Sourcegraph MCP not configured. Set SOURCEGRAPH_INSTANCE "
