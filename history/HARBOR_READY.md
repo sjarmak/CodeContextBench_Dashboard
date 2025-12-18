@@ -1,21 +1,21 @@
 # Harbor Framework Ready - Phase 3: Real Execution (CodeContextBench-09h)
 
-**Status**: ✅ BASELINE PILOT RUNNING  
+**Status**:  BASELINE PILOT RUNNING  
 **Date**: 2025-12-17  
 **Outcome**: All 25 github_mined tasks fully prepared; Docker git clone added; baseline (10 tasks) executing now
 
 ---
 
-## What Worked ✅
+## What Worked 
 
-- ✅ Installed `harbor` package v0.1.25 without dependency conflicts
-- ✅ `harbor` CLI works and imports agent classes successfully
-- ✅ Our `task.toml` + `instruction.md` + `environment/Dockerfile` + `tests/test.sh` format is **100% Harbor-compatible**
-- ✅ Task validation with `harbor tasks check` runs successfully
-- ✅ All 25 github_mined tasks updated with:
+-  Installed `harbor` package v0.1.25 without dependency conflicts
+-  `harbor` CLI works and imports agent classes successfully
+-  Our `task.toml` + `instruction.md` + `environment/Dockerfile` + `tests/test.sh` format is **100% Harbor-compatible**
+-  Task validation with `harbor tasks check` runs successfully
+-  All 25 github_mined tasks updated with:
   - `version = "1.0"` in task.toml (Harbor requirement)
   - Reward file generation in tests/test.sh (`/logs/verifier/reward.txt`)
-- ✅ Harbor CLI flag `--path` enables local dataset execution without registry entries
+-  Harbor CLI flag `--path` enables local dataset execution without registry entries
 
 ---
 
@@ -39,7 +39,7 @@
 
 ## Phase 3: Real Benchmarks (In Progress)
 
-### ✅ Baseline Pilot (10 tasks, claude-code)
+###  Baseline Pilot (10 tasks, claude-code)
 
 ```bash
 source .venv-harbor/bin/activate
@@ -57,7 +57,7 @@ harbor run \
 **ETA**: 1.5-2 hours (15 min/task × 10 tasks)  
 **Expected**: 30-40% success rate (hypothesis baseline)
 
-### ⏳ MCP Pilot (Next)
+###  MCP Pilot (Next)
 
 ```bash
 harbor run \
@@ -104,13 +104,13 @@ All results reproducible: same task + agent = same output (not mocked/random).
 
 ---
 
-## Ready for Publication ✅
+## Ready for Publication 
 
 All infrastructure in place:
-- ✅ Reproducible task definitions (locked commit SHAs)
-- ✅ Deterministic container setup (Dockerfile pins base image + dependencies)
-- ✅ Real execution (git diffs, test results captured)
-- ✅ Normalized artifact collection (Harbor JSON manifests)
-- ✅ Shareable methodology (anyone can run with .env.local + task defs)
+-  Reproducible task definitions (locked commit SHAs)
+-  Deterministic container setup (Dockerfile pins base image + dependencies)
+-  Real execution (git diffs, test results captured)
+-  Normalized artifact collection (Harbor JSON manifests)
+-  Shareable methodology (anyone can run with .env.local + task defs)
 
 Results can be verified by inspection—not mocked or random.

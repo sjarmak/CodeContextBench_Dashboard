@@ -382,25 +382,25 @@ AI assistants often create temporary planning documents during development:
 
 **Rationale:**
 
-- ✅ Clean repository root (no clutter)
-- ✅ Clear separation between ephemeral and permanent documentation
-- ✅ Beads are the source of truth, not ephemeral docs
-- ✅ Preserves planning history for archeological research (in history/ dir)
-- ✅ Reduces noise when browsing the project
+-  Clean repository root (no clutter)
+-  Clear separation between ephemeral and permanent documentation
+-  Beads are the source of truth, not ephemeral docs
+-  Preserves planning history for archeological research (in history/ dir)
+-  Reduces noise when browsing the project
 
 ### Important Rules
 
-- ✅ Use bd for ALL task tracking and status
-- ✅ Always use `--json` flag for programmatic use
-- ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
-- ✅ Store AI planning/design docs in `history/` directory only
-- ✅ Record test results in bead metadata (via `ace capture` or test execution)
-- ❌ Do NOT create markdown TODO lists in root
-- ❌ Do NOT create status/progress markdown files in root
-- ❌ Do NOT use external issue trackers
-- ❌ Do NOT duplicate tracking systems
-- ❌ Do NOT clutter repo root with planning, status, or progress documents
+-  Use bd for ALL task tracking and status
+-  Always use `--json` flag for programmatic use
+-  Link discovered work with `discovered-from` dependencies
+-  Check `bd ready` before asking "what should I work on?"
+-  Store AI planning/design docs in `history/` directory only
+-  Record test results in bead metadata (via `ace capture` or test execution)
+-  Do NOT create markdown TODO lists in root
+-  Do NOT create status/progress markdown files in root
+-  Do NOT use external issue trackers
+-  Do NOT duplicate tracking systems
+-  Do NOT clutter repo root with planning, status, or progress documents
 
 ### Landing the Plane
 

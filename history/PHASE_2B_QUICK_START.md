@@ -1,6 +1,6 @@
 # Phase 2b Quick Start (CodeContextBench-cy6)
 
-**Status**: ✅ Ready for Pilot Execution  
+**Status**:  Ready for Pilot Execution  
 **Infrastructure**: Validated (14/16 critical checks pass)  
 **Tasks**: 25 mined (github_mined) + 6 baseline (10figure)  
 **Agents**: claude-baseline (no search) vs claude-mcp (with Sourcegraph Deep Search)
@@ -14,7 +14,7 @@
 python3 runners/validate_benchmark_setup.py
 ```
 
-Should show: ✅ ALL CRITICAL CHECKS PASSED
+Should show:  ALL CRITICAL CHECKS PASSED
 
 ---
 
@@ -175,17 +175,17 @@ python3 runners/extract_nemo_traces.py --jobs-dir jobs/ --all
 
 ## Success Criteria
 
-✅ **Pilot**:
+ **Pilot**:
 - Both agents complete 10 tasks without timeout
 - Success rates: baseline 30-40%, MCP 40-50%
 - Cost <$0.50/task
 
-✅ **Full benchmark**:
+ **Full benchmark**:
 - >90% tasks complete without errors
 - MCP success > baseline by +10-15% (validates hypothesis)
 - Cost $25-35 USD total
 
-✅ **Analysis**:
+ **Analysis**:
 - Stratified breakdown by task category, difficulty, language
 - Failure modes categorized
 - Report generated (JSON + HTML)
@@ -194,7 +194,7 @@ python3 runners/extract_nemo_traces.py --jobs-dir jobs/ --all
 
 ## Related Beads
 
-- **wkb** (mining): ✅ COMPLETE — 50 tasks mined & validated
+- **wkb** (mining):  COMPLETE — 50 tasks mined & validated
 - **cy6** (execution): IN_PROGRESS — you are here
 - **von** (analysis): OPEN — awaits cy6 results
 

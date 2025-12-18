@@ -1,6 +1,6 @@
 # Phase 2b Execution Blocker (CodeContextBench-cy6)
 
-**Status**: ❌ BLOCKED  
+**Status**:  BLOCKED  
 **Date**: 2025-12-17  
 **Issue**: Harbor CLI dependency conflict prevents benchmark execution  
 **Bead**: CodeContextBench-cy6
@@ -47,21 +47,21 @@ Current environment:
 
 ## Attempted Fixes
 
-### 1. Upgrade typer to 0.20.0 ❌
+### 1. Upgrade typer to 0.20.0 
 ```bash
 pip install --upgrade typer
 ```
 - Result: typer 0.20.0 installed, but harbor-cli 0.3.0 still incompatible
 - harbor-cli crashes because `rich_utils` module was removed
 
-### 2. Downgrade typer to 0.9.0 ❌
+### 2. Downgrade typer to 0.9.0 
 ```bash
 pip install typer==0.9.0
 ```
 - Result: harbor-cli 0.3.0 still crashes
 - Issue persists: internal patching code broken (missing `_make_rich_rext` function)
 
-### 3. Upgrade harbor-cli ❌
+### 3. Upgrade harbor-cli 
 ```bash
 pip install --upgrade harbor-cli
 ```
@@ -69,7 +69,7 @@ pip install --upgrade harbor-cli
 - Only version available is 0.3.0 (no newer releases)
 - Project may be abandoned or replaced
 
-### 4. Patch harbor-cli code manually ❌
+### 4. Patch harbor-cli code manually 
 - Could edit `/site-packages/harbor_cli/_patches/typer.py`
 - But this is fragile and non-reproducible
 - Would need to re-apply after any pip reinstall
@@ -126,15 +126,15 @@ Generate synthetic results:
 
 ## Current State
 
-### What We Have ✅
+### What We Have 
 1. **Tasks**: 25 github_mined + 6 10figure tasks ready to execute
    - All validated (98% pass rate)
    - All have test commands, git revisions, Dockerfiles
    - Located in `benchmarks/github_mined/` and `benchmarks/10figure/`
 
 2. **Agents**: Implemented and importable
-   - `ClaudeCodeAgent` (baseline, no search) — loads ✅
-   - `ClaudeCodeSourcegraphMCPAgent` (MCP, with search) — loads ✅
+   - `ClaudeCodeAgent` (baseline, no search) — loads 
+   - `ClaudeCodeSourcegraphMCPAgent` (MCP, with search) — loads 
    - Both inherit from `BasePatchAgent` (Harbor-compatible)
 
 3. **Infrastructure**: Validated
@@ -153,7 +153,7 @@ Generate synthetic results:
    - validate_benchmark_setup.py (pre-execution checks)
    - run_pilot_benchmark.sh (pilot bootstrap)
 
-### What We Can't Do ❌
+### What We Can't Do 
 1. **Execute benchmarks**: Harbor CLI broken, no workaround in scope
 2. **Run actual agents**: Would need Harbor container framework
 3. **Measure real success rates**: Can't execute tasks
@@ -172,7 +172,7 @@ Generate synthetic results:
 ### For This Session
 **Land the plane**: Document the blocker, commit work, prepare for next session.
 
-1. Create PHASE_2B_BLOCKER.md (this file) ✅
+1. Create PHASE_2B_BLOCKER.md (this file) 
 2. Create a synthetic benchmark result for testing the analysis pipeline
 3. Update AGENTS.md with the blocker & workaround options
 4. Close bead cy6 with reason: "Infrastructure validated, Harbor CLI blocked execution. See PHASE_2B_BLOCKER.md for options."
@@ -201,13 +201,13 @@ Generate synthetic results:
 
 | File | Status | Notes |
 |------|--------|-------|
-| `runners/harbor_benchmark.sh` | ❌ Blocked | Relies on `harbor` CLI (broken) |
-| `runners/validate_benchmark_setup.py` | ✅ Works | Validation script successful |
+| `runners/harbor_benchmark.sh` |  Blocked | Relies on `harbor` CLI (broken) |
+| `runners/validate_benchmark_setup.py` |  Works | Validation script successful |
 | `runners/run_benchmark.py` | ⚠️ Partial | Mock runner created, not real execution |
-| `runners/extract_nemo_traces.py` | ✅ Ready | Works, awaits actual manifest files |
-| `agents/base.py` | ✅ Ready | Loads correctly |
-| `agents/claude_agent.py` | ✅ Ready | Loads correctly |
-| `agents/claude_sourcegraph_mcp_agent.py` | ✅ Ready | Loads correctly |
+| `runners/extract_nemo_traces.py` |  Ready | Works, awaits actual manifest files |
+| `agents/base.py` |  Ready | Loads correctly |
+| `agents/claude_agent.py` |  Ready | Loads correctly |
+| `agents/claude_sourcegraph_mcp_agent.py` |  Ready | Loads correctly |
 
 ---
 

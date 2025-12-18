@@ -6,49 +6,49 @@
 
 ---
 
-## What We Accomplished ✅
+## What We Accomplished 
 
 ### Infrastructure Validation
-- ✅ Agents load correctly (ClaudeCodeAgent, ClaudeCodeSourcegraphMCPAgent)
-- ✅ Environment configured (ANTHROPIC_API_KEY, SRC_ACCESS_TOKEN set)
-- ✅ Tasks ready (25 github_mined + 6 10figure = 31 tasks, 98% validation pass)
-- ✅ Container runtime ready (Podman 5.6.2)
-- ✅ Disk space verified (215 GB available)
-- ✅ Configuration files validated (harbor-config.yaml, datasets.yaml)
+-  Agents load correctly (ClaudeCodeAgent, ClaudeCodeSourcegraphMCPAgent)
+-  Environment configured (ANTHROPIC_API_KEY, SRC_ACCESS_TOKEN set)
+-  Tasks ready (25 github_mined + 6 10figure = 31 tasks, 98% validation pass)
+-  Container runtime ready (Podman 5.6.2)
+-  Disk space verified (215 GB available)
+-  Configuration files validated (harbor-config.yaml, datasets.yaml)
 
 **14/16 critical checks passed** via `runners/validate_benchmark_setup.py`
 
 ### Documentation
-- ✅ BENCHMARK_EXECUTION_PLAN.md — detailed execution phases & metrics
-- ✅ PHASE_2B_QUICK_START.md — quick reference for pilot & full runs
-- ✅ PHASE_2B_STARTUP.md — readiness summary with timeline
-- ✅ PHASE_2B_BLOCKER.md — blocker analysis & 3 workaround options (NEW)
+-  BENCHMARK_EXECUTION_PLAN.md — detailed execution phases & metrics
+-  PHASE_2B_QUICK_START.md — quick reference for pilot & full runs
+-  PHASE_2B_STARTUP.md — readiness summary with timeline
+-  PHASE_2B_BLOCKER.md — blocker analysis & 3 workaround options (NEW)
 
 ### Tooling
-- ✅ runners/validate_benchmark_setup.py — pre-execution validation
-- ✅ runners/harbor_benchmark.sh — Harbor CLI wrapper (functional syntax, broken runtime)
-- ✅ runners/run_pilot_benchmark.sh — pilot bootstrap script
-- ✅ runners/run_benchmark.py — Python runner (proof-of-concept, non-functional)
-- ✅ runners/generate_synthetic_results.py — synthetic data for testing (NEW)
-- ✅ runners/extract_nemo_traces.py — aggregation & analysis (ready to use)
+-  runners/validate_benchmark_setup.py — pre-execution validation
+-  runners/harbor_benchmark.sh — Harbor CLI wrapper (functional syntax, broken runtime)
+-  runners/run_pilot_benchmark.sh — pilot bootstrap script
+-  runners/run_benchmark.py — Python runner (proof-of-concept, non-functional)
+-  runners/generate_synthetic_results.py — synthetic data for testing (NEW)
+-  runners/extract_nemo_traces.py — aggregation & analysis (ready to use)
 
 ### Blocker Discovery & Documentation
-- ✅ Identified Harbor CLI breaking issue: typer incompatibility
-- ✅ Analyzed root cause: harbor-cli 0.3.0 patches removed internal APIs
-- ✅ Evaluated 4 fix attempts (all failed)
-- ✅ Evaluated 3 workarounds (rebuild env, custom runner, synthetic data)
-- ✅ Updated AGENTS.md with blocker reference
-- ✅ Created PHASE_2B_BLOCKER.md with detailed troubleshooting
+-  Identified Harbor CLI breaking issue: typer incompatibility
+-  Analyzed root cause: harbor-cli 0.3.0 patches removed internal APIs
+-  Evaluated 4 fix attempts (all failed)
+-  Evaluated 3 workarounds (rebuild env, custom runner, synthetic data)
+-  Updated AGENTS.md with blocker reference
+-  Created PHASE_2B_BLOCKER.md with detailed troubleshooting
 
 ### Synthetic Data (for Testing)
-- ✅ Created runners/generate_synthetic_results.py
-- ✅ Generated pilot results: baseline 30% success, MCP 40% success (+10%)
-- ✅ Demonstrates hypothesis direction without real execution
-- ✅ Allows testing of analysis pipeline
+-  Created runners/generate_synthetic_results.py
+-  Generated pilot results: baseline 30% success, MCP 40% success (+10%)
+-  Demonstrates hypothesis direction without real execution
+-  Allows testing of analysis pipeline
 
 ---
 
-## What We Can't Do (This Session) ❌
+## What We Can't Do (This Session) 
 
 ### Harbor CLI Broken
 ```
@@ -62,11 +62,11 @@ AttributeError: module 'typer' has no attribute 'rich_utils'
 - **Result**: Cannot execute `harbor run` commands
 
 ### Impact
-- ❌ Cannot run actual benchmarks on agents
-- ❌ Cannot measure real success rates
-- ❌ Cannot validate hypothesis with real data
-- ❌ Cannot capture actual token usage/costs
-- ✅ CAN test the analysis pipeline (with synthetic data)
+-  Cannot run actual benchmarks on agents
+-  Cannot measure real success rates
+-  Cannot validate hypothesis with real data
+-  Cannot capture actual token usage/costs
+-  CAN test the analysis pipeline (with synthetic data)
 
 ---
 
@@ -75,22 +75,22 @@ AttributeError: module 'typer' has no attribute 'rich_utils'
 ### What Exists & Works
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Agent code | ✅ | Both agents load, implement BasePatchAgent correctly |
-| Task definitions | ✅ | 31 tasks ready (100% schema valid) |
-| Infrastructure config | ✅ | harbor-config.yaml, datasets.yaml present |
-| Container runtime | ✅ | Podman 5.6.2 available |
-| Environment vars | ✅ | ANTHROPIC_API_KEY, SRC_ACCESS_TOKEN set |
-| Planning docs | ✅ | Comprehensive guides for all phases |
-| Validation tools | ✅ | Pre-execution checks work |
-| Analysis code | ✅ | Aggregation & metrics extraction ready |
+| Agent code |  | Both agents load, implement BasePatchAgent correctly |
+| Task definitions |  | 31 tasks ready (100% schema valid) |
+| Infrastructure config |  | harbor-config.yaml, datasets.yaml present |
+| Container runtime |  | Podman 5.6.2 available |
+| Environment vars |  | ANTHROPIC_API_KEY, SRC_ACCESS_TOKEN set |
+| Planning docs |  | Comprehensive guides for all phases |
+| Validation tools |  | Pre-execution checks work |
+| Analysis code |  | Aggregation & metrics extraction ready |
 
 ### What Doesn't Work
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Harbor CLI | ❌ | Dependency conflict, unmaintained package |
-| Benchmark execution | ❌ | Blocked on Harbor CLI |
-| Real results | ❌ | No actual agent executions |
-| Hypothesis validation | ❌ | Requires real data |
+| Harbor CLI |  | Dependency conflict, unmaintained package |
+| Benchmark execution |  | Blocked on Harbor CLI |
+| Real results |  | No actual agent executions |
+| Hypothesis validation |  | Requires real data |
 
 ---
 
@@ -137,7 +137,7 @@ Implement a Python runner that:
 - Container mounts for task directories
 
 ### Option C: Test with Synthetic Data (Immediate)
-**Effort**: Already done ✅
+**Effort**: Already done 
 **Risk**: Very low (no execution)
 **Payoff**: Validate analysis pipeline end-to-end
 
@@ -191,7 +191,7 @@ No upgrade path. Workarounds: rebuild Python env, custom Podman runner, or synth
 
 ## Test Results
 
-### Synthetic Data Generation ✅
+### Synthetic Data Generation 
 ```
 python3 runners/generate_synthetic_results.py --n-tasks 10 --baseline-rate 0.35 --mcp-rate 0.48
 
@@ -202,7 +202,7 @@ Results:
   Cost: ~$0.03/task
 ```
 
-### Agent Loading ✅
+### Agent Loading 
 ```python
 from agents.claude_agent import ClaudeCodeAgent
 agent = ClaudeCodeAgent()
@@ -213,7 +213,7 @@ agent = ClaudeCodeSourcegraphMCPAgent()
 # ✓ Loads successfully (requires SRC_ACCESS_TOKEN)
 ```
 
-### Infrastructure Validation ✅
+### Infrastructure Validation 
 ```
 ./runners/validate_benchmark_setup.py
 # 14/16 critical checks pass
@@ -266,4 +266,4 @@ All agent code is correct, all tasks are ready, environment is configured. The o
 **Bead**: CodeContextBench-cy6  
 **Status**: IN_PROGRESS → BLOCKED (documented)  
 **Next**: Choose Path A/B/C for next session  
-**Related**: CodeContextBench-wkb (mining, ✅ complete), CodeContextBench-von (analysis, blocked on cy6 completion)
+**Related**: CodeContextBench-wkb (mining,  complete), CodeContextBench-von (analysis, blocked on cy6 completion)

@@ -69,25 +69,25 @@ Claude Code with Sourcegraph MCP server integration:
 ## Phase Status
 
 ### Phase 1: Foundation (COMPLETE)
-✅ Directory skeleton and project structure
-✅ BasePatchAgent + ClaudeCodeAgent + ClaudeCodeMCPAgent
-✅ Installation templates and Harbor integration
-✅ 25 Kubernetes reference tasks (10figure baseline)
-✅ Agent tests (14 passing)
+- Directory skeleton and project structure
+- BasePatchAgent + ClaudeCodeAgent + ClaudeCodeMCPAgent
+- Installation templates and Harbor integration
+- 25 Kubernetes reference tasks (10figure baseline)
+- Agent tests (14 passing)
 
 ### Phase 2a: Mining (COMPLETE)
-✅ Mined 50 real-world GitHub tasks (Kubernetes + PyTorch)
-✅ 98% schema validation pass rate (49/50)
-✅ All tasks multi-file, deterministic, ground-truth verified
-✅ Harbor task generation & validation infrastructure
-✅ See [docs/MINING_EXECUTION_REPORT.md](docs/MINING_EXECUTION_REPORT.md)
+- Mined 50 real-world GitHub tasks (Kubernetes + PyTorch)
+- 98% schema validation pass rate (49/50)
+- All tasks multi-file, deterministic, ground-truth verified
+- Harbor task generation & validation infrastructure
+- See [docs/MINING_EXECUTION_REPORT.md](docs/MINING_EXECUTION_REPORT.md)
 
 ### Phase 3: Real Benchmarks (IN PROGRESS)
-✅ Fixed Docker repo cloning (all 25 tasks)
-🔄 Baseline pilot (10 tasks, claude-code agent) - RUNNING
-⏳ MCP pilot (10 tasks, +Sourcegraph Deep Search)
-⏳ Metric extraction and comparative analysis
-⏳ Hypothesis validation (30-40% baseline, 70-90% with MCP)
+- Fixed Docker repo cloning (all 25 tasks)
+- Baseline pilot (10 tasks, claude-code agent) - RUNNING
+- MCP pilot (10 tasks, +Sourcegraph Deep Search)
+- Metric extraction and comparative analysis
+- Hypothesis validation (30-40% baseline, 70-90% with MCP)
 
 See `.beads/issues.jsonl` for full task list.
 

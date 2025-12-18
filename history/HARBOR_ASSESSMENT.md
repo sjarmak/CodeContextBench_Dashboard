@@ -6,16 +6,16 @@
 
 ---
 
-## What Worked ✅
+## What Worked 
 
-- ✅ Installed harborai package v0.1.25 successfully
-- ✅ `harbor` CLI works without dependency conflicts
-- ✅ Can load agent classes (ClaudeCodeAgent, ClaudeCodeSourcegraphMCPAgent)
-- ✅ Harbor has clean typer integration (no compatibility issues like harbor-cli 0.3.0)
+-  Installed harborai package v0.1.25 successfully
+-  `harbor` CLI works without dependency conflicts
+-  Can load agent classes (ClaudeCodeAgent, ClaudeCodeSourcegraphMCPAgent)
+-  Harbor has clean typer integration (no compatibility issues like harbor-cli 0.3.0)
 
 ---
 
-## What Doesn't Work ❌
+## What Doesn't Work 
 
 **Harbor expects a specific task format:**
 - Tasks must be defined in YAML configuration files (not task.toml + instruction.md)
