@@ -33,7 +33,7 @@ Successfully mined and generated **50 high-quality Harbor tasks** from GitHub re
 | **Firefox** | C++ | 0 |  No multi-file PRs in window |
 | **FFmpeg** | C | 0 |  No multi-file PRs in window |
 
-**Note**: Firefox, FFmpeg, TensorRT-LLM, Servo mining deferred. Will integrate Trevor's pre-researched tasks (sgt-005, sgt-006, sgt-007) instead per TREVOR_INTEGRATION.md strategy.
+**Note**: Firefox, FFmpeg, TensorRT-LLM, Servo mining deferred. Focus is on validating Kubernetes and PyTorch baseline tasks (Phase 3 real benchmarks).
 
 ### Task Categories (Inferred)
 
@@ -173,12 +173,6 @@ harbor run --agent claude-mcp --benchmark github_mined --task-limit 10 \
 4. Analyze by category, difficulty, language
 5. Generate comparative report
 
-### Trevor Task Integration
-
-- **Don't re-mine**: vscode, tensorrt_llm, servo already have validated tasks
-- **Include 3 Trevor tasks**: sgt-005 (K8s), sgt-006 (Servo), sgt-007 (TensorRT-LLM)
-- **Optional**: 3 multi-repo tasks (sgt-201, 202, 203) if cross-repo indexing available
-
 ---
 
 ## Lessons Learned
@@ -222,7 +216,7 @@ harbor run --agent claude-mcp --benchmark github_mined --task-limit 10 \
 | Validation report | Pass/fail breakdown | `artifacts/task_validation_full.json` |
 | Harbor tasks | Ready-to-execute tasks | `benchmarks/github_mined/` (50 dirs) |
 | Strategy docs | Planning & alignment | `history/MINING_PLAN.md`, `history/MINING_STRATEGY.md` |
-| Integration docs | Trevor task specs | `history/TREVOR_INTEGRATION.md` |
+
 
 ---
 
