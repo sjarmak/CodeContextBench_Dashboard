@@ -22,7 +22,7 @@ async def test_mcp_config_in_commands():
 
         # Set environment variables
         with patch.dict(os.environ, {
-            "SOURCEGRAPH_URL": "https://sourcegraph.com",
+            "SOURCEGRAPH_URL": "https://sourcegraph.sourcegraph.com",
             "SOURCEGRAPH_ACCESS_TOKEN": "test-token-123"
         }):
             agent = ClaudeCodeSourcegraphMCPAgent(logs_dir=logs_dir)
@@ -51,10 +51,9 @@ async def test_mcp_config_in_commands():
                 assert "sourcegraph" in config["mcpServers"]
 
                 server = config["mcpServers"]["sourcegraph"]
-                assert server["command"] == "npx"
-                assert server["args"] == ["-y", "@sourcegraph/mcp-server"]
-                assert server["env"]["SRC_ACCESS_TOKEN"] == "test-token-123"
-                assert server["env"]["SOURCEGRAPH_URL"] == "https://sourcegraph.com"
+                assert server["type"] == "http"
+                assert server["url"] == "https://sourcegraph.sourcegraph.com/.api/mcp/v1"
+                assert server["headers"]["Authorization"] == "token test-token-123"
 
 
 @pytest.mark.asyncio
@@ -64,7 +63,7 @@ async def test_claude_md_uploaded_before_super_setup():
         logs_dir = Path(tmpdir)
 
         with patch.dict(os.environ, {
-            "SOURCEGRAPH_URL": "https://sourcegraph.com",
+            "SOURCEGRAPH_URL": "https://sourcegraph.sourcegraph.com",
             "SOURCEGRAPH_ACCESS_TOKEN": "test-token"
         }):
             agent = ClaudeCodeSourcegraphMCPAgent(logs_dir=logs_dir)
@@ -91,15 +90,16 @@ async def test_claude_md_uploaded_before_super_setup():
 
 
 @pytest.mark.asyncio
-async def test_sourcegraph_url_passthrough():
-    """Test that SOURCEGRAPH_URL is passed through unchanged to MCP server env."""
-    test_urls = [
-        "https://sourcegraph.com",
-        "https://sourcegraph.example.com",
-        "http://localhost:3080",
+async def test_sourcegraph_url_to_mcp_endpoint():
+    """Test that SOURCEGRAPH_URL is correctly converted to MCP endpoint URL."""
+    test_cases = [
+        ("https://sourcegraph.sourcegraph.com", "https://sourcegraph.sourcegraph.com/.api/mcp/v1"),
+        ("https://sourcegraph.example.com", "https://sourcegraph.example.com/.api/mcp/v1"),
+        ("http://localhost:3080", "http://localhost:3080/.api/mcp/v1"),
+        ("sourcegraph.sourcegraph.com", "https://sourcegraph.sourcegraph.com/.api/mcp/v1"),  # Test protocol addition
     ]
 
-    for sg_url in test_urls:
+    for sg_url, expected_mcp_url in test_cases:
         with tempfile.TemporaryDirectory() as tmpdir:
             logs_dir = Path(tmpdir)
 
@@ -124,9 +124,9 @@ async def test_sourcegraph_url_passthrough():
                     match = re.search(r"--mcp-config '({.*?})' ", claude_cmd)
                     config = json.loads(match.group(1))
 
-                    # Verify URL is passed through unchanged
-                    actual_url = config["mcpServers"]["sourcegraph"]["env"]["SOURCEGRAPH_URL"]
-                    assert actual_url == sg_url, f"URL {sg_url} was modified to {actual_url}"
+                    # Verify MCP endpoint URL is constructed correctly
+                    actual_url = config["mcpServers"]["sourcegraph"]["url"]
+                    assert actual_url == expected_mcp_url, f"URL {sg_url} produced {actual_url}, expected {expected_mcp_url}"
 
 
 @pytest.mark.asyncio
@@ -136,7 +136,7 @@ async def test_claude_md_created():
         logs_dir = Path(tmpdir)
 
         with patch.dict(os.environ, {
-            "SOURCEGRAPH_URL": "https://sourcegraph.com",
+            "SOURCEGRAPH_URL": "https://sourcegraph.sourcegraph.com",
             "SOURCEGRAPH_ACCESS_TOKEN": "test-token"
         }):
             agent = ClaudeCodeSourcegraphMCPAgent(logs_dir=logs_dir)

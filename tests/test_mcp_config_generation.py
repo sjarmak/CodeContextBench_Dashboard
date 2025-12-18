@@ -11,17 +11,16 @@ import pytest
 def test_mcp_config_format():
     """Test that MCP config follows correct format."""
     # Simulate what the agent does
-    sg_url = "https://sourcegraph.com"
+    sg_url = "https://sourcegraph.sourcegraph.com"
     sg_token = "test-token-123"
 
     mcp_config = {
         "mcpServers": {
             "sourcegraph": {
-                "command": "npx",
-                "args": ["-y", "@sourcegraph/mcp-server"],
-                "env": {
-                    "SRC_ACCESS_TOKEN": sg_token,
-                    "SOURCEGRAPH_URL": sg_url
+                "type": "http",
+                "url": f"{sg_url}/.api/mcp/v1",
+                "headers": {
+                    "Authorization": f"token {sg_token}"
                 }
             }
         }
@@ -32,37 +31,37 @@ def test_mcp_config_format():
     assert "sourcegraph" in mcp_config["mcpServers"]
 
     server = mcp_config["mcpServers"]["sourcegraph"]
-    assert server["command"] == "npx"
-    assert server["args"] == ["-y", "@sourcegraph/mcp-server"]
-    assert server["env"]["SRC_ACCESS_TOKEN"] == "test-token-123"
-    assert server["env"]["SOURCEGRAPH_URL"] == "https://sourcegraph.com"
+    assert server["type"] == "http"
+    assert server["url"] == "https://sourcegraph.sourcegraph.com/.api/mcp/v1"
+    assert server["headers"]["Authorization"] == "token test-token-123"
 
 
-def test_mcp_config_url_passthrough():
-    """Test that SOURCEGRAPH_URL is passed through as-is to the MCP server."""
+def test_mcp_config_url_construction():
+    """Test that MCP endpoint URL is correctly constructed."""
     test_cases = [
-        "https://sourcegraph.com",
-        "https://sourcegraph.example.com",
-        "http://localhost:3080",
+        ("https://sourcegraph.sourcegraph.com", "https://sourcegraph.sourcegraph.com/.api/mcp/v1"),
+        ("https://sourcegraph.example.com", "https://sourcegraph.example.com/.api/mcp/v1"),
+        ("http://localhost:3080", "http://localhost:3080/.api/mcp/v1"),
     ]
 
-    for sg_url in test_cases:
+    for sg_url, expected_mcp_url in test_cases:
         sg_token = "test-token"
+        # Remove trailing slash if present
+        sg_url_clean = sg_url.rstrip('/')
         mcp_config = {
             "mcpServers": {
                 "sourcegraph": {
-                    "command": "npx",
-                    "args": ["-y", "@sourcegraph/mcp-server"],
-                    "env": {
-                        "SRC_ACCESS_TOKEN": sg_token,
-                        "SOURCEGRAPH_URL": sg_url
+                    "type": "http",
+                    "url": f"{sg_url_clean}/.api/mcp/v1",
+                    "headers": {
+                        "Authorization": f"token {sg_token}"
                     }
                 }
             }
         }
 
-        # Verify URL is passed through unchanged
-        assert mcp_config["mcpServers"]["sourcegraph"]["env"]["SOURCEGRAPH_URL"] == sg_url
+        # Verify URL is constructed correctly
+        assert mcp_config["mcpServers"]["sourcegraph"]["url"] == expected_mcp_url
 
 
 def test_mcp_config_writeread():
@@ -73,11 +72,10 @@ def test_mcp_config_writeread():
         mcp_config = {
             "mcpServers": {
                 "sourcegraph": {
-                    "command": "npx",
-                    "args": ["-y", "@sourcegraph/mcp-server"],
-                    "env": {
-                        "SRC_ACCESS_TOKEN": "secret-token",
-                        "SOURCEGRAPH_URL": "https://sourcegraph.com"
+                    "type": "http",
+                    "url": "https://sourcegraph.sourcegraph.com/.api/mcp/v1",
+                    "headers": {
+                        "Authorization": "token secret-token"
                     }
                 }
             }
@@ -95,8 +93,8 @@ def test_mcp_config_writeread():
             loaded = json.load(f)
 
         assert loaded == mcp_config
-        assert loaded["mcpServers"]["sourcegraph"]["command"] == "npx"
-        assert loaded["mcpServers"]["sourcegraph"]["env"]["SOURCEGRAPH_URL"] == "https://sourcegraph.com"
+        assert loaded["mcpServers"]["sourcegraph"]["type"] == "http"
+        assert loaded["mcpServers"]["sourcegraph"]["url"] == "https://sourcegraph.sourcegraph.com/.api/mcp/v1"
 
 
 def test_claude_md_content():
@@ -136,17 +134,16 @@ This is much more efficient than grep for understanding large codebases.
 
 def test_mcp_config_json_serialization():
     """Test that MCP config can be serialized to JSON for --mcp-config flag."""
-    sg_url = "https://sourcegraph.com"
+    sg_url = "https://sourcegraph.sourcegraph.com"
     sg_token = "test-token"
 
     mcp_config = {
         "mcpServers": {
             "sourcegraph": {
-                "command": "npx",
-                "args": ["-y", "@sourcegraph/mcp-server"],
-                "env": {
-                    "SRC_ACCESS_TOKEN": sg_token,
-                    "SOURCEGRAPH_URL": sg_url
+                "type": "http",
+                "url": f"{sg_url}/.api/mcp/v1",
+                "headers": {
+                    "Authorization": f"token {sg_token}"
                 }
             }
         }
@@ -162,5 +159,5 @@ def test_mcp_config_json_serialization():
     # Verify key parts are in the JSON string
     assert "mcpServers" in mcp_json
     assert "sourcegraph" in mcp_json
-    assert "npx" in mcp_json
-    assert "@sourcegraph/mcp-server" in mcp_json
+    assert "http" in mcp_json
+    assert ".api/mcp/v1" in mcp_json

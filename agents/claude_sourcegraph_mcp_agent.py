@@ -17,10 +17,10 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
     via MCP (Model Context Protocol) server.
     
     Environment Variables:
-    - SOURCEGRAPH_URL: Sourcegraph instance URL (e.g., https://sourcegraph.com)
+    - SOURCEGRAPH_URL: Sourcegraph instance URL (e.g., https://sourcegraph.sourcegraph.com)
     - SOURCEGRAPH_ACCESS_TOKEN: Authentication token for Sourcegraph API
 
-    The MCP server is configured to use stdio transport (via @sourcegraph/mcp-server npm package)
+    The MCP server is configured to use HTTP transport via Sourcegraph's hosted MCP endpoint
     and will be available to Claude for Deep Search queries during task execution.
     """
     
@@ -28,7 +28,7 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
         """Create Claude commands with MCP config injected via --mcp-config flag.
 
         Gets parent's commands and injects --mcp-config with Sourcegraph MCP config.
-        Uses stdio transport via @sourcegraph/mcp-server npm package.
+        Uses HTTP transport to Sourcegraph's hosted MCP endpoint at /.api/mcp/v1
         """
         # Get Sourcegraph credentials
         sg_url = os.environ.get("SOURCEGRAPH_URL", "")
@@ -39,16 +39,21 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
             self.logger.warning("⚠ Sourcegraph MCP not configured. Set SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN.")
             return super().create_run_agent_commands(instruction)
 
-        # Create MCP config for stdio transport
-        # Note: The MCP server expects SRC_ACCESS_TOKEN, not SOURCEGRAPH_ACCESS_TOKEN
+        # Ensure URL has protocol
+        if not sg_url.startswith(('http://', 'https://')):
+            sg_url = f"https://{sg_url}"
+
+        # Ensure URL doesn't end with trailing slash
+        sg_url = sg_url.rstrip('/')
+
+        # Create MCP config for HTTP transport
         mcp_config = {
             "mcpServers": {
                 "sourcegraph": {
-                    "command": "npx",
-                    "args": ["-y", "@sourcegraph/mcp-server"],
-                    "env": {
-                        "SRC_ACCESS_TOKEN": sg_token,
-                        "SOURCEGRAPH_URL": sg_url
+                    "type": "http",
+                    "url": f"{sg_url}/.api/mcp/v1",
+                    "headers": {
+                        "Authorization": f"token {sg_token}"
                     }
                 }
             }
