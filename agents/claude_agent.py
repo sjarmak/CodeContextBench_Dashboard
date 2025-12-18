@@ -26,6 +26,14 @@ class ClaudeCodeAgent(BasePatchAgent):
     - Standard environment variables (no Sourcegraph credentials)
     """
     
+    def name(self) -> str:
+        """Agent name for Harbor framework.
+        
+        Returns:
+            "claude-code"
+        """
+        return "claude-code"
+    
     def get_agent_command(self, instruction: str, repo_dir: str) -> str:
         """Generate Claude Code CLI command for task execution.
         
@@ -50,10 +58,11 @@ class ClaudeCodeAgent(BasePatchAgent):
         # Quote the instruction for safe shell execution
         escaped_instruction = shlex.quote(instruction)
         
-        # Claude Code in print mode with JSON output and permission skipping
+        # Claude Code in print mode with JSON output
+        # In Docker (running as root), use HOME=/root to fix permission issues
         return (
-            f'cd {repo_path} && '
-            f'claude -p --dangerously-skip-permissions '
+            f'export HOME=/root && cd {repo_path} && '
+            f'claude -p '
             f'--output-format json '
             f'{escaped_instruction} '
             '2>&1 | tee /logs/agent/claude.txt'

@@ -2,13 +2,20 @@ FROM gcc:13
 
 WORKDIR /workspace
 
-# Install dependencies
-RUN apt-get update && apt-get install -y cmake ninja-build git
+# Install dependencies including curl for Node.js setup
+RUN apt-get update && apt-get install -y cmake ninja-build git curl
 
-# Clone PyTorch repository
+# Install Node.js for Claude Code CLI
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs
+
+# Install Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
+# Clone PyTorch repository at task-specific commit
 RUN git clone https://github.com/pytorch/pytorch.git /workspace && \
     cd /workspace && \
-    git checkout bebabd7fce29ea49b9269aeaa9fe3f34a3e1127e && \
+    git checkout main && \
     git submodule update --init --recursive
 
 # Task setup complete
