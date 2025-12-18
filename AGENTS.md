@@ -25,6 +25,78 @@ CodeContextBench is a benchmark evaluation framework for assessing how improved 
 
 **See detailed architecture:** `docs/ARCHITECTURE.md`
 
+## Design Principles (Mandatory for all code changes)
+
+These principles apply to ALL code changes in CodeContextBench. Agents MUST follow these when implementing features or fixes.
+
+### 1. Minimal, Focused Changes
+
+- **Each commit = one feature or fix.** Don't bundle multiple features in a single commit.
+- **Code changes should be as small as possible.** Implement only what's needed to satisfy the bead requirement.
+- **No speculative features.** Don't add code "just in case" it might be useful later.
+- **Rationale:** Smaller changes are easier to review, test, and debug. They reduce risk of unexpected side effects.
+
+### 2. Adversarial Review (Mandatory for Complex/Large Changes)
+
+Before closing a bead with complex or large code changes:
+- **Ask yourself:** "What could break with this change?"
+- **Test the failure cases:** What happens if inputs are wrong? What edge cases aren't covered?
+- **Look for side effects:** Does this change affect other modules? Unintended consequences?
+- **Code review the change yourself:** Would you approve this if another agent wrote it?
+- If you can't confidently answer all of these, **keep the bead open** and leave notes for the next agent.
+
+### 3. Automated Tests Per Commit
+
+- **Every commit must have associated automated tests** that validate the functionality works as designed.
+- **Tests must run in CI/locally:** `python -m pytest tests/ -q`
+- **Tests must be specific to the change:** Generic test suites don't count.
+- **Tests must use real code, not mocks** (unless bead explicitly requires mocking).
+- **If you can't write a test for your change, your design is wrong.** Refactor until testable.
+
+### 4. Clear, Descriptive Naming
+
+Names are for the next agent or developer reading your code months later.
+
+- **Functions:** Use full words, describe what it does: `validate_task_completion()` not `check()`
+- **Classes:** Use clear types: `TaskValidator` not `Helper`
+- **Files:** Name after the primary responsibility: `task_validator.py` not `utils.py`
+- **Variables:** Use meaningful names: `max_retries` not `mr`
+- **Comments:** Explain WHY, not WHAT. Code shows what, comments explain why decisions were made.
+
+**Bad example:** `src/utils.py` with a `process()` function
+**Good example:** `src/task_validators/timeout_validator.py` with `validate_task_timeout()` function
+
+### 5. Modular, Independently Testable Design
+
+- **Single responsibility:** Each class/module should have one job.
+- **Dependencies explicit:** Pass dependencies in, don't create them inside the function.
+- **Independently testable:** You should be able to test one module without starting up the whole system.
+- **Loose coupling:** Changes to one module shouldn't ripple through the codebase.
+
+**Bad example:** `HarborRunner` class that creates its own agents, loads configs, runs tests, and aggregates results all in one class
+**Good example:** `HarborRunner` accepts injected `AgentFactory`, `ConfigLoader`, `TestRunner`, `ResultAggregator` as dependencies
+
+### 6. Root Directory is Sacred
+
+**CRITICAL RULE:** Do NOT create random markdown files in the root directory.
+
+- ✅ **DO:** `docs/`, `history/`, `.beads/`, `src/`, `tests/`
+- ❌ **DON'T:** `PLAN.md`, `STATUS.md`, `NOTES.md`, `IMPLEMENTATION.md`, `TODO.md` in root
+- ❌ **DON'T:** `MIGRATION_STATUS.md`, `PROGRESS.md`, `SESSION_SUMMARY.md` in root
+
+**Where things go:**
+- **Permanent documentation:** `docs/` (ARCHITECTURE.md, DEVELOPMENT.md, API.md)
+- **Temporary planning:** `history/` (PLAN.md, SESSION_NOTES.md)
+- **Issue tracking:** `.beads/issues.jsonl` (NOT markdown files)
+- **This file (AGENTS.md):** Quick reference for agents only
+
+If you feel the urge to create a markdown file in root, STOP. Either:
+1. Add it to AGENTS.md if it's agent guidance
+2. Put it in `docs/` if it's permanent documentation
+3. Put it in `history/` if it's temporary planning
+
+---
+
 ## Engram Integration: Continuous Learning Loop
 
 CodeContextBench uses **Engram** for structured learning from task execution. Every completed bead creates a learning signal that improves future agent performance.
