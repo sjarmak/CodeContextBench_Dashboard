@@ -119,8 +119,14 @@ fi
         # Get agent-specific command
         agent_cmd = self.get_agent_command(enhanced_instruction, "$REPO_DIR")
         
+        # Build environment variable exports for the command
+        env_vars = self.get_agent_env()
+        env_exports = "\n".join([f"export {k}={shlex.quote(v)}" for k, v in env_vars.items()])
+        
         # Assemble full execution script
         full_command = f"""
+{env_exports}
+
 {repo_discovery_cmd}
 echo "Repository directory: $REPO_DIR"
 
@@ -167,7 +173,7 @@ EOF
         return [
             ExecInput(
                 command=prompt_cmd + "\n" + full_command,
-                env=self.get_agent_env(),
+                env=None,  # Environment variables are exported in the script itself
                 timeout_sec=3600,  # 1 hour timeout for long-running tasks
             )
         ]
