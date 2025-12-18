@@ -53,10 +53,10 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
             with open(config_path, "w") as f:
                 json.dump(mcp_config, f, indent=2)
             
-            # Upload to task working directory
+            # Upload to Claude's config directory
             await environment.upload_file(
                 source_path=config_path,
-                target_path="/app/.mcp.json"
+                target_path="/root/.claude/mcp.json"
             )
             
             self.logger.info(f"✓ Configured Sourcegraph MCP: {sg_instance}")
@@ -88,10 +88,10 @@ This is much more efficient than grep for understanding large codebases.
             with open(instructions_path, "w") as f:
                 f.write(claude_instructions)
             
-            # Upload to task working directory
+            # Upload to task working directory root
             await environment.upload_file(
                 source_path=instructions_path,
-                target_path="/app/CLAUDE.md"
+                target_path="/workspace/CLAUDE.md"
             )
             
             self.logger.info(f"✓ Created Sourcegraph MCP instructions")
