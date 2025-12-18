@@ -29,44 +29,57 @@ CodeContextBench is a benchmark evaluation framework for assessing how improved 
 
 CodeContextBench uses **Engram** for structured learning from task execution. Every completed bead creates a learning signal that improves future agent performance.
 
+### CRITICAL: The Bead Closure Workflow
+
+**MANDATORY FOR ALL AGENTS:** You MUST close beads when work is complete. Forgetting to close a bead means:
+- ❌ No learning happens (Engram has nothing to learn from)
+- ❌ Other agents can't tell what work is done
+- ❌ The project knowledge base doesn't improve
+
 ### Engram Workflow
 
 **For each completed bead:**
 
 ```bash
-# 1. Work on the task (implement, test, commit)
+# 1. Claim the bead
 bd update <bead-id> --status in_progress
 
-# ... do the work ...
+# 2. Do the work (implement, test, commit code changes)
+# ... implement, write tests, run tests locally ...
 
-# 2. Run quality gates
+# 3. Run quality gates to verify work is complete
 python -m pytest tests/ -q
+# OR for Harbor benchmarks:
+python -m src.runners.harbor_runner --task-set <task-set> --agent <agent>
 
-# 3. Close the bead (triggers automatic learning)
-bd close <bead-id> --reason "Completed: [brief summary of what was done]"
+# 4. COMMIT YOUR CHANGES (important for git history)
+git add .
+git commit -m "Completed: <bead-id> - [brief description]"
+
+# 5. MUST: Close the bead using bd close
+# This triggers the git hook that runs Engram learning
+bd close <bead-id> --reason "Completed: [brief description of what was done]"
 ```
 
-**Engram automatically:**
-- Captures execution traces (test results, build outcomes, errors)
-- Extracts patterns from logs and traces
-- Generates insights about failure modes and success patterns
-- Stores learnings in `.engram/engram.db`
-- Updates knowledge base for future work
+**What happens on `bd close`:**
+- Bead gets `closedAt` timestamp and status is finalized
+- Git hook automatically detects closure and runs `en learn`
+- Engram captures execution traces from your test/build runs
+- Engram extracts patterns and stores learnings in `.engram/engram.db`
+- Knowledge base is automatically updated for future work
 
-### Learning Signals
+### Important Notes
 
-Each bead closure generates learning data:
+- **Don't forget the final `bd close`!** This is not optional. Without it, Engram learns nothing.
+- **Execution traces come from tests/builds you ran.** Make sure to run tests before closing.
+- **The git hook is automatic** - just `bd close` and `git commit`, the learning happens on post-commit.
 
-- **Successful tasks** → Extract what approach worked
-- **Failed tasks** → Extract error patterns and root causes
-- **Test results** → Correlate failures with code patterns
-- **Execution metadata** → Track tool usage and performance
+### Manual Learning Capture (if needed)
 
-### Manual Learning (if needed)
-
-If you need to capture learning without closing a bead:
+If you need to learn from specific test/build runs without closing:
 
 ```bash
+# Run this after executing tests/builds
 en learn --beads <bead-id>
 ```
 
@@ -74,15 +87,14 @@ This runs the learning pipeline on a specific bead's execution traces.
 
 ### Querying Learned Knowledge
 
+To see what Engram has learned:
+
 ```bash
-# See learned patterns
-en get-insights --limit 10 --sort-by confidence
+# View patterns from AGENTS.md (auto-generated from database)
+grep "Bullet #ccb-" AGENTS.md | head -20
 
-# Get specific patterns by tag
-en get-insights --tags error-handling --min-confidence 0.8
-
-# Review bullets (formatted learnings)
-en get-bullets --limit 20 --sort-by helpful
+# Or directly query the database
+sqlite3 .engram/engram.db "SELECT * FROM insights LIMIT 10;"
 ```
 
 ### Key Engram Concepts
@@ -312,21 +324,34 @@ bd close bd-42 --reason "Completed" --json
 
 ### Workflow for AI Agents
 
-**Standard workflow with Engram learning:**
+**MANDATORY WORKFLOW (enforce this for all agents):**
 
 1. **Check ready work**: `bd ready` shows unblocked issues
 2. **Claim your task**: `bd update <id> --status in_progress`
 3. **Work on it**: Implement, test, document
-4. **Run quality gates**: `python -m pytest tests/ -q` (or equivalent)
+4. **Run quality gates**: `python -m pytest tests/ -q` (or Harbor runner)
 5. **Discover new work?** Create linked issue:
    - `bd create "Found bug" -p 1 --deps discovered-from:<parent-id>`
-6. **Complete and learn**: `bd close <id> --reason "Completed: [summary]"`
-   - A git hook automatically runs `en learn` to capture knowledge from completed work
-   - Engram extracts patterns from test results, errors, and execution traces
-   - Learnings stored in `.engram/engram.db` for future reference
-7. **Commit together**: Always commit the `.beads/issues.jsonl` file together with the code changes so issue state stays in sync with code state
+6. **Commit your changes**:
+   ```bash
+   git add .
+   git commit -m "Completed: <bead-id> - [description]"
+   ```
+7. **MANDATORY: Close the bead** (do NOT skip this step):
+   ```bash
+   bd close <id> --reason "Completed: [detailed summary]"
+   ```
+   - This finalizes the bead with a `closedAt` timestamp
+   - Git hook detects closure and auto-runs `en learn`
+   - Engram captures execution traces from your test/build runs
+   - Patterns extracted and stored in `.engram/engram.db`
+   - Knowledge automatically available for future work
 
-**Key principle:** Learning is NOT optional. Closing a bead triggers Engram to extract patterns that improve future performance.
+**Key principle:** 
+- ⚠️ **Closing a bead is NOT optional** - it's how Engram learns
+- ✅ Always commit code BEFORE closing the bead
+- ✅ Run tests/builds BEFORE closing (so Engram has execution data to learn from)
+- ❌ Never skip the final `bd close` step
 
 ### Auto-Sync
 
@@ -406,46 +431,83 @@ AI assistants often create temporary planning documents during development:
 
 **When the user says "let's land the plane"**, follow this clean session-ending protocol:
 
-1. **File beads issues for any remaining work** that needs follow-up
-2. **Ensure all quality gates pass** (only if code changes were made) - run tests, linters, builds (file P0 issues if broken)
-3. **Update beads issues** - close finished work, update status
-4. **Sync the issue tracker carefully** - Work methodically to ensure both local and remote issues merge safely. This may require pulling, handling conflicts (sometimes accepting remote changes and re-importing), syncing the database, and verifying consistency. Be creative and patient - the goal is clean reconciliation where no issues are lost.
-5. **Clean up git state** - Clear old stashes and prune dead remote branches:
+1. **CRITICAL: Close all finished beads** - Any bead with completed work MUST be closed via `bd close`. This is NOT optional.
+   ```bash
+   bd close <bead-id> --reason "Completed: [summary]"
+   ```
+   Do this for every bead you worked on today.
+
+2. **File beads issues for remaining work** that needs follow-up
+   ```bash
+   bd create "Remaining task" -t task -p 2
+   ```
+
+3. **Ensure all quality gates pass** (if code changes were made) - run tests/builds (file P0 issues if broken)
+   ```bash
+   python -m pytest tests/ -q
+   ```
+
+4. **Commit everything**:
+   ```bash
+   git add .
+   git commit -m "Session close: <summary>"
+   ```
+
+5. **Sync the issue tracker carefully** - Work methodically to ensure both local and remote issues merge safely. This may require pulling, handling conflicts (sometimes accepting remote changes and re-importing), syncing the database, and verifying consistency. Be creative and patient - the goal is clean reconciliation where no issues are lost.
+   ```bash
+   git pull --rebase
+   bd sync
+   ```
+
+6. **Clean up git state** - Clear old stashes and prune dead remote branches:
    ```bash
    git stash clear                    # Remove old stashes
    git remote prune origin            # Clean up deleted remote branches
    ```
-6. **Verify clean state** - Ensure all changes are committed and pushed, no untracked files remain
-7. **Choose a follow-up issue for next session**
+
+7. **Verify clean state** - Ensure all changes are committed and pushed, no untracked files remain:
+   ```bash
+   git status
+   git log --oneline -5
+   ```
+
+8. **Choose a follow-up issue for next session**
    - Provide a prompt for the user to give to you in the next session
    - Format: "Continue work on bd-X: [issue title]. [Brief context about what's been done and what's next]"
 
 **Example "land the plane" session:**
 
 ```bash
-# 1. File remaining work
+# 1. CLOSE ALL FINISHED BEADS (this must happen first)
+bd close bd-42 --reason "Completed: Implemented feature X"
+bd close bd-43 --reason "Completed: Fixed bug Y"
+
+# 2. File remaining work
 bd create "Add integration tests" -t task -p 2
 
-# 2. Run quality gates (only if code changes were made)
-npm test
-npm run build
+# 3. Run quality gates
+python -m pytest tests/ -q
 
-# 3. Close finished issues
-bd close bd-42 bd-43 --reason "Completed"
+# 4. Commit everything
+git add .
+git commit -m "Session close: Completed bd-42 and bd-43"
 
-# 4. Sync carefully - example workflow (adapt as needed):
+# 5. Sync carefully
 git pull --rebase
-# If conflicts in .beads/issues.jsonl, resolve thoughtfully:
-#   - Accept remote if needed
-#   - Re-import if changed
 bd sync
 
-# 5. Verify clean state
-git status
+# 6. Clean up
+git stash clear
+git remote prune origin
 
-# 6. Choose next work
-bd ready
+# 7. Verify
+git status
+bd ready  # See what's next
+
+# 8. Report back to user with recommended next prompt
 ```
+
+**REMEMBER:** If you don't close beads, Engram never learns from the work you did. Learning is the entire point of Engram.
 
 Then provide the user with:
 
