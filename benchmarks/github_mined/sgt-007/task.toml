@@ -1,0 +1,24 @@
+[metadata]
+name = "sgt-007"
+description = "Cherry pick of #133599 on release-1.34.
+
+#133599: Mark API server errors as transient in csi raw block driver
+
+For details on the cherry pick process, see the [cherry pick requests](https://git.k8s.io/community/contributors/devel/sig-release/cherry-picks.md) page.
+
+```release-note
+NONE
+```"
+license = "MIT"
+
+[task]
+id = "sgt-007"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "easy"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

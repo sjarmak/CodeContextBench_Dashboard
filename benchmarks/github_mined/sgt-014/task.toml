@@ -1,0 +1,20 @@
+[metadata]
+name = "sgt-014"
+description = "The ipallocator was blindly assuming that all errors are retryable, that causes that the allocator tries to exhaust all the possibilities to allocate an IP address.
+
+If the error is not retryable this means the allocator will generate as many API calls as existing available IPs are in the allocator, causing CPU exhaustion since this requests are coming from inside the apiserver.
+
+In addition to handle the error correctly, this patch also interpret the error to return the right status code de"
+license = "MIT"
+
+[task]
+id = "sgt-014"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "hard"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

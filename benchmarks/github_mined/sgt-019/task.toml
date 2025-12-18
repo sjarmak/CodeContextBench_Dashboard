@@ -1,0 +1,24 @@
+[metadata]
+name = "sgt-019"
+description = "Cherry pick of #133890 on release-1.34.
+
+#133890: kubelet/metrics: fix multiple Register call
+
+For details on the cherry pick process, see the [cherry pick requests](https://git.k8s.io/community/contributors/devel/sig-release/cherry-picks.md) page.
+
+```release-note
+Fix a 1.34 regression causing missing kubelet_volume_stats_* metrics
+```"
+license = "MIT"
+
+[task]
+id = "sgt-019"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "hard"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

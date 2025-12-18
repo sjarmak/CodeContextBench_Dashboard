@@ -1,0 +1,36 @@
+[metadata]
+name = "sgt-010"
+description = "#### What type of PR is this?
+
+/kind feature
+
+#### What this PR does / why we need it:
+
+- Bump dependencies, images and versions used to Go 1.24.11 and distroless iptables
+
+
+/assign @liggitt @dims @saschagrunert @puerco 
+cc @kubernetes/release-managers 
+
+#### Which issue(s) this PR fixes:
+
+xref: https://github.com/kubernetes/release/issues/4205
+
+#### Special notes for your reviewer:
+
+#### Does this PR introduce a user-facing change?
+<!--
+If no, just write "NONE" in the releas"
+license = "MIT"
+
+[task]
+id = "sgt-010"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "hard"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

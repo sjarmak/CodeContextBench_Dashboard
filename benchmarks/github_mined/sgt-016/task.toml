@@ -1,0 +1,24 @@
+[metadata]
+name = "sgt-016"
+description = "Cherry pick of #135327 on release-1.34.
+
+#135327: Fix alpha API warnings for patch version differences
+
+For details on the cherry pick process, see the [cherry pick requests](https://git.k8s.io/community/contributors/devel/sig-release/cherry-picks.md) page.
+
+```release-note
+kube-apiserver: Fixes spurious warning log messages about enabled alpha APIs while starting API server
+```"
+license = "MIT"
+
+[task]
+id = "sgt-016"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "easy"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

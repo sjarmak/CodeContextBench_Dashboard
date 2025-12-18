@@ -1,0 +1,24 @@
+[metadata]
+name = "sgt-017"
+description = "Cherry pick of #133721 on release-1.33.
+
+#133721: fix panic for the crd with subresource but lose openAPIV3Schema
+
+For details on the cherry pick process, see the [cherry pick requests](https://git.k8s.io/community/contributors/devel/sig-release/cherry-picks.md) page.
+
+```release-note
+kube-apiserver: fix a possible panic validating a custom resource whose CustomResourceDefinition indicates a status subresource exists, but which does not define a `status` property in the `openAPIV3Schema`
+```"
+license = "MIT"
+
+[task]
+id = "sgt-017"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "easy"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

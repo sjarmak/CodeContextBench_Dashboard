@@ -1,8 +1,11 @@
-# GitHub Task Mining Infrastructure
+# GitHub Mined Tasks
 
-Mines CodeContextBench tasks from real open-source repositories using GitHub API.
+Tasks generated from real closed issues and merged PRs across major OSS repositories.
 
-Tasks are generated from closed issues and merged PRs across OSS projects (Kubernetes, Firefox, PyTorch, VSCode, etc.).
+**Current Dataset:** 9 tasks from Kubernetes, PyTorch, and VSCode
+- **Kubernetes:** 3 tasks (bugfix, refactoring, features)
+- **PyTorch:** 3 tasks (CUDA bugfix, torch.compile feature, sparse optimization)
+- **VSCode:** 3 tasks (search fix, semantic tokens API, theme performance)
 
 ## Components
 

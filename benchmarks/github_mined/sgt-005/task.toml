@@ -1,0 +1,18 @@
+[metadata]
+name = "sgt-005"
+description = "If the the PCR that kubelet created gets deleted before it is issued, a nil panic will be thrown while composing the error message.  This is fixed by taking the namespace and name from the current state, not from the (nil) object we just got from the informer.
+
+This likely needs to be picked to 1.35.  The most likely scenario to hit this crash is if you create a pod that requests a certificate from a signer that is not implemented in the cluster (because you're still developing it, or you forg"
+license = "MIT"
+
+[task]
+id = "sgt-005"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "easy"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

@@ -1,0 +1,24 @@
+[metadata]
+name = "sgt-022"
+description = "Cherry pick of #132680 on release-1.33.
+
+#132680: Don't log irrelevant zone hints message on no endpoints
+
+For details on the cherry pick process, see the [cherry pick requests](https://git.k8s.io/community/contributors/devel/sig-release/cherry-picks.md) page.
+
+```release-note
+Fixes 1.33 regression causing spammy incorrect "Ignoring same-zone topology hints for service since no hints were provided for zone" messages in the kube-proxy logs.
+```"
+license = "MIT"
+
+[task]
+id = "sgt-022"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "easy"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

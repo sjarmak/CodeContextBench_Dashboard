@@ -1,0 +1,25 @@
+[metadata]
+name = "sgt-015"
+description = "
+#### What type of PR is this?
+
+/kind bug
+
+#### What this PR does / why we need it:
+
+When a Mutating Admission Policy (MAP) using ApplyConfiguration was applied to an existing object containing duplicate items in a list (e.g., duplicate environment variables), the operation would fail with a conversion error from Structured Merge Diff.
+
+This change updates the `ApplyStructuredMergeDiff` function to use `typed.AllowDuplicates` when converting the `originalObject`. This allows MAP to proc"
+license = "MIT"
+
+[task]
+id = "sgt-015"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "easy"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

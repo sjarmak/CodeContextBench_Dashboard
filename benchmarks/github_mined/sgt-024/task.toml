@@ -1,0 +1,24 @@
+[metadata]
+name = "sgt-024"
+description = "Cherry pick of #132895 on release-1.33.
+
+#132895: Fixes scheduler nil panic due to empty init container request&limit
+
+For details on the cherry pick process, see the [cherry pick requests](https://git.k8s.io/community/contributors/devel/sig-release/cherry-picks.md) page.
+
+```release-note
+Fixes a 1.33 regression that can cause a nil panic in kube-scheduler when aggregating resource requests across container's spec and status.
+```"
+license = "MIT"
+
+[task]
+id = "sgt-024"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "easy"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

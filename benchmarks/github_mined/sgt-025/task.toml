@@ -1,0 +1,24 @@
+[metadata]
+name = "sgt-025"
+description = "Cherry pick of #132614 on release-1.33.
+
+#132614: Fix validation for Job with suspend=true,completions=0 to set Complete condition
+
+For details on the cherry pick process, see the [cherry pick requests](https://git.k8s.io/community/contributors/devel/sig-release/cherry-picks.md) page.
+
+```release-note
+Fix a 1.32 regression in validation for Job with suspend=true, and completions=0 to set the Complete condition.
+```"
+license = "MIT"
+
+[task]
+id = "sgt-025"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "medium"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."

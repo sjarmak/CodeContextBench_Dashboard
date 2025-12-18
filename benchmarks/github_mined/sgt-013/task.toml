@@ -1,0 +1,27 @@
+[metadata]
+name = "sgt-013"
+description = "Invariably we will get asked about `CVE-2025-58181` and `CVE-2025-47914` as scanners will alarm on it though `govulncheck` does not show either. We should ensure v1.35.0 ships with a clean sheet.
+
+vendor: golang.org/x/crypto v0.45.0
+full diff: https://github.com/golang/crypto/compare/v0.44.0...v0.45.0
+
+```
+Hello gophers,
+
+We have tagged version v0.45.0 of golang.org/x/crypto in order to address two
+security issues.
+
+This version fixes a vulnerability in the golang.org/x/crypto/ssh pac"
+license = "MIT"
+
+[task]
+id = "sgt-013"
+repo = "kubernetes"
+category = "cross_module_bug_fix"
+language = "go"
+difficulty = "hard"
+time_limit_sec = 600
+
+[verification]
+type = "test"
+command = "go test ./..."
