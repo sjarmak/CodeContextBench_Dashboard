@@ -35,6 +35,9 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
         sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN")
         
         if sg_instance and sg_token:
+            # Ensure instance URL doesn't have https:// prefix (we'll add it)
+            sg_instance = sg_instance.replace("https://", "").replace("http://", "")
+            
             # Create MCP configuration for Sourcegraph
             mcp_config = {
                 "mcpServers": {
