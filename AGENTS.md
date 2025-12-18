@@ -14,72 +14,25 @@ CodeContextBench is a benchmark evaluation framework for assessing how improved 
 
 **See detailed architecture:** `docs/ARCHITECTURE.md`
 
-## Engram Integration: Continuous Learning Loop
+## Bead Workflow
 
-CodeContextBench uses **Engram** for structured learning from task execution. Every completed bead creates a learning signal that improves future agent performance.
-
-### Engram Workflow
-
-**For each completed bead:**
+**For each task (bead):**
 
 ```bash
-# 1. Work on the task (implement, test, commit)
+# 1. Claim the task
 bd update <bead-id> --status in_progress
 
-# ... do the work ...
+# ... do the work (implement, test, commit) ...
 
-# 2. Run quality gates
-python -m pytest tests/ -q
-
-# 3. Close the bead (triggers automatic learning)
-bd close <bead-id> --reason "Completed: [brief summary of what was done]"
+# 2. Close when complete
+bd close <bead-id> --reason "Completed: [brief summary]"
 ```
 
-**Engram automatically:**
-- Captures execution traces (test results, build outcomes, errors)
-- Extracts patterns from logs and traces
-- Generates insights about failure modes and success patterns
-- Stores learnings in `.engram/engram.db`
-- Updates knowledge base for future work
-
-### Learning Signals
-
-Each bead closure generates learning data:
-
-- **Successful tasks** → Extract what approach worked
-- **Failed tasks** → Extract error patterns and root causes
-- **Test results** → Correlate failures with code patterns
-- **Execution metadata** → Track tool usage and performance
-
-### Manual Learning (if needed)
-
-If you need to capture learning without closing a bead:
-
-```bash
-en learn --beads <bead-id>
-```
-
-This runs the learning pipeline on a specific bead's execution traces.
-
-### Querying Learned Knowledge
-
-```bash
-# See learned patterns
-en get-insights --limit 10 --sort-by confidence
-
-# Get specific patterns by tag
-en get-insights --tags error-handling --min-confidence 0.8
-
-# Review bullets (formatted learnings)
-en get-bullets --limit 20 --sort-by helpful
-```
-
-### Key Engram Concepts
-
-- **Trace**: Execution record (test pass/fail, build errors, etc.)
-- **Insight**: Extracted learning from one or more traces
-- **Bullet**: Formatted insight for reuse (stored in knowledge base)
-- **engram.db**: SQLite database containing all learnings
+**Best practices:**
+- Always update bead status to `in_progress` when starting
+- Close beads immediately when work is done (don't batch)
+- Check `bd ready` to find unblocked work
+- Use `--json` flag for programmatic use
 
 ## Learned Patterns
 

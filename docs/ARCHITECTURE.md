@@ -7,7 +7,7 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 - **Claude-first design**: Primary agents are Claude-based (baseline + MCP variants)
 - **Modular agent support**: Easy to add new agent types (Termius, Cursor, etc.)
 - **Structured observability**: NeMo-Agent-Toolkit integration for detailed metrics
-- **Continuous learning**: Engram framework captures execution patterns and improves future performance
+
 
 ## High-Level Architecture
 
@@ -76,12 +76,34 @@ All agents extend `BasePatchAgent` and implement:
 - MCP configuration at Harbor runtime
 - NOT in agent code itself
 
+#### `src/task_mining/` - GitHub Task Mining
+
+Automated pipeline for mining real-world tasks from GitHub repositories:
+
+- **mine_tasks.py** - Main entry point (--repos, --days-back, --output, --limit flags)
+- **github_client.py** - GitHub API client (REST v3, pagination, rate limiting)
+- **task_generator.py** - Convert GitHub PRs/issues → TaskSpecification objects
+- **task_filter.py** - Validate tasks against CodeContextBench eligibility criteria
+- **repo_registry.py** - Repository definitions with language metadata
+
+**Mining pipeline** (Phase 2a):
+1. Query GitHub for merged PRs (≥2 files changed, test additions)
+2. Filter by deterministic verification (test commands present)
+3. Generate TaskSpecification objects with metadata
+4. Validate schema (98% pass rate target)
+5. Generate Harbor task directories ready for execution
+
+**Output**: `benchmarks/github_mined/` with 50 Kubernetes + PyTorch tasks
+
+See [docs/MINING_EXECUTION_REPORT.md](MINING_EXECUTION_REPORT.md) for Phase 2a results.
+
 #### `benchmarks/` - Task Sets
 
 Standardized benchmark task sets with consistent format:
 
 - **terminal-bench/** - Terminal-Bench 2.0 (89 self-contained implementation tasks)
-- **10figure/** - 10Figure-Codebases (cross-file reasoning, refactoring, API upgrades)
+- **10figure/** - 10Figure-Codebases (25 reference cross-file reasoning tasks)
+- **github_mined/** - Real-world GitHub tasks (50 Kubernetes + PyTorch, Phase 2a)
 - **custom/** - Project-specific custom tasks
 
 Each task includes:
@@ -127,11 +149,12 @@ Each task includes:
 - **test_agents.py** - Agent command generation and environment setup
 - Comprehensive coverage of all core functionality
 
-#### `.engram/` - Knowledge & Learning
+#### `.beads/` - Issue Tracking
 
-- **engram.db** - SQLite database with learned patterns
-- Populated automatically when beads are closed via `en learn`
-- Stores execution traces, insights, bullets (formatted learnings)
+- **issues.jsonl** - Issue database (auto-synced with git)
+- Tracks all work items: bugs, features, tasks, epics
+- Dependency-aware: tracks blockers and relationships
+- Auto-populated from `bd` CLI commands
 
 ### Configuration Files
 

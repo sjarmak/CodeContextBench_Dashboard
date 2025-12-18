@@ -62,20 +62,33 @@ Claude Code with Sourcegraph MCP server integration:
 - **10Figure-Codebases**: `/Users/sjarmak/10Figure-Codebases/` (~5GB, 23 repos)
 - **Harbor Task Manifest**: `/Users/sjarmak/harbor-10figure-dataset/`
 
-## Migration Status
+## Phase Status
 
-✅ Directory skeleton created
-✅ BasePatchAgent ported (generalized for multi-agent)
-✅ ClaudeCodeAgent (baseline, no code search)
-✅ ClaudeCodeSourcegraphMCPAgent (with Sourcegraph tools)
-✅ Installation templates (install-claude.sh.j2)
-✅ Tests for agent implementations (14 passing)
-⏳ Benchmark task runners
-⏳ Harbor configuration & integration
-⏳ 10Figure task generator
-⏳ Smoke tests
+### Phase 1: Foundation (COMPLETE)
+✅ Directory skeleton and project structure
+✅ BasePatchAgent + ClaudeCodeAgent + ClaudeCodeMCPAgent
+✅ Installation templates and Harbor integration
+✅ 25 Kubernetes reference tasks (10figure baseline)
+✅ Agent tests (14 passing)
 
-See `.beads/issues.jsonl` for full task list (14 beads total).
+### Phase 2a: Mining (COMPLETE)
+✅ Mined 50 real-world GitHub tasks (Kubernetes + PyTorch)
+✅ 98% schema validation pass rate (49/50)
+✅ All tasks multi-file, deterministic, ground-truth verified
+✅ Harbor task generation & validation infrastructure
+✅ See [docs/MINING_EXECUTION_REPORT.md](docs/MINING_EXECUTION_REPORT.md)
+
+### Phase 2b: Benchmark Execution (IN PROGRESS)
+⏳ Pilot benchmark (10 tasks, both agents)
+⏳ Full benchmark suite (50 + 4 10figure tasks × 2 agents)
+⏳ Manifest generation and tool usage tracking
+
+### Phase 2c: Analysis (READY FOR EXECUTION)
+⏳ Comparative analysis (baseline vs +MCP)
+⏳ Failure mode analysis by category/difficulty/language
+⏳ Hypothesis validation report
+
+See `.beads/issues.jsonl` for full task list.
 
 ## Contributing
 
