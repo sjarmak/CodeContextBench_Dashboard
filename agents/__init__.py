@@ -1,11 +1,6 @@
-"""Agent implementations for CodeContextBench."""
+"""Harbor agents for CodeContextBench."""
 
-from .base import BasePatchAgent
-from .claude_agent import ClaudeCodeAgent
-from .claude_sourcegraph_mcp_agent import ClaudeCodeSourcegraphMCPAgent
+from harbor.agents.installed.claude_code import ClaudeCode
+from .claude_code_mcp import ClaudeCodeMCP
 
-__all__ = [
-    "BasePatchAgent",
-    "ClaudeCodeAgent",
-    "ClaudeCodeSourcegraphMCPAgent",
-]
+__all__ = ["ClaudeCode", "ClaudeCodeMCP"]
