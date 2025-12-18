@@ -73,14 +73,19 @@ def process_pilot_run(job_dir: Path, pilot_name: str) -> Dict[str, Any]:
             # Calculate cost
             cost_usd = writer.calculate_cost(input_tokens, output_tokens)
             
-            # Check reward
-            reward_file = task_dir / 'reward.txt'
+            # Check reward (may be in verifier/ subdirectory or root)
+            reward_files = [
+                task_dir / 'verifier' / 'reward.txt',
+                task_dir / 'reward.txt',
+            ]
             reward = 0.0
-            if reward_file.exists():
-                try:
-                    reward = float(reward_file.read_text().strip())
-                except:
-                    pass
+            for reward_file in reward_files:
+                if reward_file.exists():
+                    try:
+                        reward = float(reward_file.read_text().strip())
+                        break
+                    except:
+                        pass
             
             task_record = {
                 'task': task_name,

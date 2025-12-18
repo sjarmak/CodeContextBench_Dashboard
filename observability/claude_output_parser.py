@@ -198,7 +198,8 @@ class ClaudeOutputParser:
         """Extract token usage from a completed task execution directory.
         
         Searches for Claude output in common log locations:
-        - logs/agent/claude.txt
+        - agent/claude.txt (Harbor layout)
+        - logs/agent/claude.txt (alternative layout)
         - logs/agent/stdout.log
         - logs/agent/output.json
         
@@ -208,8 +209,9 @@ class ClaudeOutputParser:
         Returns:
             ClaudeTokenUsage with extracted token counts
         """
-        # Check common log locations
+        # Check common log locations (Harbor first)
         log_paths = [
+            task_dir / 'agent' / 'claude.txt',  # Harbor default
             task_dir / 'logs' / 'agent' / 'claude.txt',
             task_dir / 'logs' / 'agent' / 'stdout.log',
             task_dir / 'logs' / 'agent' / 'output.json',
