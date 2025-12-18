@@ -25,65 +25,13 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
     """
     
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
-        """Create Claude commands with MCP config injected via --mcp-config flag.
+        """Create Claude commands.
 
-        Gets parent's commands and injects --mcp-config with Sourcegraph MCP config.
-        Uses HTTP transport to Sourcegraph's hosted MCP endpoint at /.api/mcp/v1
+        MCP configuration is handled via /workspace/.mcp.json file created during setup().
+        Claude Code will automatically discover and load this file when it starts.
         """
-        # Get Sourcegraph credentials
-        sg_url = os.environ.get("SOURCEGRAPH_URL", "")
-        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN", "")
-
-        if not (sg_url and sg_token):
-            # No MCP config available, use parent's commands as-is
-            self.logger.warning("⚠ Sourcegraph MCP not configured. Set SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN.")
-            return super().create_run_agent_commands(instruction)
-
-        # Ensure URL has protocol
-        if not sg_url.startswith(('http://', 'https://')):
-            sg_url = f"https://{sg_url}"
-
-        # Ensure URL doesn't end with trailing slash
-        sg_url = sg_url.rstrip('/')
-
-        # Create MCP config for HTTP transport
-        mcp_config = {
-            "mcpServers": {
-                "sourcegraph": {
-                    "type": "http",
-                    "url": f"{sg_url}/.api/mcp/v1",
-                    "headers": {
-                        "Authorization": f"token {sg_token}"
-                    }
-                }
-            }
-        }
-
-        mcp_config_json = json.dumps(mcp_config)
-        
-        # Get parent's commands
-        parent_commands = super().create_run_agent_commands(instruction)
-        
-        # Inject --mcp-config flag into claude command
-        modified_commands = []
-        for cmd in parent_commands:
-            if cmd.command and "claude" in cmd.command:
-                # Find "claude" in the command and inject --mcp-config after it
-                modified_cmd = cmd.command.replace(
-                    "claude ",
-                    f"claude --mcp-config '{mcp_config_json}' "
-                )
-                modified_commands.append(
-                    ExecInput(
-                        command=modified_cmd,
-                        env=cmd.env or {},
-                    )
-                )
-                self.logger.info(f"✓ Injected Sourcegraph MCP via --mcp-config flag")
-            else:
-                modified_commands.append(cmd)
-        
-        return modified_commands
+        # Just return parent's commands - MCP config is in .mcp.json file
+        return super().create_run_agent_commands(instruction)
 
     async def setup(self, environment: BaseEnvironment) -> None:
         """Setup Claude Code environment.
@@ -97,6 +45,38 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
         sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN", "")
 
         if sg_url and sg_token:
+            # Ensure URL has protocol
+            if not sg_url.startswith(('http://', 'https://')):
+                sg_url = f"https://{sg_url}"
+
+            # Ensure URL doesn't end with trailing slash
+            sg_url = sg_url.rstrip('/')
+
+            # Create .mcp.json with Sourcegraph MCP configuration
+            mcp_config = {
+                "mcpServers": {
+                    "sourcegraph": {
+                        "type": "http",
+                        "url": f"{sg_url}/.api/mcp/v1",
+                        "headers": {
+                            "Authorization": f"token {sg_token}"
+                        }
+                    }
+                }
+            }
+
+            mcp_config_path = self.logs_dir / ".mcp.json"
+            with open(mcp_config_path, "w") as f:
+                json.dump(mcp_config, f, indent=2)
+
+            # Upload .mcp.json to project root
+            await environment.upload_file(
+                source_path=mcp_config_path,
+                target_path="/workspace/.mcp.json"
+            )
+
+            self.logger.info(f"✓ Created .mcp.json with Sourcegraph MCP configuration")
+
             # Create CLAUDE.md with instructions for using Sourcegraph MCP
             claude_instructions = """# Sourcegraph MCP Available
 
@@ -119,17 +99,17 @@ The Sourcegraph MCP server provides tools for:
 
 This is much more efficient than grep for understanding large codebases.
 """
-            
+
             instructions_path = self.logs_dir / "CLAUDE.md"
             with open(instructions_path, "w") as f:
                 f.write(claude_instructions)
-            
-            # Upload to task working directory root
+
+            # Upload CLAUDE.md to project root
             await environment.upload_file(
                 source_path=instructions_path,
                 target_path="/workspace/CLAUDE.md"
             )
-            
+
             self.logger.info(f"✓ Created CLAUDE.md with Sourcegraph MCP instructions")
         else:
             self.logger.warning(
