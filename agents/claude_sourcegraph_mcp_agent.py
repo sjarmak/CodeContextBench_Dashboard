@@ -17,40 +17,43 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
     via MCP (Model Context Protocol) server.
     
     Environment Variables:
-    - SOURCEGRAPH_INSTANCE: Sourcegraph instance URL (e.g., sourcegraph.com)
+    - SOURCEGRAPH_URL: Sourcegraph instance URL (e.g., https://sourcegraph.com)
     - SOURCEGRAPH_ACCESS_TOKEN: Authentication token for Sourcegraph API
-    
-    The MCP server is configured to use HTTP protocol and will be available
-    to Claude for Deep Search queries during task execution.
+
+    The MCP server is configured to use stdio transport (via @sourcegraph/mcp-server npm package)
+    and will be available to Claude for Deep Search queries during task execution.
     """
     
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
         """Create Claude commands with MCP config injected via --mcp-config flag.
-        
+
         Gets parent's commands and injects --mcp-config with Sourcegraph MCP config.
+        Uses stdio transport via @sourcegraph/mcp-server npm package.
         """
         # Get Sourcegraph credentials
-        sg_instance = os.environ.get("SOURCEGRAPH_INSTANCE", "").replace("https://", "").replace("http://", "")
+        sg_url = os.environ.get("SOURCEGRAPH_URL", "")
         sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN", "")
-        
-        if not (sg_instance and sg_token):
+
+        if not (sg_url and sg_token):
             # No MCP config available, use parent's commands as-is
-            self.logger.warning("⚠ Sourcegraph MCP not configured. Set SOURCEGRAPH_INSTANCE and SOURCEGRAPH_ACCESS_TOKEN.")
+            self.logger.warning("⚠ Sourcegraph MCP not configured. Set SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN.")
             return super().create_run_agent_commands(instruction)
-        
-        # Create MCP config
+
+        # Create MCP config for stdio transport
+        # Note: The MCP server expects SRC_ACCESS_TOKEN, not SOURCEGRAPH_ACCESS_TOKEN
         mcp_config = {
             "mcpServers": {
                 "sourcegraph": {
-                    "type": "http",
-                    "url": f"https://{sg_instance}/.api/mcp/v1",
-                    "headers": {
-                        "Authorization": f"token {sg_token}"
+                    "command": "npx",
+                    "args": ["-y", "@sourcegraph/mcp-server"],
+                    "env": {
+                        "SRC_ACCESS_TOKEN": sg_token,
+                        "SOURCEGRAPH_URL": sg_url
                     }
                 }
             }
         }
-        
+
         mcp_config_json = json.dumps(mcp_config)
         
         # Get parent's commands
@@ -79,16 +82,16 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
 
     async def setup(self, environment: BaseEnvironment) -> None:
         """Setup Claude Code environment.
-        
+
         MCP configuration is handled in create_run_agent_commands() via --mcp-config flag.
         This method just creates CLAUDE.md instructions and runs parent setup.
         """
-        
+
         # Get Sourcegraph credentials to check if MCP will be available
-        sg_instance = os.environ.get("SOURCEGRAPH_INSTANCE", "").replace("https://", "").replace("http://", "")
+        sg_url = os.environ.get("SOURCEGRAPH_URL", "")
         sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN", "")
-        
-        if sg_instance and sg_token:
+
+        if sg_url and sg_token:
             # Create CLAUDE.md with instructions for using Sourcegraph MCP
             claude_instructions = """# Sourcegraph MCP Available
 
@@ -125,7 +128,7 @@ This is much more efficient than grep for understanding large codebases.
             self.logger.info(f"✓ Created CLAUDE.md with Sourcegraph MCP instructions")
         else:
             self.logger.warning(
-                "⚠ Sourcegraph MCP not configured. Set SOURCEGRAPH_INSTANCE "
+                "⚠ Sourcegraph MCP not configured. Set SOURCEGRAPH_URL "
                 "and SOURCEGRAPH_ACCESS_TOKEN environment variables."
             )
         
