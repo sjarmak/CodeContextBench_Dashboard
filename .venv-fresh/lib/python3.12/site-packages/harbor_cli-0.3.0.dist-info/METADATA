@@ -1,0 +1,246 @@
+Metadata-Version: 2.3
+Name: harbor-cli
+Version: 0.3.0
+Summary: Command-line interface for Harbor.
+Project-URL: Source, https://github.com/unioslo/harbor-cli
+Project-URL: Documentation, https://unioslo.github.io/harbor-cli/
+Project-URL: Changelog, https://github.com/unioslo/harbor-cli/blob/main/CHANGELOG.md
+Project-URL: Issues, https://github.com/unioslo/harbor-cli/issues
+Author-email: pederhan <pederhan@uio.no>
+License-Expression: MIT
+License-File: LICENSE.txt
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Topic :: Internet
+Classifier: Topic :: System :: Systems Administration
+Classifier: Topic :: Utilities
+Classifier: Typing :: Typed
+Requires-Python: >=3.8
+Requires-Dist: click-repl==0.2.0
+Requires-Dist: fuzzywuzzy>=0.18.0
+Requires-Dist: harborapi>=0.25.2
+Requires-Dist: httpx[socks]>=0.26.0
+Requires-Dist: keyring>=24.2.0
+Requires-Dist: platformdirs>=2.5.4
+Requires-Dist: pydantic>=2.7.4
+Requires-Dist: python-levenshtein>=0.20.9
+Requires-Dist: rich>=12.6.0
+Requires-Dist: strenum>=0.4.15
+Requires-Dist: tomli-w>=1.0.0
+Requires-Dist: tomli>=2.0.1
+Requires-Dist: trogon>=0.5.0
+Requires-Dist: typer==0.9.0
+Provides-Extra: dev
+Requires-Dist: freezegun>=1.2.2; extra == 'dev'
+Requires-Dist: hypothesis>=6.62.1; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest-mock>=3.10.0; extra == 'dev'
+Requires-Dist: pytest-timeout>=2.1.0; extra == 'dev'
+Requires-Dist: pytest>=7.2.0; extra == 'dev'
+Requires-Dist: ruff>=0.2.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# harbor-cli
+
+<!-- [![PyPI - Version](https://img.shields.io/pypi/v/harbor-cli.svg)](https://pypi.org/project/harbor-cli)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/harbor-cli.svg)](https://pypi.org/project/harbor-cli) -->
+
+![Tests](https://github.com/unioslo/harbor-cli/workflows/test/badge.svg) [![Docs](https://github.com/unioslo/harbor-cli/workflows/build-docs/badge.svg)](https://unioslo.github.io/harbor-cli/) ![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v2.json) ![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)
+
+![Demo](docs/assets/readme/demo.gif)
+
+
+-----
+
+**Table of Contents**
+
+- [Features](#features)
+- [Installation](#installation)
+  - [MacOS](#macos)
+  - [Linux](#linux)
+  - [Windows](#windows)
+- [Documentation](#documentation)
+- [Usage](#usage)
+  - [Quick Start](#quick-start-)
+- [Examples](#examples)
+- [License](#license)
+
+## Features
+
+- [150+ commands](https://unioslo.github.io/harbor-cli/commands/)
+- Beautiful command-line interface powered by [Typer](https://github.com/tiangolo/typer) and [Rich](https://github.com/Textualize/rich).
+- REPL mode (`harbor repl`)
+- TUI mode (`harbor tui`)
+- Tab completion for commands and options.
+- Automatic retrying of failed requests
+- Multiple output formats:
+    - Table
+    - JSON
+- Large number of configuration options
+    - Authentication methods
+    - Table styling
+    - Output formats
+    - ... and more
+
+
+## Installation
+
+It is highly recommended to install `harbor-cli` with [pipx](https://pipx.pypa.io/stable/). pipx installs the application in an isolated environment to avoid dependency conflicts, and makes it easy to upgrade or uninstall it afterwards.
+
+### MacOS
+
+Install as a pipx app:
+
+```
+pipx install harbor-cli
+```
+
+or through Homebrew:
+
+```
+brew tap add unioslo/harbor-cli
+brew install harbor-cli
+```
+
+Keyring functionality should work out of the box on MacOS >=11 with Python >=3.8.7.
+
+
+### Linux
+
+
+```
+pipx install harbor-cli
+```
+
+Depending on your Linux flavor and choice of keyring backend, you may need to install additional packages to enable keyring functionality. See the [keyring documentation](https://keyring.readthedocs.io/en/latest/#installing-keyring) for more information.
+
+
+If you need to inject a package into the application's pipx environment, use the `pipx inject` command:
+
+
+```
+pipx inject harbor-cli <package to inject>
+```
+
+
+### Windows
+
+```
+pipx install harbor-cli
+```
+
+Keyring functionality is untested on Windows, but should work out of the box. If you run into any issues, consult the [keyring documentation](https://github.com/jaraco/keyring#readme) for more information. Otherwise, please open an issue.
+
+
+## Documentation
+
+Documentation can be found [here](https://unioslo.github.io/harbor-cli/).
+
+The documentation includes extensive setup and usage guides, as well as a list of all commands and their options.
+
+## Usage
+
+
+Installing the application puts `harbor` in your `PATH`, and can be invoked by typing `harbor` in your terminal:
+
+```console
+$ harbor --help
+```
+
+
+<!-- ## Unreleased -->
+
+## [0.3.0](https://github.com/unioslo/harbor-cli/tree/harbor-cli-v0.3.0) - 2024-06-26
+
+### Added
+
+- Command: `project repos` to list repositories in a project. A more intuitive way to list repositories for a project than going through `repository list`.
+- `--sbom-generation` option for `project create` and `project update` commands to enable automatic SBOM generation for the project.
+
+### Changed
+
+- Styling of multiline help text in commands.
+
+### Removed
+
+- Mentions of valid values from `project {create,update}` commands.
+
+### Fixed
+
+- REPL closing when certain errors are raised.
+- `artifact list` for artifacts with no extra attributes.
+
+## [0.2.2](https://github.com/unioslo/harbor-cli/tree/harbor-cli-v0.2.2) - 2024-03-01
+
+### Fixed
+
+- Configuration option `verify_ssl` not having any effect.
+
+## [0.2.1](https://github.com/unioslo/harbor-cli/tree/harbor-cli-v0.2.1) - 2024-02-02
+
+### Added
+
+- Help for MacOS users if Keychain is returning a `-25244` `errSecInvalidOwnerEdit` error.
+- `self keyring` command to manage the keyring.
+  - `self keyring status` to see information about the keyring used.
+- `self config` command to manage the configuration file.
+  - Has the same commands as `cli-config`, which is now deprecated.
+
+### Changed
+
+- Prompts are now printed to stderr instead of stdout for POSIX compliance.
+- Newlines are now logged as spaces in the log file.
+
+### Fixed
+
+- Coroutines not being properly cancelled when the application exits abnormally.
+- Password not being stored in keyring after user is prompted for missing authentication info.
+- Repeated keyring warnings if keyring is not available.
+
+### Deprecated
+
+- `cli-config` command. Use `self config`
+
+## [0.2.0](https://github.com/unioslo/harbor-cli/tree/harbor-cli-v0.2.0) - 2023-12-21
+
+### Changed
+
+- Automatic datetime log file naming now uses the tag `{dt}` (was `{time}`).
+- Log file is now named `harbor-cli.log` by default (no longer includes datetime).
+  - Automatic datetime naming is now opt-in instead of being the default.
+
+### Deprecated
+
+- `{time}` tag for automatic datetime log file naming. Use `{dt}` instead.
+- `[cache]` section in configuration file. Caching of API responses has been removed.
+
+### Removed
+
+- Caching of API responses. This was a premature optimization that caused more problems than it solved. It will be re-introduced in a future release.
+
+### Fixed
+
+- Double printing of messages in terminal if logging wasn't properly configured.
+
+## [0.1.0](https://github.com/unioslo/harbor-cli/tree/ca08e7e8830ff3a10e1be447b5555acd5ed672ed) - 2023-12-06
+
+### Added
+
+- Initial release.
+
+<!-- ### Added -->
+<!-- ### Changed -->
+<!-- ### Deprecated -->
+<!-- ### Removed -->
+<!-- ### Fixed -->
+<!-- ### Security -->
