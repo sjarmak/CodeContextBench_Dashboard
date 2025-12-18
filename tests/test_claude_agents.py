@@ -52,7 +52,6 @@ class TestClaudeCodeAgent:
         
         assert "cd /workspace/repo" in cmd
         assert "claude -p" in cmd
-        assert "--dangerously-skip-permissions" in cmd
         assert "--output-format json" in cmd
         assert "'Fix the bug in main.py'" in cmd
         assert "tee /logs/agent/claude.txt" in cmd
@@ -100,28 +99,28 @@ class TestClaudeCodeSourcegraphMCPAgent:
     
     @patch.dict(os.environ, {
         "ANTHROPIC_API_KEY": "test-key",
-        "SRC_ACCESS_TOKEN": "sgp_test-token"
+        "SOURCEGRAPH_ACCESS_TOKEN": "sgp_test-token"
     })
     def test_get_agent_env_with_sourcegraph(self):
-        """Test environment variables include Sourcegraph credentials."""
+        """Test environment variables include Sourcegraph MCP credentials."""
         agent = ClaudeCodeSourcegraphMCPAgent()
         env = agent.get_agent_env()
         
         assert env["ANTHROPIC_API_KEY"] == "test-key"
-        assert env["SRC_ACCESS_TOKEN"] == "sgp_test-token"
-        assert env["SOURCEGRAPH_URL"] == "https://sourcegraph.sourcegraph.com"
+        assert env["SOURCEGRAPH_ACCESS_TOKEN"] == "sgp_test-token"
+        assert env["SOURCEGRAPH_MCP_URL"] == "https://sourcegraph.sourcegraph.com/.api/mcp/v1"
     
     @patch.dict(os.environ, {
         "ANTHROPIC_API_KEY": "test-key",
-        "SRC_ACCESS_TOKEN": "sgp_test-token",
-        "SOURCEGRAPH_URL": "https://custom.sourcegraph.com"
+        "SOURCEGRAPH_ACCESS_TOKEN": "sgp_test-token",
+        "SOURCEGRAPH_MCP_URL": "https://custom.sourcegraph.com/.api/mcp/v1"
     })
-    def test_get_agent_env_custom_sourcegraph_url(self):
-        """Test that custom SOURCEGRAPH_URL is respected."""
+    def test_get_agent_env_custom_mcp_url(self):
+        """Test that custom SOURCEGRAPH_MCP_URL is respected."""
         agent = ClaudeCodeSourcegraphMCPAgent()
         env = agent.get_agent_env()
         
-        assert env["SOURCEGRAPH_URL"] == "https://custom.sourcegraph.com"
+        assert env["SOURCEGRAPH_MCP_URL"] == "https://custom.sourcegraph.com/.api/mcp/v1"
     
     def test_get_agent_env_missing_api_key(self):
         """Test that missing ANTHROPIC_API_KEY raises ValueError."""
@@ -130,29 +129,42 @@ class TestClaudeCodeSourcegraphMCPAgent:
             with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
                 agent.get_agent_env()
     
-    def test_get_agent_env_missing_src_token(self):
-        """Test that missing SRC_ACCESS_TOKEN raises ValueError."""
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}, clear=False):
-            # Ensure SRC_ACCESS_TOKEN is not set
-            if "SRC_ACCESS_TOKEN" in os.environ:
-                del os.environ["SRC_ACCESS_TOKEN"]
+    def test_get_agent_env_missing_sourcegraph_token(self):
+        """Test that missing SOURCEGRAPH_ACCESS_TOKEN raises ValueError."""
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}, clear=True):
             agent = ClaudeCodeSourcegraphMCPAgent()
-            with pytest.raises(ValueError, match="SRC_ACCESS_TOKEN"):
+            with pytest.raises(ValueError, match="SOURCEGRAPH_ACCESS_TOKEN"):
                 agent.get_agent_env()
     
     @patch.dict(os.environ, {
         "ANTHROPIC_API_KEY": "test-key",
-        "SRC_ACCESS_TOKEN": "sgp_test-token"
+        "SOURCEGRAPH_ACCESS_TOKEN": "sgp_test-token"
     })
-    def test_inherits_command_generation(self):
-        """Test that MCP agent uses baseline command generation."""
+    def test_mcp_guidance_prepended_to_instruction(self):
+        """Test that MCP guidance is prepended to instructions."""
         agent = ClaudeCodeSourcegraphMCPAgent()
-        instruction = "Analyze the codebase"
+        instruction = "Fix the bug"
         repo_dir = "/repo"
         
         cmd = agent.get_agent_command(instruction, repo_dir)
         
-        # Should generate same command as baseline
+        # Should include MCP guidance in the command
+        assert "Model Context Protocol" in cmd
+        assert "USE THE MCP TOOLS" in cmd
         assert "claude -p" in cmd
-        assert "--dangerously-skip-permissions" in cmd
         assert "--output-format json" in cmd
+    
+    @patch.dict(os.environ, {
+        "ANTHROPIC_API_KEY": "test-key",
+        "SOURCEGRAPH_ACCESS_TOKEN": "sgp_test-token"
+    })
+    def test_create_mcp_setup_script_generates_config(self):
+        """Test that _create_mcp_setup_script generates valid shell script."""
+        agent = ClaudeCodeSourcegraphMCPAgent()
+        script = agent._create_mcp_setup_script()
+        
+        # Script should create .mcp.json
+        assert ".mcp.json" in script
+        assert "mcpServers" in script
+        assert "sourcegraph" in script
+        assert "Authorization" in script
