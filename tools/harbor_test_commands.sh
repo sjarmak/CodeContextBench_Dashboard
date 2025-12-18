@@ -61,6 +61,7 @@ case "$MODE" in
               --agent claude-code \
               --model "$MODEL" \
               --env daytona \
+              --force-build \
               -n "$TASKS" \
               --jobs-dir "$JOB_DIR"
             
@@ -113,6 +114,7 @@ case "$MODE" in
               --agent claude-code \
               --model "$MODEL" \
               --env daytona \
+              --force-build \
               --ek SOURCEGRAPH_ACCESS_TOKEN="$SRC_ACCESS_TOKEN" \
               --ek SOURCEGRAPH_URL="https://sourcegraph.sourcegraph.com" \
               -n "$TASKS" \
