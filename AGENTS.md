@@ -203,6 +203,86 @@ sqlite3 .engram/engram.db "SELECT * FROM insights LIMIT 10;"
 - **Bullet**: Formatted insight for reuse (stored in knowledge base)
 - **engram.db**: SQLite database containing all learnings
 
+## Phase 4: Single-Task Validation (Current Focus)
+
+**Status**: In progress  
+**Start**: Dec 18 2025  
+**Goal**: Run sgt-001 with baseline and MCP agents to definitively prove whether MCP helps
+
+### Key Changes for Phase 4
+
+1. **System Prompt Requirement**
+   - All agents now receive explicit system prompt: "You MUST complete this coding task"
+   - No placeholders, no "here's what I would do", must make actual code changes
+   - Prompt saved to `system_prompt.txt` in agent logs for verification
+
+2. **Code Changes Validation**
+   - Execution FAILS if git diff is empty (0 bytes)
+   - Agents cannot succeed without making code edits
+   - Validates fundamental requirement: actual code changes needed
+
+3. **Real Test Validation (sgt-001)**
+   - Replaced fake `make test` with proper validation in `tests/test.sh`
+   - Validates specific files modified: `NCCLUtils.cpp`, `NCCLUtils.hpp`
+   - Checks for thread safety patterns (mutex, locks, atomic)
+   - Returns 1.0 for success, 0.5 for partial, 0.0 for failure
+
+4. **Complete Trace Capture**
+   - New runner: `runners/capture_single_task_trace.py`
+   - Captures full conversation turns (not just final JSON)
+   - Extracts metrics: tokens, time, tool calls
+   - For MCP: tracks all Deep Search queries and results
+   - Validation checks: code changes exist, test files found, system prompt applied
+
+### Running Single-Task Comparison
+
+See `history/RUNBOOK_SINGLE_TASK_COMPARISON.md` for detailed instructions:
+
+```bash
+# Baseline agent (no Sourcegraph)
+harbor run \
+  --path benchmarks/github_mined \
+  --agent claude-code \
+  --model anthropic/claude-3-5-sonnet-20241022 \
+  -n 1 \
+  --jobs-dir jobs/claude-baseline-github_mined-single-test \
+  --task-name sgt-001
+
+# MCP agent (with Sourcegraph)
+harbor run \
+  --path benchmarks/github_mined \
+  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
+  --model anthropic/claude-3-5-sonnet-20241022 \
+  -n 1 \
+  --jobs-dir jobs/claude-mcp-github_mined-single-test \
+  --task-name sgt-001
+
+# Capture traces
+python3 runners/capture_single_task_trace.py \
+  --task-dir jobs/claude-baseline-github_mined-single-test/*/sgt-001__*/ \
+  --output artifacts/baseline-single-test-trace.json
+```
+
+### Job Naming Convention
+
+All new jobs MUST follow: `<agent-type>-<benchmark-set>-<test-scope>`
+
+✅ Good: `claude-baseline-github_mined-single-test`, `claude-mcp-github_mined-pilot`
+❌ Bad: `harbor-baseline-pilot`, `mcp-sanity-verify`, `harbor-test-single`
+
+See `jobs/README.md` for full naming guide.
+
+### Critical Validation Checklist
+
+Before concluding MCP testing:
+- [ ] Baseline patch.diff > 0 bytes (code changes exist)
+- [ ] MCP patch.diff > 0 bytes (not zero code)
+- [ ] Baseline test output shows real validation (not fake `make test`)
+- [ ] MCP test output shows real validation
+- [ ] Both system_prompt.txt files exist and contain requirements
+- [ ] Token counts captured and reasonable (not zero)
+- [ ] Code changes match expected patterns (thread safety for sgt-001)
+
 ## Learned Patterns
 
 ### Agent Implementation Patterns
