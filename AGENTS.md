@@ -151,6 +151,8 @@ en get-bullets --limit 20 --sort-by helpful
 
 [Bullet #ccb-115, helpful:0, harmful:0] Task mining infrastructure enables real-world OSS task generation - src/task_mining/ provides GitHub API integration for mining issues/PRs from 7 target repos (Firefox, Kubernetes, PyTorch, VSCode, FFmpeg, TensorRT-LLM, Servo). Pipeline: mine → generate TaskSpecification → filter by CodeContextBench eligibility criteria (multi-file, token budget, test commands).
 
+[Bullet #ccb-harb-001, helpful:0, harmful:0] Harbor CLI 0.3.0 is unmaintained and incompatible with typer>=0.20.0 - harbor-cli patches internal typer APIs that were removed in typer 0.20.0. No upgrade path. Workarounds: (1) rebuild Python environment from scratch, (2) implement custom Podman runner bypassing Harbor CLI, (3) use synthetic data for testing analysis pipeline. See PHASE_2B_BLOCKER.md.
+
 ## Development & Operations
 
 **See development guide:** `docs/DEVELOPMENT.md`
