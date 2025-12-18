@@ -1,3 +1,4 @@
+version = "1.0"
 [metadata]
 name = "sgt-010"
 description = "cuDNN dispatching heuristics rely on versions checks but currently only that compile-time version is"

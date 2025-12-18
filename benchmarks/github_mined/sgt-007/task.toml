@@ -1,3 +1,4 @@
+version = "1.0"
 [metadata]
 name = "sgt-007"
 description = "Stack from [ghstack](https://github.com/ezyang/ghstack/tree/0.12.0) (oldest at bottom):"

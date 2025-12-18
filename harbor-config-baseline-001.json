@@ -1,0 +1,12 @@
+{
+  "tasks": [
+    {
+      "path": "benchmarks/github_mined/sgt-001"
+    }
+  ],
+  "agents": [
+    "claude-code"
+  ],
+  "model": "anthropic/claude-opus-4-1",
+  "n_concurrent": 1
+}

@@ -1,3 +1,4 @@
+version = "1.0"
 [metadata]
 name = "sgt-016"
 description = "For `test_graph_partition_with_memory_plan_reuse`, before this PR, when using graph partition, it wo"

@@ -1,0 +1,21 @@
+Metadata-Version: 2.4
+Name: obstore
+Version: 0.7.3
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: AsyncIO
+Classifier: Framework :: FastAPI
+Classifier: Framework :: aiohttp
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: Unix
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Topic :: Internet
+Classifier: Typing :: Typed
+Requires-Dist: typing-extensions ; python_full_version < '3.13'
+Home-Page: https://developmentseed.org/obstore
+Requires-Python: >=3.9

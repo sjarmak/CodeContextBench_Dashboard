@@ -1,3 +1,4 @@
+version = "1.0"
 [metadata]
 name = "sgt-018"
 description = "Cherrypick for (#166586)\r"

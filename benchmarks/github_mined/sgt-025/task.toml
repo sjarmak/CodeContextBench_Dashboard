@@ -1,3 +1,4 @@
+version = "1.0"
 [metadata]
 name = "sgt-025"
 description = "Revert part of https://github.com/pytorch/pytorch/pull/161916 to continue building CUDA 12.9 nightly"

@@ -1,3 +1,4 @@
+version = "1.0"
 [metadata]
 name = "sgt-015"
 description = "Scheduler relies on node.last_usage to free buffers. `last_usage` may contain a buffer that is alloc"

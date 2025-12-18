@@ -1,3 +1,4 @@
+version = "1.0"
 [metadata]
 name = "sgt-012"
 description = "Proper fix for #164048, fixes gather too, reverts #164049 Pull Request resolved: https://github.com/"
