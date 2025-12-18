@@ -178,7 +178,6 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCodeAgent):
                 command=updated_command,
                 env=main_cmd.env,
                 timeout_sec=main_cmd.timeout_sec,
-                cwd=getattr(main_cmd, 'cwd', None),
             )
         ]
     

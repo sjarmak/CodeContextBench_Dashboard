@@ -7,16 +7,23 @@ This allows agents to be tested and developed before Harbor infrastructure is se
 """
 
 from typing import Optional, Dict, List
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
 class ExecInput:
-    """Command execution input for Harbor."""
+    """Command execution input for Harbor.
+    
+    Matches the Harbor framework's ExecInput signature:
+    - command: Shell command to execute
+    - cwd: Working directory for execution
+    - env: Environment variables
+    - timeout_sec: Execution timeout in seconds
+    """
     command: str
+    cwd: Optional[str] = None
     env: Optional[Dict[str, str]] = None
     timeout_sec: Optional[int] = None
-    cwd: Optional[str] = None
 
 
 class AgentContext:
