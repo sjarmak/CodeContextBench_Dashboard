@@ -353,6 +353,12 @@ Before concluding MCP testing:
 
 [Bullet #ccb-115, helpful:0, harmful:0] Task mining infrastructure enables real-world OSS task generation - src/task_mining/ provides GitHub API integration for mining issues/PRs from 7 target repos (Firefox, Kubernetes, PyTorch, VSCode, FFmpeg, TensorRT-LLM, Servo). Pipeline: mine → generate TaskSpecification → filter by CodeContextBench eligibility criteria (multi-file, token budget, test commands).
 
+[Bullet #ccb-harbor-mcp-001, helpful:1, harmful:0] Harbor + Daytona + Claude Code works with API key in .env.local - Validate via: (1) source .venv-harbor/bin/activate, (2) source infrastructure/load-env.sh, (3) harbor run with --env daytona --agent claude-code --disable-verification for testing. Agent will clone repo and execute, producing 6M+ cached tokens on second run. Dockerfile must include git clone logic or workspace will be empty.
+
+[Bullet #ccb-harbor-mcp-002, helpful:1, harmful:0] Sourcegraph MCP integration for Claude Code uses .mcp.json in workspace - Create agents/claude_code_with_sourcegraph_mcp.py extending ClaudeCode, override run() to call _ensure_sourcegraph_mcp(workdir) before super().run(). Reads SOURCEGRAPH_MCP_URL and SOURCEGRAPH_ACCESS_TOKEN env vars, writes .mcp.json with HTTP MCP server config. Usage: --agent-import-path agents.claude_code_with_sourcegraph_mcp:ClaudeCodeWithSourcegraphMCP.
+
+[Bullet #ccb-harbor-mcp-003, helpful:1, harmful:0] .env.local gets overwritten if .env.local.save exists - Git hooks or tools may create .env.local.save as a backup. Check if .env.local is tracked in git (should not be, it's in .gitignore). If it gets reset, check git log and .env.local.save location. Solution: keep only .env.local, delete .env.local.save, ensure .gitignore excludes .env.local.
+
 [Bullet #ccb-harb-001, helpful:1, harmful:0] Official harborai package (v0.1.25) works without typer conflicts - Use `pip install harborai` instead of old harbor-cli 0.3.0. Works perfectly with anthropic package. Create isolated .venv-harbor to avoid dependency issues.
 
 [Bullet #ccb-harb-002, helpful:1, harmful:0] Harbor Dockerfiles must clone PyTorch repo at task-specific commit - Initial test showed /workspace empty because Dockerfiles didn't clone. Added git clone + git checkout to all task Dockerfiles. Each task has correct commit SHA extracted from instruction.md (21 use main, 4 use specific SHAs).

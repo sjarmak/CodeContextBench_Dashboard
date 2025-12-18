@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export DOCKER_HOST="unix://${HOME}/.local/share/containers/podman/machine/podman.sock"
+export PATH="$HOME/.bin:$PATH"
+source harbor/bin/activate
+exec harbor "$@"
