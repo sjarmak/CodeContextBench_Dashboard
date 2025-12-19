@@ -16,7 +16,7 @@ Benchmark framework for evaluating how improved codebase understanding through S
 agents/              # Agent implementations (Baseline + MCP variants)
 benchmarks/          # Task sets (github_mined: 25 PyTorch tasks)
 .beads/              # Issue tracking (auto-synced with git)
-.engram/             # Engram learning database (patterns from closed beads)
+
 configs/             # Configuration files
 docs/                # Project documentation (ARCHITECTURE, DEVELOPMENT, TROUBLESHOOTING)
 infrastructure/      # Container setup, deployment configs
@@ -86,8 +86,7 @@ See `.beads/issues.jsonl` for full task tracking.
 ## Contributing
 
 - Use `bd ready` to find unblocked work
-- Always close beads with `bd close` (triggers Engram learning)
-- Run `en learn --beads <id>` manually if capturing learning without closure
+- Always close beads with `bd close` when work is complete
 - Store AI planning docs in `history/` directory
 - Always use `--json` flag for programmatic tools
 

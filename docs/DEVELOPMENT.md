@@ -107,19 +107,4 @@ python tests/test_task_schema.py -v
 - Code must pass `black` formatting and `mypy` type checking
 - Test coverage should remain above 80%
 
-## Engram Learning Integration
 
-When completing a bead:
-
-```bash
-# 1. Run quality gates
-python -m pytest tests/ -q
-
-# 2. Close the bead (auto-triggers en learn)
-bd close <bead-id> --reason "Completed: [summary]"
-
-# 3. Check learned patterns
-en get-insights --limit 10 --sort-by confidence
-```
-
-Learning is automatically captured and stored in `.engram/engram.db` for future reference.

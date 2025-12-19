@@ -339,7 +339,7 @@ Root-level markdown files like STATUS.md, PROGRESS.md, MIGRATION_STATUS.md, SMOK
 - **Issue status** → tracked in `.beads/issues.jsonl` via `bd` CLI
 - **Test results** → captured in bead description/comments (e.g., "Smoke test: 49/49 passing")
 - **Migration progress** → each bead represents a migration step; closed beads = completed work
-- **Execution traces** → stored in bead metadata via `ace capture` or `en learn`
+- **Execution traces** → stored in bead metadata
 
 **Why this matters:**
 

@@ -85,20 +85,6 @@
 - Inspect individual results for differences
 - Check aggregator filtering logic
 
-## Engram Learning
-
-### Engram.db is empty
-- Verify beads were closed with `bd close`, not just marked complete
-- Check if `en learn` was triggered: `en get-insights`
-- Manually trigger: `en learn --beads <bead-id>`
-- Check database: `sqlite3 .engram/engram.db "SELECT COUNT(*) FROM insights;"`
-
-### Learning signals not captured
-- Ensure tests run before closing bead: `python -m pytest tests/ -q`
-- Check bead has execution traces
-- Verify bead status is "closed"
-- Manually capture: `en learn --beads <bead-id>`
-
 ## Git & Beads
 
 ### Beads sync issues

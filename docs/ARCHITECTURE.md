@@ -7,7 +7,7 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 - **Claude-first design**: Primary agents use Claude Code CLI (baseline + MCP variants)
 - **Autonomous operation**: Claude Code must run in headless mode via environment variables
 - **Fair benchmarking**: Both agents have equal autonomous capabilities for valid comparison
-- **Continuous learning**: Engram framework captures execution patterns and improves future performance
+- **Git-tracked work**: All issues tracked in `.beads/issues.jsonl`, version-controlled with code
 
 
 ## High-Level Architecture
@@ -52,8 +52,8 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 │        ┌───────────────┼───────────────┐                        │
 │        │               │               │                        │
 │   ┌────▼─────┐   ┌────▼──────┐  ┌────▼──────┐                 │
-│   │Aggregation│   │Comparison  │  │Learning   │                 │
-│   │& Analysis │   │& Reporting │  │(Engram)   │                 │
+│   │Aggregation│   │Comparison  │  │Analysis   │                 │
+│   │& Analysis │   │& Reporting │  │& Summary  │                 │
 │   └──────────┘   └────────────┘  └───────────┘                 │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
@@ -255,12 +255,11 @@ Tools for extracting execution metrics from agent runs:
        ├─> Detect regressions (baseline vs treatment)
        └─> Generate reports
 
-7. LEARNING (Engram)
+7. ISSUE TRACKING
    └─> bd close <bead-id>
-       ├─> Auto-runs en learn
-       ├─> Extracts patterns from execution traces
-       ├─> Generates insights about failure modes, success patterns
-       └─> Stores in .engram/engram.db for future reference
+       ├─> Updates .beads/issues.jsonl
+       ├─> Syncs with git for version control
+       └─> Provides audit trail of completed work
 ```
 
 ## Agent Design
@@ -339,19 +338,20 @@ Metrics are extracted from Harbor job outputs and Claude CLI logs:
 
 Full NeMo-Agent-Toolkit integration is planned for structured per-tool metrics (latency, failure analysis, cost breakdown). Currently using simplified metrics collection.
 
-## Knowledge Base: Engram
+## Issue Tracking with Beads
 
-Every closed bead triggers Engram learning:
+All work is tracked in `.beads/issues.jsonl`:
 
-1. **Trace Capture**: Execution traces (test pass/fail, errors) stored in bead
-2. **Pattern Extraction**: Engram analyzes traces to find patterns
-3. **Insight Generation**: Creates insights about failure modes, success factors
-4. **Knowledge Storage**: Stores in `.engram/engram.db` for reuse
+1. **Issue Creation**: Use `bd create` with clear titles and descriptions
+2. **Dependency Tracking**: Link related issues with `--deps discovered-from:<id>`
+3. **Status Management**: Track with `in_progress` and `closed` states
+4. **Git Sync**: Auto-synced with repository for version control
+5. **Audit Trail**: Closed beads provide history of completed work
 
-Example insights:
-- "NeMo metrics enable per-tool cost analysis" (helpful:1)
-- "TypeScript build errors require running tsc before tests" (helpful:1)
-- "Always validate user input before processing" (aggregated from 26 instances)
+Best practices:
+- Close beads immediately when work is complete
+- Use priority levels (0-4) to guide work selection
+- Link discovered issues to parent beads for traceability
 
 ## File Organization Principles
 
