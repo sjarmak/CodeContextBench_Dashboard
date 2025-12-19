@@ -220,6 +220,36 @@ class GitHubClient:
         
         return commits
     
+    def get_pr_commit_shas(self, repo: str, pr_number: int) -> tuple[Optional[str], Optional[str]]:
+        """
+        Extract parent commit (before PR) and merge commit SHA.
+        
+        Args:
+            repo: "org/repo"
+            pr_number: PR number
+        
+        Returns:
+            (parent_commit_sha, first_commit_sha_in_pr)
+            parent_commit_sha: The commit before the PR (what to checkout for pre_fix_rev)
+            first_commit_sha_in_pr: First commit in the PR
+        """
+        commits = self.get_pr_commits(repo, pr_number)
+        
+        if not commits:
+            return None, None
+        
+        # First commit in PR
+        first_commit = commits[0]
+        first_commit_sha = first_commit.get("sha")
+        
+        # Get parent of first commit
+        parents = first_commit.get("parents", [])
+        if parents:
+            parent_commit_sha = parents[0].get("sha")
+            return parent_commit_sha, first_commit_sha
+        
+        return None, first_commit_sha
+    
     def get_repo_info(self, repo: str) -> Dict:
         """Get repository metadata"""
         return self._get(f"/repos/{repo}")

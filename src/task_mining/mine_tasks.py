@@ -77,12 +77,23 @@ def mine_repository(
         
         for pr in prs[:25]:  # Limit per repo
             task_id = f"sgt-{task_counter:03d}"
+            
+            # Extract real commit SHAs from PR
+            repo_org_name = f"{repo.gh_org}/{repo.gh_repo}"
+            pre_fix_commit, first_pr_commit = gh_client.get_pr_commit_shas(
+                repo_org_name, pr.number
+            )
+            
+            # Use merge_commit_sha as ground_truth, or fallback to first PR commit
+            ground_truth = pr.merge_commit_sha or first_pr_commit or "HEAD"
+            pre_fix = pre_fix_commit or "HEAD~1"  # Fallback if parent unavailable
+            
             task = task_gen.from_pr(
                 pr,
                 repo,
                 task_id=task_id,
-                pre_fix_rev="HEAD~1",  # Placeholder, needs git analysis
-                ground_truth_rev=pr.merge_commit_sha or "HEAD",
+                pre_fix_rev=pre_fix,
+                ground_truth_rev=ground_truth,
             )
             if task:
                 candidates.append(task.to_dict())
@@ -92,12 +103,28 @@ def mine_repository(
             if len(candidates) >= 50:  # Hard cap per repo
                 break
             task_id = f"sgt-{task_counter:03d}"
+            
+            # Extract real commit SHAs from linked PR if available
+            repo_org_name = f"{repo.gh_org}/{repo.gh_repo}"
+            pre_fix_commit = "HEAD~1"
+            ground_truth = "HEAD"
+            
+            if issue.linked_pr_number:
+                try:
+                    pre_fix_commit, first_pr_commit = gh_client.get_pr_commit_shas(
+                        repo_org_name, issue.linked_pr_number
+                    )
+                    ground_truth = first_pr_commit or "HEAD"
+                    pre_fix_commit = pre_fix_commit or "HEAD~1"
+                except Exception as e:
+                    logger.debug(f"Could not extract commits for issue {issue.number}: {e}")
+            
             task = task_gen.from_issue(
                 issue,
                 repo,
                 task_id=task_id,
-                pre_fix_rev="HEAD~1",
-                ground_truth_rev="HEAD",
+                pre_fix_rev=pre_fix_commit,
+                ground_truth_rev=ground_truth,
             )
             if task:
                 candidates.append(task.to_dict())
