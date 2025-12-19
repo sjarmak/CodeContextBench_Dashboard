@@ -9,14 +9,19 @@ This file documents agent-specific patterns, workflows, and best practices for t
 - Linking to external resources rather than duplicating
 - This file should be the **quick reference**, not comprehensive documentation
 
-## Current Status (Phase 4: Single-Task Validation)
+## Current Status (Phase 4: Data Validation & Comparison Results Analysis)
 
-**Status**: Root cause of Phase 3 failure identified and fixed
-**Root Cause**: Claude Code's autonomous operation requires undocumented environment variables
-**Fix Applied**: Dec 19 2025 - Added `FORCE_AUTO_BACKGROUND_TASKS=1` and `ENABLE_BACKGROUND_TASKS=1`
-**Blocker**: Task Dockerfiles need to checkout code-before-fix (see CodeContextBench-mqz)
+**Latest Finding (Dec 19 2025)**:
+- Original 10-task comparison report claimed **9.9x speedup** - **THIS WAS FALSE**
+- Analysis used corrupt data from `comparison-20251219-clean/` which had API key failures
+- Real data in `baseline-10task-20251219/` and `mcp-10task-20251219/` shows **1.1x speedup** only
+- MCP uses MORE tokens (40.5M vs 34.8M baseline)
+- Created `validate_comparison_results.py` script to prevent future invalid analysis
+- Updated `run_10task_comparison.sh` to use timestamped directories and explicit verification steps
 
-See `history/PHASE4_STATUS.md` for detailed Phase 4 analysis.
+**Key Lesson**: Never assume directory names like "clean" indicate valid data. Always verify token counts and check for API key errors before analysis.
+
+See `jobs/comparison-20251219-clean/README.md` for why that data is unusable.
 
 ## Project Overview
 
@@ -98,6 +103,36 @@ If you feel the urge to create a markdown file in root, STOP. Either:
 3. Put it in `history/` if it's temporary planning
 
 ---
+
+## Comparison Results Best Practices
+
+### Naming Conventions
+
+Use **timestamped directory names** to prevent confusion with retries:
+
+```
+jobs/comparison-YYYYMMDD-HHMM/
+  ├── baseline/     (baseline agent results)
+  └── mcp/          (MCP agent results)
+```
+
+**DO NOT use fixed names** like `comparison-20251219-clean` without explaining what "clean" means. This caused confusion when re-runs with API key failures were labeled "clean" while the actually-valid original runs had different names.
+
+### Validation Checklist
+
+Before analyzing any comparison results, ALWAYS:
+
+1. **Run validation script**: `python scripts/validate_comparison_results.py baseline/ mcp/`
+2. **Check for API key errors**: Look for "Invalid API key" in trajectory messages
+3. **Verify token counts**: Should be >0 for all valid runs (0 tokens + 6 steps = likely API failure)
+4. **Confirm task completeness**: All 10 tasks should have trajectories
+5. **Cross-reference timestamps**: Baseline and MCP runs should be from same session (prevents env var loss)
+
+### Data Integrity
+
+The `comparison-20251219-clean/` directory is corrupted and should NOT be used. It was a re-run attempt that failed due to lost API credentials. The real data is in:
+- `baseline-10task-20251219/` (10/10 tasks, 34.8M tokens)
+- `mcp-10task-20251219/` (9/10 tasks, 40.5M tokens, sgt-003 missing)
 
 ## Sourcegraph MCP Agent Implementation
 

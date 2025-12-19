@@ -1,49 +1,31 @@
 #!/bin/bash
 # Run 10-task comparison: baseline vs MCP
-# Compares Claude baseline vs Claude+MCP on 10 pilot tasks
-#
-# NAMING CONVENTION:
-# - Results go to: jobs/comparison-YYYYMMDD-HHMM-baseline/ and jobs/comparison-YYYYMMDD-HHMM-mcp/
-# - Timestamp prevents confusion with retry/re-run attempts
-# - Always verify token counts in trajectories before treating as valid
-#
-# REQUIREMENTS:
-# - .env.local must have ANTHROPIC_API_KEY and SOURCEGRAPH_ACCESS_TOKEN set
-# - Must be run in a single shell session (env vars must persist for both baseline and MCP runs)
+# FIXED: Ensure ANTHROPIC_API_KEY is properly passed to containers
 
 set -e
 
 echo "=========================================="
-echo "10-Task Comparison: Baseline vs MCP"
+echo "10-Task Comparison: Baseline vs MCP (FIXED)"
 echo "=========================================="
 echo ""
 echo "Setting up environment..."
 source .env.local
 source harbor/bin/activate
 
-# Verify API credentials before starting
+# Verify API key and tokens are available BEFORE running
 if [ -z "$ANTHROPIC_API_KEY" ]; then
-    echo "ERROR: ANTHROPIC_API_KEY not found in .env.local"
+    echo "ERROR: ANTHROPIC_API_KEY not set in .env.local"
     exit 1
 fi
+
 if [ -z "$SOURCEGRAPH_ACCESS_TOKEN" ]; then
-    echo "ERROR: SOURCEGRAPH_ACCESS_TOKEN not found in .env.local"
+    echo "ERROR: SOURCEGRAPH_ACCESS_TOKEN not set in .env.local"
     exit 1
 fi
 
 echo "✓ ANTHROPIC_API_KEY is set"
 echo "✓ SOURCEGRAPH_ACCESS_TOKEN is set"
-echo ""
-
-export ANTHROPIC_API_KEY
-export SOURCEGRAPH_URL
-export SOURCEGRAPH_ACCESS_TOKEN
-
-# Create timestamped directory to prevent confusion with retries
-TIMESTAMP=$(date +%Y%m%d-%H%M)
-JOBS_DIR="jobs/comparison-${TIMESTAMP}"
-
-echo "Results will be saved to: $JOBS_DIR/"
+echo "✓ SOURCEGRAPH_URL: $SOURCEGRAPH_URL"
 echo ""
 
 # Tasks to run
@@ -57,13 +39,18 @@ echo ""
 
 for task in "${TASKS[@]}"; do
   echo "[BASELINE] Running $task..."
+  # Pass env vars via shell environment (they're already exported)
+  # Harbor will inherit them from the parent shell
+  ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  SOURCEGRAPH_URL="$SOURCEGRAPH_URL" \
+  SOURCEGRAPH_ACCESS_TOKEN="$SOURCEGRAPH_ACCESS_TOKEN" \
   harbor run \
     --path benchmarks/github_mined \
     --agent claude-code \
     --model anthropic/claude-haiku-4-5-20251001 \
     --task-name "$task" \
     -n 1 \
-    --jobs-dir "${JOBS_DIR}/baseline" \
+    --jobs-dir jobs/comparison-20251219-fixed/baseline \
     2>&1 | tail -10
 done
 
@@ -74,13 +61,17 @@ echo ""
 
 for task in "${TASKS[@]}"; do
   echo "[MCP] Running $task..."
+  # Pass env vars via shell environment
+  ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  SOURCEGRAPH_URL="$SOURCEGRAPH_URL" \
+  SOURCEGRAPH_ACCESS_TOKEN="$SOURCEGRAPH_ACCESS_TOKEN" \
   harbor run \
     --path benchmarks/github_mined \
     --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
     --model anthropic/claude-haiku-4-5-20251001 \
     --task-name "$task" \
     -n 1 \
-    --jobs-dir "${JOBS_DIR}/mcp" \
+    --jobs-dir jobs/comparison-20251219-fixed/mcp \
     2>&1 | tail -10
 done
 
@@ -90,15 +81,8 @@ echo "✅ 10-Task Comparison Complete!"
 echo "=========================================="
 echo ""
 echo "Results saved to:"
-echo "  Baseline: ${JOBS_DIR}/baseline/"
-echo "  MCP:      ${JOBS_DIR}/mcp/"
-echo ""
-echo "VERIFICATION CHECKLIST:"
-echo "1. Check token counts in trajectories (should be >0 for valid runs)"
-echo "2. Look for 'Invalid API key' errors (indicates credential failure)"
-echo "3. Verify all 10 tasks completed in both baseline and MCP"
+echo "  Baseline: jobs/comparison-20251219-fixed/baseline/"
+echo "  MCP:      jobs/comparison-20251219-fixed/mcp/"
 echo ""
 echo "To analyze results:"
 echo "  python scripts/comprehensive_metrics_analysis.py"
-echo ""
-echo "⚠️  Do NOT use results from 'comparison-*-clean' directories (see their README)"
