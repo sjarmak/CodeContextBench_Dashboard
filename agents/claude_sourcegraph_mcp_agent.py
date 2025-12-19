@@ -16,45 +16,16 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
     Extends Harbor's built-in ClaudeCode agent to add Sourcegraph Deep Search
     via MCP (Model Context Protocol) server.
     
-    Environment Variables:
+    Environment Variables (pass via harbor run --ek flags):
+    - ANTHROPIC_API_KEY: Claude API key
     - SOURCEGRAPH_URL: Sourcegraph instance URL (e.g., https://sourcegraph.sourcegraph.com)
     - SOURCEGRAPH_ACCESS_TOKEN: Authentication token for Sourcegraph API
 
-    The MCP server is configured to use HTTP transport via Sourcegraph's hosted MCP endpoint
-    and will be available to Claude for Deep Search queries during task execution.
+    The agent creates .mcp.json configuration for Sourcegraph. Credentials are injected
+    by Harbor via --ek flags into the container environment. MCP server is configured to use
+    HTTP transport via Sourcegraph's hosted MCP endpoint and will be available to Claude for
+    Deep Search queries during task execution.
     """
-    
-    def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
-        """Create Claude commands with environment variables passed through.
-
-        Ensures ANTHROPIC_API_KEY is available to Claude inside the container.
-        MCP configuration is handled via /workspace/.mcp.json file created during setup().
-        """
-        # Get parent's commands
-        parent_commands = super().create_run_agent_commands(instruction)
-        
-        # Inject ANTHROPIC_API_KEY into command environment
-        anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        
-        modified_commands = []
-        for cmd in parent_commands:
-            # Create or update env dict for this command
-            env = cmd.env or {}
-            
-            # Inject API key if available
-            if anthropic_key:
-                env["ANTHROPIC_API_KEY"] = anthropic_key
-                self.logger.info(f"✓ Injected ANTHROPIC_API_KEY into command environment")
-            
-            # Preserve original command with updated environment
-            modified_commands.append(
-                ExecInput(
-                    command=cmd.command,
-                    env=env,
-                )
-            )
-        
-        return modified_commands
 
     async def _test_network_connectivity(self, environment: BaseEnvironment, sg_url: str) -> bool:
         """Test if container can reach Sourcegraph via HTTPS.
@@ -97,18 +68,17 @@ echo "=== Test Complete ==="
             return False
 
     async def setup(self, environment: BaseEnvironment) -> None:
-        """Setup Claude Code environment.
+        """Setup Claude Code environment with Sourcegraph MCP.
 
-        MCP configuration is handled in create_run_agent_commands() via --mcp-config flag.
-        This method just creates CLAUDE.md instructions and runs parent setup.
+        Creates .mcp.json for Sourcegraph configuration.
+        API credentials are handled by Harbor normally.
         """
 
-        # Get Sourcegraph credentials to check if MCP will be available
-        # Support both SOURCEGRAPH_URL and SRC_ENDPOINT for the URL
+        # Get Sourcegraph credentials
         sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
-        # Support both SOURCEGRAPH_ACCESS_TOKEN and SRC_ACCESS_TOKEN for the token
         sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
 
+        # Configure MCP if Sourcegraph credentials are available
         if sg_url and sg_token:
             # Ensure URL has protocol
             if not sg_url.startswith(('http://', 'https://')):
@@ -148,6 +118,40 @@ echo "=== Test Complete ==="
 
             self.logger.info(f"✓ Created .mcp.json with Sourcegraph MCP configuration")
 
+            # Create system_prompt.txt with mandatory requirement
+            system_prompt = """You MUST complete this coding task by making actual code changes.
+
+This is not a planning or analysis task. You are required to:
+1. Understand the problem/bug/feature requirement
+2. Locate the relevant code files
+3. MAKE ACTUAL CODE CHANGES to implement the fix or feature
+4. Test your implementation to ensure it works
+
+Do not just analyze or plan the solution. You must write code and make modifications to actual files.
+
+You have access to the following tools to complete this task:
+- Read: read files
+- Edit: edit files (use this to modify code)
+- Write: create new files
+- Bash: run commands including git operations
+- Grep: search code
+- Glob: find files
+
+CRITICAL: You must make actual code modifications, not just analyze or plan. The task is complete only when code files have been changed and tests pass.
+"""
+
+            system_prompt_path = self.logs_dir / "system_prompt.txt"
+            with open(system_prompt_path, "w") as f:
+                f.write(system_prompt)
+
+            # Upload system_prompt.txt to project root
+            await environment.upload_file(
+                source_path=system_prompt_path,
+                target_path="/workspace/system_prompt.txt"
+            )
+
+            self.logger.info(f"✓ Created system_prompt.txt with mandatory code-change requirement")
+
             # Create CLAUDE.md with instructions for using Sourcegraph MCP
             claude_instructions = """# Sourcegraph MCP Available
 
@@ -169,6 +173,8 @@ The Sourcegraph MCP server provides tools for:
 - Analyzing code relationships
 
 This is much more efficient than grep for understanding large codebases.
+
+**IMPORTANT:** Remember you MUST make actual code changes to complete this task. See system_prompt.txt for details.
 """
 
             instructions_path = self.logs_dir / "CLAUDE.md"
