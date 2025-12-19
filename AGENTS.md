@@ -9,6 +9,19 @@ This file documents agent-specific patterns, workflows, and best practices for t
 - Linking to external resources rather than duplicating
 - This file should be the **quick reference**, not comprehensive documentation
 
+## Critical: Model Configuration
+
+**⚠️ ALWAYS USE: `anthropic/claude-haiku-4-5-20251001`**
+
+Do NOT use claude-3-5-sonnet, claude-opus, or any other model. Harbor is configured to use Haiku for all benchmarks.
+
+Example:
+```bash
+harbor run --model anthropic/claude-haiku-4-5-20251001 ...
+```
+
+---
+
 ## Current Status (Phase 4: Data Validation & Comparison Results Analysis)
 
 **Latest Finding (Dec 19 2025)**:

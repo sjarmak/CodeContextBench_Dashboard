@@ -207,34 +207,28 @@ CRITICAL: You must make actual code modifications, not just analyze or plan. The
 
             self.logger.info(f"✓ Created system_prompt.txt with mandatory code-change requirement")
 
-            # Create CLAUDE.md with instructions for using Sourcegraph MCP
-            claude_instructions = """# Sourcegraph MCP Available
-
-You have access to **Sourcegraph MCP** via the Sourcegraph server. Use it to understand the codebase instead of relying on grep or manual file exploration.
-
-## How to Use
-
-When you need to understand code patterns, find relevant files, or explore the repository structure:
-1. Use the Sourcegraph MCP tools to query the codebase intelligently
-2. Ask questions about code patterns, dependencies, and implementations
-3. Leverage Deep Search for complex queries across the entire codebase
-
-## Available Tools
-
-The Sourcegraph MCP server provides tools for:
-- Searching and exploring code
-- Understanding code structure and dependencies
-- Finding usage patterns and implementations
-- Analyzing code relationships
-
-This is much more efficient than grep for understanding large codebases.
-
-**IMPORTANT:** Remember you MUST make actual code changes to complete this task. See system_prompt.txt for details.
-"""
+            # Try to read CLAUDE.md from benchmark directory and inject MCP guidance
+            # This allows task suites to provide specific search strategy guidance
+            claude_md_content = "# Sourcegraph MCP Available\n\nYou have access to **Sourcegraph MCP** via the Sourcegraph server. Use it to understand the codebase.\n"
+            
+            # Try to find and read benchmark CLAUDE.md
+            benchmark_dir = Path.cwd() / "benchmarks"
+            if benchmark_dir.exists():
+                # Look for CLAUDE.md in parent benchmark dirs (e.g., benchmarks/big_code_mcp/CLAUDE.md)
+                for claude_path in benchmark_dir.rglob("CLAUDE.md"):
+                    try:
+                        with open(claude_path, "r") as f:
+                            content = f.read()
+                            if content.strip():
+                                self.logger.info(f"✓ Found benchmark guidance: {claude_path.relative_to(Path.cwd())}")
+                                claude_md_content = content
+                                break
+                    except Exception as e:
+                        self.logger.debug(f"Could not read {claude_path}: {e}")
 
             instructions_path = self.logs_dir / "CLAUDE.md"
             with open(instructions_path, "w") as f:
-                f.write(claude_instructions)
+                f.write(claude_md_content)
 
             # Upload CLAUDE.md to project root
             await environment.upload_file(
@@ -242,7 +236,7 @@ This is much more efficient than grep for understanding large codebases.
                 target_path="/workspace/CLAUDE.md"
             )
 
-            self.logger.info(f"✓ Created CLAUDE.md with Sourcegraph MCP instructions")
+            self.logger.info(f"✓ Created CLAUDE.md with task-specific search strategy guidance")
         else:
             self.logger.warning(
                 "⚠ Sourcegraph MCP not configured. Set SOURCEGRAPH_URL "
