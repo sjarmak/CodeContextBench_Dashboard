@@ -8,6 +8,8 @@ id = "sgt-018"
 repo = "pytorch"
 category = "cross_module_bug_fix"
 language = "cpp"
+pre_fix_rev = "cbe1a35dbdfdc9b7490212bdd812f3e2f4ce9e2d"
+ground_truth_rev = "ba8639586b23f1dd8dca12de28f6655351fc8174"
 difficulty = "easy"
 time_limit_sec = 600
 
