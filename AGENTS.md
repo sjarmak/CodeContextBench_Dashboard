@@ -293,23 +293,29 @@ Updated `agents/claude_sourcegraph_mcp_agent.py`:
 
 ### Running Single-Task Comparison
 
+**CRITICAL DISCOVERY (Dec 19, 2025):** 
+
+1. **Environment Setup Issue (CodeContextBench-mqz)**: Task Dockerfiles clone code with fixes already applied. For sgt-001, PyTorch HEAD includes commit 9d0d198cb50 (the thread safety fix). When agents try to implement it, `git diff HEAD` shows empty because HEAD already has the changes. **FIX REQUIRED**: Each task must checkout to the commit BEFORE the fix was merged.
+
+2. **Autonomous Mode Working (CodeContextBench-6f2)**: MCP agent successfully made 2 lines of code changes, proving autonomous environment variables ARE functional. Baseline made 0 changes because built-in harbor agent lacks these env vars. **FIX APPLIED**: Created BaselineClaudeCodeAgent with same autonomous mode as MCP agent but without Sourcegraph.
+
 See `history/RUNBOOK_SINGLE_TASK_COMPARISON.md` for detailed instructions:
 
 ```bash
-# Baseline agent (no Sourcegraph)
+# Baseline agent (with autonomous implementation mode, no MCP)
 harbor run \
   --path benchmarks/github_mined \
-  --agent claude-code \
-  --model anthropic/claude-3-5-sonnet-20241022 \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/claude-baseline-github_mined-single-test \
   --task-name sgt-001
 
-# MCP agent (with Sourcegraph)
+# MCP agent (with Sourcegraph + autonomous implementation mode)
 harbor run \
   --path benchmarks/github_mined \
   --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  --model anthropic/claude-3-5-sonnet-20241022 \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/claude-mcp-github_mined-single-test \
   --task-name sgt-001
