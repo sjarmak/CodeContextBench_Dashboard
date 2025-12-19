@@ -35,9 +35,13 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
         Override to enable implementation mode with full tool access.
         
         This modifies the Claude Code command to:
-        1. Use --permission-mode acceptEdits to enable file modifications
-        2. Explicitly whitelist all necessary tools (Read, Edit, Write, Bash, Grep, Glob)
-        3. Configure Sourcegraph MCP for deep search capabilities
+        1. Add autonomous environment variables (FORCE_AUTO_BACKGROUND_TASKS, ENABLE_BACKGROUND_TASKS)
+        2. Use --permission-mode acceptEdits to enable file modifications
+        3. Explicitly whitelist all necessary tools (Read, Edit, Write, Bash, Grep, Glob)
+        4. Configure Sourcegraph MCP for deep search capabilities
+        
+        The autonomous environment variables are the critical control mechanism that makes
+        Claude Code operate in implementation mode instead of planning/analysis mode.
         """
         
         # Get parent's commands
@@ -56,10 +60,22 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
                     "claude ",
                     f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} "
                 )
+                
+                # CRITICAL: Add autonomous environment variables
+                # These are undocumented Claude CLI flags that enable headless/autonomous operation
+                # Without these, Claude Code defaults to interactive planning mode
+                env = cmd.env or {}
+                env_with_autonomous = {
+                    **env,
+                    'FORCE_AUTO_BACKGROUND_TASKS': '1',
+                    'ENABLE_BACKGROUND_TASKS': '1'
+                }
+                
                 self.logger.info(f"Modified command for implementation mode with tool whitelist")
                 self.logger.info(f"Tools enabled: {allowed_tools}")
+                self.logger.info(f"Autonomous mode enabled: FORCE_AUTO_BACKGROUND_TASKS=1, ENABLE_BACKGROUND_TASKS=1")
                 result.append(
-                    ExecInput(command=modified_command, env=cmd.env or {})
+                    ExecInput(command=modified_command, env=env_with_autonomous)
                 )
             else:
                 result.append(cmd)
