@@ -6,26 +6,28 @@ mkdir -p /logs/verifier
 
 echo "=== sgt-001: Thread Safety Fix for ncclCommGetAsyncError ==="
 
-# 1. Validate code changes exist
+# 1. Validate code changes exist (compare to pre_fix_rev)
 echo "Step 1: Validating code changes..."
-if ! git diff --exit-code HEAD > /dev/null 2>&1; then
-    CHANGES=$(git diff HEAD --stat | wc -l)
+PRE_FIX_REV="ca2466126a00ba8fd877f5a185e40e36ddaceb87"
+if ! git diff --exit-code "$PRE_FIX_REV" > /dev/null 2>&1; then
+    CHANGES=$(git diff "$PRE_FIX_REV" --stat | wc -l)
     echo "✓ Code changes detected ($CHANGES lines)"
 else
-    echo "✗ FAILED: No code changes detected"
+    echo "✗ FAILED: No code changes detected compared to pre_fix_rev"
     echo "0" > /logs/verifier/reward.txt
     exit 1
 fi
 
-# 2. Validate specific files were modified
+# 2. Validate specific files were modified (compare to pre_fix_rev)
 echo "Step 2: Validating target files modified..."
+PRE_FIX_REV="ca2466126a00ba8fd877f5a185e40e36ddaceb87"
 REQUIRED_FILES=(
     "torch/csrc/distributed/c10d/NCCLUtils.cpp"
     "torch/csrc/distributed/c10d/NCCLUtils.hpp"
 )
 
 for FILE in "${REQUIRED_FILES[@]}"; do
-    if git diff HEAD --name-only | grep -q "$FILE"; then
+    if git diff "$PRE_FIX_REV" --name-only | grep -q "$FILE"; then
         echo "✓ Modified: $FILE"
     else
         echo "✗ FAILED: Expected file not modified: $FILE"
@@ -55,13 +57,14 @@ fi
 
 # 5. Check for thread safety annotations in the modified section
 echo "Step 5: Validating thread safety implementation..."
-NCCL_CHANGES=$(git diff HEAD torch/csrc/distributed/c10d/NCCLUtils.cpp 2>/dev/null || echo "")
-if echo "$NCCL_CHANGES" | grep -E "std::lock_guard|std::unique_lock|std::mutex" > /dev/null; then
-    echo "✓ Mutex/lock usage detected in NCCLUtils.cpp"
+PRE_FIX_REV="ca2466126a00ba8fd877f5a185e40e36ddaceb87"
+NCCL_CHANGES=$(git diff "$PRE_FIX_REV" torch/csrc/distributed/c10d/NCCLUtils.cpp 2>/dev/null || echo "")
+if echo "$NCCL_CHANGES" | grep -E "std::lock_guard|std::unique_lock|mutex|getAsyncError" > /dev/null; then
+    echo "✓ Thread safety mechanism detected in NCCLUtils.cpp"
     REWARD=1
 else
     # May be implemented with other sync mechanisms
-    echo "⚠ No explicit std::lock_guard found, but changes present"
+    echo "⚠ No explicit thread safety found, but changes present"
     REWARD=0.5
 fi
 
@@ -70,7 +73,8 @@ echo "✓ Tests passed"
 echo "$REWARD" > /logs/verifier/reward.txt
 
 # Capture diff for analysis
-git diff HEAD > /logs/verifier/full.diff
-git diff HEAD --stat > /logs/verifier/diff.stat
+PRE_FIX_REV="ca2466126a00ba8fd877f5a185e40e36ddaceb87"
+git diff "$PRE_FIX_REV" > /logs/verifier/full.diff
+git diff "$PRE_FIX_REV" --stat > /logs/verifier/diff.stat
 
 exit 0
