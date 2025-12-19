@@ -236,11 +236,11 @@ See `docs/MCP_SETUP.md` for full setup and troubleshooting guide.
 
 ---
 
-## Phase 4: Single-Task Validation (Current Focus)
+## Phase 4: Single-Task Validation - Blocker Identified
 
-**Status**: In progress  
+**Status**: BLOCKED - Claude Code architecture issue  
 **Start**: Dec 18 2025  
-**Goal**: Run sgt-001 with baseline and MCP agents to definitively prove whether MCP helps
+**Issue**: Both baseline and MCP agents produce 0.0 reward due to Claude Code defaulting to analysis/planning mode rather than implementation mode
 
 ### Key Changes for Phase 4
 
@@ -305,16 +305,47 @@ All new jobs MUST follow: `<agent-type>-<benchmark-set>-<test-scope>`
 
 See `jobs/README.md` for full naming guide.
 
+### Claude Code Architecture Blocker
+
+**Discovered Issue (Dec 18, 2025)**:
+
+1. **Harbor's Claude Code Configuration**
+   - Initializes Claude Code in "plan" mode by default
+   - Baseline agent: `permissionMode: "default"` (read-only)
+   - This is intentional - Claude Code is analysis/design tool first
+
+2. **Attempted Fixes**
+   - ✅ Added `--permission-mode acceptEdits` flag → Claude can write but still doesn't
+   - ✅ Created system_prompt.txt with implementation requirements → Ignored
+   - ✅ Updated task instructions to force code changes → Still plans
+   - ✅ Added explicit `/ExitPlanMode` instruction → Not invoked by Claude
+
+3. **Root Cause**
+   - Claude Code tool is fundamentally designed for planning/analysis first
+   - Even with write permission, Claude defaults to planning approach
+   - Requires explicit user command (/ExitPlanMode) to switch modes
+   - Claude doesn't autonomously decide to exit plan mode based on task context
+
+4. **Evidence**
+   - Both agents finish in ~3 minutes on 10-minute tasks
+   - Both make 0-2 lines of changes (TODOs/planning notes only)
+   - Neither actually implements the requested code changes
+   - Baseline can't even try (read-only); MCP can but doesn't choose to
+
+5. **Implication**
+   - Current Harbor Claude Code integration unsuitable for benchmark
+   - Need either:
+     a) Different agent implementation (not Claude Code CLI)
+     b) Custom Claude Code subagent that forces implementation
+     c) Different approach to Claude integration in Harbor
+
 ### Critical Validation Checklist
 
-Before concluding MCP testing:
-- [ ] Baseline patch.diff > 0 bytes (code changes exist)
-- [ ] MCP patch.diff > 0 bytes (not zero code)
-- [ ] Baseline test output shows real validation (not fake `make test`)
-- [ ] MCP test output shows real validation
-- [ ] Both system_prompt.txt files exist and contain requirements
-- [ ] Token counts captured and reasonable (not zero)
-- [ ] Code changes match expected patterns (thread safety for sgt-001)
+Status (Dec 18, 2025):
+- ❌ Baseline patch.diff = 2 bytes (no real code changes)
+- ❌ MCP patch.diff = 2 bytes (no real code changes)
+- ❌ Both agents finish without implementation
+- ❌ Cannot proceed with MCP benchmarking due to agent limitation
 
 **Note on learning patterns:** Patterns are automatically captured by Engram when beads close. This file should NOT contain manually-added pattern bullets. Engram updates this file automatically.
 
