@@ -3,6 +3,7 @@
 This file documents agent-specific patterns, workflows, and best practices for the CodeContextBench repository.
 
 **Note:** Keep this file at ~500 lines max. If adding content, consider:
+
 - Moving detailed docs to `docs/` directory
 - Archiving past examples to `history/` directory
 - Linking to external resources rather than duplicating
@@ -10,12 +11,12 @@ This file documents agent-specific patterns, workflows, and best practices for t
 
 ## Current Status (Phase 4: Single-Task Validation)
 
-**Status**: Root cause of Phase 3 failure identified and fixed  
-**Root Cause**: Claude Code's autonomous operation requires undocumented environment variables  
-**Fix Applied**: Dec 19 2025 - Added `FORCE_AUTO_BACKGROUND_TASKS=1` and `ENABLE_BACKGROUND_TASKS=1`  
-**Blocker**: Task Dockerfiles need to checkout code-before-fix (see CodeContextBench-mqz)  
+**Status**: Root cause of Phase 3 failure identified and fixed
+**Root Cause**: Claude Code's autonomous operation requires undocumented environment variables
+**Fix Applied**: Dec 19 2025 - Added `FORCE_AUTO_BACKGROUND_TASKS=1` and `ENABLE_BACKGROUND_TASKS=1`
+**Blocker**: Task Dockerfiles need to checkout code-before-fix (see CodeContextBench-mqz)
 
-See `AGENTS.md` (Phase 4 section below) and `history/PHASE4_ARCHITECTURE_FIX.md` for details.
+See `history/PHASE4_STATUS.md` for detailed Phase 4 analysis.
 
 ## Project Overview
 
@@ -37,6 +38,7 @@ These principles apply to ALL code changes in CodeContextBench. Agents MUST foll
 ### 2. Adversarial Review (Mandatory for Complex/Large Changes)
 
 Before closing a bead with complex or large code changes:
+
 - **Ask yourself:** "What could break with this change?"
 - **Test the failure cases:** What happens if inputs are wrong? What edge cases aren't covered?
 - **Look for side effects:** Does this change affect other modules? Unintended consequences?
@@ -83,12 +85,14 @@ Names are for the next agent or developer reading your code months later.
 - ❌ **DON'T:** `MIGRATION_STATUS.md`, `PROGRESS.md`, `SESSION_SUMMARY.md` in root
 
 **Where things go:**
+
 - **Permanent documentation:** `docs/` (ARCHITECTURE.md, DEVELOPMENT.md, API.md)
 - **Temporary planning:** `history/` (PLAN.md, SESSION_NOTES.md)
 - **Issue tracking:** `.beads/issues.jsonl` (NOT markdown files)
 - **This file (AGENTS.md):** Quick reference for agents only
 
 If you feel the urge to create a markdown file in root, STOP. Either:
+
 1. Add it to AGENTS.md if it's agent guidance
 2. Put it in `docs/` if it's permanent documentation
 3. Put it in `history/` if it's temporary planning
@@ -99,7 +103,7 @@ If you feel the urge to create a markdown file in root, STOP. Either:
 
 ### ClaudeCodeSourcegraphMCPAgent Pattern
 
-**File**: `agents/claude_sourcegraph_mcp_agent.py`  
+**File**: `agents/claude_sourcegraph_mcp_agent.py`
 **Import**: `agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent`
 
 The agent follows the practical approach of extending Harbor's built-in `ClaudeCode` agent without modifying the installed package:
@@ -111,6 +115,7 @@ The agent follows the practical approach of extending Harbor's built-in `ClaudeC
 5. **Graceful Degradation**: Logs warning if credentials missing but agent continues
 
 **Usage**:
+
 ```bash
 # Set credentials
 export SOURCEGRAPH_INSTANCE="sourcegraph.com"
@@ -127,129 +132,6 @@ harbor run \
 See `docs/MCP_SETUP.md` for full setup and troubleshooting guide.
 
 ---
-
-## Phase 4: Single-Task Validation - Root Cause Found & Fixed
-
-**Status**: RESOLVED - Autonomous environment variables missing  
-**Start**: Dec 18 2025  
-**Root Cause**: Claude Code's autonomous operation requires undocumented environment variables
-**Fix Applied**: Dec 19 2025 - Added FORCE_AUTO_BACKGROUND_TASKS and ENABLE_BACKGROUND_TASKS
-
-### The Critical Discovery
-
-**Problem**: Both agents produced 0.0 reward - Claude Code was stuck in planning/analysis mode
-
-**False Hypotheses Tested**:
-- ❌ System prompts requiring code changes
-- ❌ Task instructions with explicit implementation requirements  
-- ❌ --permission-mode acceptEdits flag
-- ❌ Tool whitelisting
-- ❌ /ExitPlanMode instructions
-- **All failed because they address the wrong layer of control**
-
-**Root Cause**: Harbor's Claude Code integration uses **undocumented environment variables** to enable autonomous operation:
-- `FORCE_AUTO_BACKGROUND_TASKS=1` - Forces Claude to operate autonomously (no interactive prompts)
-- `ENABLE_BACKGROUND_TASKS=1` - Enables task completion without waiting for user input
-- These activate Claude Code's headless mode, making it implement instead of plan
-
-**Evidence**: When these env vars are properly set with stdin redirected from /dev/null, Claude Code **automatically implements** without any prompts or system messages needed.
-
-### Solution Applied
-
-Updated `agents/claude_sourcegraph_mcp_agent.py`:
-- Modified `create_run_agent_commands()` to inject both autonomous environment variables
-- Env vars are added to every Claude Code invocation
-- Now Claude Code operates in true implementation mode
-
-### Phase 4 Validation (Revised)
-
-1. **Autonomous Environment Variables**
-   - `FORCE_AUTO_BACKGROUND_TASKS=1` - Enables headless operation
-   - `ENABLE_BACKGROUND_TASKS=1` - Enables autonomous task completion
-   - These are the actual control mechanism, not prompts or flags
-
-2. **Code Changes Validation**
-   - Execution FAILS if git diff is empty (0 bytes)
-   - Agents cannot succeed without making code edits
-   - Validates fundamental requirement: actual code changes needed
-
-3. **Real Test Validation (sgt-001)**
-   - Validates specific files modified: `NCCLUtils.cpp`, `NCCLUtils.hpp`
-   - Checks for thread safety patterns (mutex, locks, atomic)
-   - Returns 1.0 for success, 0.5 for partial, 0.0 for failure
-
-4. **Trace Capture**
-   - Captures full conversation turns
-   - Extracts metrics: tokens, time, tool calls
-   - For MCP: tracks all Deep Search queries and results
-
-### Running Single-Task Comparison
-
-**CRITICAL DISCOVERY (Dec 19, 2025):** 
-
-1. **Environment Setup Issue (CodeContextBench-mqz)**: Task Dockerfiles clone code with fixes already applied. For sgt-001, PyTorch HEAD includes commit 9d0d198cb50 (the thread safety fix). When agents try to implement it, `git diff HEAD` shows empty because HEAD already has the changes. **FIX REQUIRED**: Each task must checkout to the commit BEFORE the fix was merged.
-
-2. **Autonomous Mode Working (CodeContextBench-6f2)**: MCP agent successfully made 2 lines of code changes, proving autonomous environment variables ARE functional. Baseline made 0 changes because built-in harbor agent lacks these env vars. **FIX APPLIED**: Created BaselineClaudeCodeAgent with same autonomous mode as MCP agent but without Sourcegraph.
-
-See `history/RUNBOOK_SINGLE_TASK_COMPARISON.md` for detailed instructions:
-
-```bash
-# Baseline agent (with autonomous implementation mode, no MCP)
-harbor run \
-  --path benchmarks/github_mined \
-  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
-  --model anthropic/claude-haiku-4-5-20251001 \
-  -n 1 \
-  --jobs-dir jobs/claude-baseline-github_mined-single-test \
-  --task-name sgt-001
-
-# MCP agent (with Sourcegraph + autonomous implementation mode)
-harbor run \
-  --path benchmarks/github_mined \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  --model anthropic/claude-haiku-4-5-20251001 \
-  -n 1 \
-  --jobs-dir jobs/claude-mcp-github_mined-single-test \
-  --task-name sgt-001
-
-# Capture traces
-python3 runners/capture_single_task_trace.py \
-  --task-dir jobs/claude-baseline-github_mined-single-test/*/sgt-001__*/ \
-  --output artifacts/baseline-single-test-trace.json
-```
-
-### Job Naming Convention
-
-All new jobs MUST follow: `<agent-type>-<benchmark-set>-<test-scope>`
-
-✅ Good: `claude-baseline-github_mined-single-test`, `claude-mcp-github_mined-pilot`
-❌ Bad: `harbor-baseline-pilot`, `mcp-sanity-verify`, `harbor-test-single`
-
-See `jobs/README.md` for full naming guide.
-
-### Testing the Fix
-
-To verify the autonomous environment variables are working:
-
-```bash
-# Test 1: Verify env vars are injected (check agent logs)
-harbor run \
-  --path benchmarks/github_mined \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  --model anthropic/claude-3-5-sonnet-20241022 \
-  --task-name sgt-001 \
-  -n 1 \
-  --jobs-dir jobs/claude-mcp-with-autonomous-vars
-
-# Check the agent logs for confirmation
-grep "Autonomous mode enabled" jobs/claude-mcp-with-autonomous-vars/*/agent.log
-
-# Test 2: Verify code changes are made
-cd jobs/claude-mcp-with-autonomous-vars/*/sgt-001__*/
-git diff --stat  # Should show modifications to NCCLUtils.cpp, NCCLUtils.hpp
-```
-
-
 
 ## Development & Operations
 
@@ -272,6 +154,7 @@ When working on CodeContextBench, keep these docs in sync with your changes:
 - **AGENTS.md** - Keep at ~500 lines max; move extensive documentation to `docs/`
 
 **Workflow:**
+
 1. Complete your work and commit code changes
 2. Update corresponding docs in `docs/` to reflect what you did
 3. Commit documentation updates together with code
@@ -413,11 +296,12 @@ bd close bd-42 --reason "Completed" --json
     git commit -m "<bead-id>: [description]. Tests: tests/test_<name>.py::<test_func>"
     ```
 11. **Only if work is 100% complete and tests prove it**: Close the bead
-     ```bash
-     bd close <id> --reason "Completed: [detailed summary]. Validated by: tests/test_<name>.py::<test_func>"
-     ```
+    ```bash
+    bd close <id> --reason "Completed: [detailed summary]. Validated by: tests/test_<name>.py::<test_func>"
+    ```
 
-**Key principles:** 
+**Key principles:**
+
 - ✅ Create a **specific test for the bead requirement** (not generic tests)
 - ✅ Use real implementations unless bead explicitly says to mock
 - ✅ Write unit tests for new code to prevent regressions
@@ -480,102 +364,113 @@ AI assistants often create temporary planning documents during development:
 
 **Rationale:**
 
--  Clean repository root (no clutter)
--  Clear separation between ephemeral and permanent documentation
--  Beads are the source of truth, not ephemeral docs
--  Preserves planning history for archeological research (in history/ dir)
--  Reduces noise when browsing the project
+- Clean repository root (no clutter)
+- Clear separation between ephemeral and permanent documentation
+- Beads are the source of truth, not ephemeral docs
+- Preserves planning history for archeological research (in history/ dir)
+- Reduces noise when browsing the project
 
 ### Important Rules
 
--  Use bd for ALL task tracking and status
--  Always use `--json` flag for programmatic use
--  Link discovered work with `discovered-from` dependencies
--  Check `bd ready` before asking "what should I work on?"
--  Store AI planning/design docs in `history/` directory only
--  Do NOT create markdown TODO lists in root
--  Do NOT create status/progress markdown files in root
--  Do NOT use external issue trackers
--  Do NOT duplicate tracking systems
--  Do NOT clutter repo root with planning, status, or progress documents
+- Use bd for ALL task tracking and status
+- Always use `--json` flag for programmatic use
+- Link discovered work with `discovered-from` dependencies
+- Check `bd ready` before asking "what should I work on?"
+- Store AI planning/design docs in `history/` directory only
+- Do NOT create markdown TODO lists in root
+- Do NOT create status/progress markdown files in root
+- Do NOT use external issue trackers
+- Do NOT duplicate tracking systems
+- Do NOT clutter repo root with planning, status, or progress documents
 
 ### Landing the Plane
 
 **When the user says "let's land the plane"**, follow this clean session-ending protocol:
 
 1. **Review each bead you worked on** - Only close beads where work is COMPLETELY finished
+
    ```bash
    bd list --json | jq '.[] | select(.status == "in_progress") | {id, title}'
    ```
+
    For each bead, verify:
+
    - **Specific test exists**: Is there a test that directly validates the bead's exact requirement?
    - **Test uses real code**: Does the test call actual implementations (not mocks)?
    - **Tests pass**: Does `python -m pytest tests/<bead_test>.py -v` pass?
    - **No regressions**: Does `python -m pytest tests/ -q` pass (all tests)?
    - **Code committed**: Are all changes committed to git?
    - **No remaining issues**: Are there open TODOs or known bugs?
-   
+
    If ALL YES: Close it. If ANY NO: Leave it open.
+
    ```bash
    bd close <bead-id> --reason "Completed: [detailed summary]. Verified by: tests/test_<name>.py::<test_func>"
    ```
 
 2. **File beads issues for remaining work** that needs follow-up
+
    ```bash
    bd create "Remaining task" -t task -p 2
    ```
 
 3. **Ensure all quality gates pass** (if code changes were made) - run tests/builds (file P0 issues if broken)
+
    ```bash
    python -m pytest tests/ -q
    ```
 
 4. **Commit everything**:
+
    ```bash
    git add .
    git commit -m "Session close: <summary>"
    ```
 
 5. **Sync the issue tracker carefully** - Work methodically to ensure both local and remote issues merge safely. This may require pulling, handling conflicts (sometimes accepting remote changes and re-importing), syncing the database, and verifying consistency. Be creative and patient - the goal is clean reconciliation where no issues are lost.
+
    ```bash
    git pull --rebase
    bd sync
    ```
 
 6. **Clean up root directory** - Remove any temporary files that shouldn't be in the root directory:
-    ```bash
-    # Check for files that don't belong in root
-    ls -la *.json *.py 2>/dev/null | grep -v setup.py
-    
-    # Remove temporary configs, test scripts, and testing artifacts
-    # Root should only contain:
-    #   - README.md, AGENTS.md (documentation)
-    #   - setup.py, pyproject.toml (project config)
-    #   - LICENSE, .gitignore, .gitattributes (repo config)
-    #   - Directories: src/, tests/, docs/, configs/, agents/, runners/, etc.
-    #
-    # DO NOT add to root:
-    #   - harbor-config-*.json (use configs/ or history/)
-    #   - test_*.py (use tests/)
-    #   - STATUS.md, PROGRESS.md, PLAN.md (use history/ or .beads/)
-    #   - IMPLEMENTATION.md, ARCHITECTURE_NOTES.md (use docs/)
-    #   - Any temporary .mcp.json, .env.* files (use .claude/ or configs/)
-    
-    # Verify no stray files
-    git status  # Should show no untracked root-level .json or .py files
-    ```
+
+   ```bash
+   # Check for files that don't belong in root
+   ls -la *.json *.py 2>/dev/null | grep -v setup.py
+
+   # Remove temporary configs, test scripts, and testing artifacts
+   # Root should only contain:
+   #   - README.md, AGENTS.md (documentation)
+   #   - setup.py, pyproject.toml (project config)
+   #   - LICENSE, .gitignore, .gitattributes (repo config)
+   #   - Directories: src/, tests/, docs/, configs/, agents/, runners/, etc.
+   #
+   # DO NOT add to root:
+   #   - harbor-config-*.json (use configs/ or history/)
+   #   - test_*.py (use tests/)
+   #   - STATUS.md, PROGRESS.md, PLAN.md (use history/ or .beads/)
+   #   - IMPLEMENTATION.md, ARCHITECTURE_NOTES.md (use docs/)
+   #   - Any temporary .mcp.json, .env.* files (use .claude/ or configs/)
+
+   # Verify no stray files
+   git status  # Should show no untracked root-level .json or .py files
+   ```
 
 7. **Clean up git state** - Clear old stashes and prune dead remote branches:
-    ```bash
-    git stash clear                    # Remove old stashes
-    git remote prune origin            # Clean up deleted remote branches
-    ```
+
+   ```bash
+   git stash clear                    # Remove old stashes
+   git remote prune origin            # Clean up deleted remote branches
+   ```
 
 8. **Verify clean state** - Ensure all changes are committed and pushed, no untracked files remain:
-    ```bash
-    git status
-    git log --oneline -5
-    ```
+
+   ```bash
+   git status
+   git log --oneline -5
+   ```
 
 9. **Choose a follow-up issue for next session**
    - Provide a prompt for the user to give to you in the next session
@@ -640,9 +535,3 @@ Then provide the user with:
 - What issues were filed for follow-up
 - Status of quality gates (all passing / issues filed)
 - Recommended prompt for next session
-
-## Agent Best Practices
-
-### General Rules
-
-NEVER start development servers for applications you're working on.

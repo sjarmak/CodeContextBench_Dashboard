@@ -1,4 +1,4 @@
 """Harbor agents for CodeContextBench."""
 
 # Lazy imports to avoid Harbor dependency at module load time
-__all__ = ["ClaudeCodeSourcegraphMCPAgent"]
+__all__ = ["BaselineClaudeCodeAgent", "ClaudeCodeSourcegraphMCPAgent"]
