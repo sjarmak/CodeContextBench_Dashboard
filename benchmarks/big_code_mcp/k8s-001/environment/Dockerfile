@@ -16,10 +16,16 @@ RUN apt-get update && apt-get install -y \
 # Install Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
 
-# Clone Kubernetes repository at v1.30.0 tag
-RUN git clone https://github.com/kubernetes/kubernetes.git /workspace && \
+# Initialize minimal Kubernetes workspace structure
+# Claude will use Sourcegraph MCP to understand the real codebase,
+# so we just need a git repo with basic structure
+RUN git init /workspace && \
     cd /workspace && \
-    git checkout v1.30.0 && \
-    go mod download
+    git config user.email "agent@example.com" && \
+    git config user.name "Agent" && \
+    mkdir -p pkg/kubelet pkg/scheduler pkg/controller-manager cmd && \
+    echo "# Kubernetes (task environment)" > README.md && \
+    git add . && \
+    git commit -m "Initial workspace"
 
 # Task setup complete
