@@ -12,7 +12,9 @@ Fixes #169484
 
 ## Task
 
-YOU MUST IMPLEMENT CODE CHANGES to fix this issue. This is not an analysis task.
+YOU MUST IMPLEMENT CODE CHANGES to fix this issue. This is not a planning task - you MUST write actual code.
+
+**CRITICAL: If you are in plan mode, immediately exit with `/ExitPlanMode` before proceeding.**
 
 Review the PR: [c10d] Add thread safety when calling ncclCommGetAsyncError
 
