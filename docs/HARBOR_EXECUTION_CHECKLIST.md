@@ -41,15 +41,17 @@ export SRC_ACCESS_TOKEN=$(grep "SRC_ACCESS_TOKEN=" .env.local | cut -d'=' -f2 | 
 
 ## Model Selection
 
-### Use claude-3-5-haiku (NOT claude-3-5-sonnet)
+### Use claude-haiku-4-5 (NOT claude-3-5-sonnet)
 
 ```bash
 # WRONG - Too expensive and slow
 --model anthropic/claude-3-5-sonnet-20241022
 
 # RIGHT - Fast and cheap for testing
---model anthropic/claude-3-5-haiku
+--model anthropic/claude-haiku-4-5
 ```
+
+**Note**: The correct model name is `claude-haiku-4-5`, NOT `claude-3-5-haiku`
 
 **Why haiku?**
 - 5x faster than sonnet
@@ -66,7 +68,7 @@ export ANTHROPIC_API_KEY=$(grep "ANTHROPIC_API_KEY=" .env.local | cut -d'=' -f2 
 harbor run \
   --path benchmarks/github_mined_pilot \
   --agent claude-code \
-  --model anthropic/claude-3-5-haiku \
+  --model anthropic/claude-haiku-4-5 \
   -n 1 \
   --jobs-dir jobs/baseline-test \
   --task-name sgt-010
