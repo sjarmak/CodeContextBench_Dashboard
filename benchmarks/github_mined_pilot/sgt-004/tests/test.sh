@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
 
-echo "Running test command: make test"
+cd /src
+
+# Run the test command
 make test
 
-echo "✓ Tests passed"
-exit 0
+exit $?
