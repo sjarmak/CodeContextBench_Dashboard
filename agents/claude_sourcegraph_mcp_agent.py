@@ -32,53 +32,31 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
 
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
         """
-        Override to inject exit-plan-mode command and MCP configuration.
+        Override to enable implementation mode (not planning mode) and inject MCP.
         
-        This ensures Claude Code is in implementation mode (not read-only planning mode)
-        and has Sourcegraph MCP configured.
+        This modifies the Claude Code command to:
+        1. Use --permission-mode acceptEdits to enable file modifications
+        2. Configure Sourcegraph MCP for deep search capabilities
         """
-        import shlex
         
         # Get parent's commands
         parent_commands = super().create_run_agent_commands(instruction)
         
-        # Get Sourcegraph credentials from environment
-        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
-        sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or "https://sourcegraph.sourcegraph.com"
-        
-        # Create MCP config if credentials available
-        mcp_config = None
-        if sg_token:
-            # Ensure URL has protocol
-            if not sg_url.startswith(('http://', 'https://')):
-                sg_url = f"https://{sg_url}"
-            sg_url = sg_url.rstrip('/')
-            
-            mcp_config = {
-                "mcpServers": {
-                    "sourcegraph": {
-                        "type": "http",
-                        "url": f"{sg_url}/.api/mcp/v1",
-                        "headers": {
-                            "Authorization": f"token {sg_token}"
-                        }
-                    }
-                }
-            }
-        
-        # Find the Claude execution command and inject exit-plan-mode
+        # Modify the Claude command to enable implementation mode
         result = []
         for cmd in parent_commands:
             if cmd.command and "claude " in cmd.command:
-                # Inject exit plan mode command before the actual task
-                # This tells Claude Code to exit planning mode and enable implementation
-                exit_plan_mode_cmd = ExecInput(
-                    command='echo "/ExitPlanMode" | claude --no-input',
-                    env=cmd.env or {},
+                # Inject --permission-mode acceptEdits to enable actual code changes
+                # This overrides the default "plan" mode which is read-only
+                modified_command = cmd.command.replace(
+                    "claude ",
+                    "claude --permission-mode acceptEdits "
                 )
-                result.append(exit_plan_mode_cmd)
-            
-            result.append(cmd)
+                result.append(
+                    ExecInput(command=modified_command, env=cmd.env or {})
+                )
+            else:
+                result.append(cmd)
         
         return result
     
