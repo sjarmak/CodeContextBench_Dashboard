@@ -15,7 +15,7 @@ RUN npm install -g @anthropic-ai/claude-code
 # Clone PyTorch repository at task-specific commit
 RUN git clone https://github.com/pytorch/pytorch.git /workspace && \
     cd /workspace && \
-    git checkout main && \
+    git checkout e8ca8cc3c264ed3c76886835ea9b0603523a4883 && \
     git submodule update --init --recursive
 
 # Task setup complete

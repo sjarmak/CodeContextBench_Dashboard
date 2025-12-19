@@ -9,6 +9,8 @@ id = "sgt-023"
 repo = "pytorch"
 category = "feature_implementation"
 language = "cpp"
+pre_fix_rev = "cbe1a35dbdfdc9b7490212bdd812f3e2f4ce9e2d"
+ground_truth_rev = "fc5612a499b005dedd60bf898e448cdbac56f64b"
 difficulty = "easy"
 time_limit_sec = 600
 

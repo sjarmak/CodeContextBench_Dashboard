@@ -9,6 +9,8 @@ id = "sgt-024"
 repo = "pytorch"
 category = "cross_module_bug_fix"
 language = "cpp"
+pre_fix_rev = "cbe1a35dbdfdc9b7490212bdd812f3e2f4ce9e2d"
+ground_truth_rev = "3dead934533f2e2544b4e9baba61cfedf0413e7a"
 difficulty = "medium"
 time_limit_sec = 600
 
