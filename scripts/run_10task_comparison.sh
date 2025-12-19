@@ -28,7 +28,7 @@ echo ""
 for task in "${TASKS[@]}"; do
   echo "[BASELINE] Running $task..."
   harbor run \
-    --path benchmarks/github_mined_pilot \
+    --path benchmarks/github_mined \
     --agent claude-code \
     --model anthropic/claude-haiku-4-5-20251001 \
     --task-name "$task" \
@@ -45,7 +45,7 @@ echo ""
 for task in "${TASKS[@]}"; do
   echo "[MCP] Running $task..."
   harbor run \
-    --path benchmarks/github_mined_pilot \
+    --path benchmarks/github_mined \
     --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
     --model anthropic/claude-haiku-4-5-20251001 \
     --task-name "$task" \
