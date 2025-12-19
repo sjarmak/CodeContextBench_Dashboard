@@ -4,7 +4,7 @@
 			"type": "http",
 			"url": "https://sourcegraph.sourcegraph.com/.api/mcp/v1",
 			"headers": {
-				"Authorization": "token sgp_d1c0f3791ae0b441_e78121011997f6bd614cf33625f6ff7044a3e58b"
+				"Authorization": "token REDACTED"
 			}
 		}
 	}
