@@ -1,4 +1,4 @@
-"""Harbor-compatible Claude Code agent with Sourcegraph Deep Search MCP support."""
+"""Harbor-compatible Claude Code agent with Sourcegraph Deep Search MCP and implementation mode."""
 
 import json
 import os
@@ -8,25 +8,80 @@ from typing import Any
 from harbor.agents.installed.claude_code import ClaudeCode
 from harbor.agents.installed.base import ExecInput
 from harbor.environments.base import BaseEnvironment
+from harbor.models.trial.paths import EnvironmentPaths
 
 
 class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
-    """Claude Code with Sourcegraph MCP server pre-configured.
+    """Claude Code with Sourcegraph Deep Search MCP and implementation mode enabled.
     
-    Extends Harbor's built-in ClaudeCode agent to add Sourcegraph Deep Search
-    via MCP (Model Context Protocol) server.
+    Extends Harbor's built-in ClaudeCode agent to:
+    1. Add Sourcegraph Deep Search via MCP (Model Context Protocol) server
+    2. Enable implementation mode (exit read-only planning mode)
     
     Environment Variables (pass via harbor run --ek flags):
     - ANTHROPIC_API_KEY: Claude API key
     - SOURCEGRAPH_URL: Sourcegraph instance URL (e.g., https://sourcegraph.sourcegraph.com)
     - SOURCEGRAPH_ACCESS_TOKEN: Authentication token for Sourcegraph API
 
-    The agent creates .mcp.json configuration for Sourcegraph. Credentials are injected
-    by Harbor via --ek flags into the container environment. MCP server is configured to use
-    HTTP transport via Sourcegraph's hosted MCP endpoint and will be available to Claude for
-    Deep Search queries during task execution.
+    The agent:
+    - Creates .mcp.json configuration for Sourcegraph
+    - Sends initial command to exit plan mode (enables actual code changes)
+    - Credentials are injected by Harbor via --ek flags into the container environment
+    - MCP server is configured to use HTTP transport via Sourcegraph's hosted MCP endpoint
     """
 
+    def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
+        """
+        Override to inject exit-plan-mode command and MCP configuration.
+        
+        This ensures Claude Code is in implementation mode (not read-only planning mode)
+        and has Sourcegraph MCP configured.
+        """
+        import shlex
+        
+        # Get parent's commands
+        parent_commands = super().create_run_agent_commands(instruction)
+        
+        # Get Sourcegraph credentials from environment
+        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
+        sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or "https://sourcegraph.sourcegraph.com"
+        
+        # Create MCP config if credentials available
+        mcp_config = None
+        if sg_token:
+            # Ensure URL has protocol
+            if not sg_url.startswith(('http://', 'https://')):
+                sg_url = f"https://{sg_url}"
+            sg_url = sg_url.rstrip('/')
+            
+            mcp_config = {
+                "mcpServers": {
+                    "sourcegraph": {
+                        "type": "http",
+                        "url": f"{sg_url}/.api/mcp/v1",
+                        "headers": {
+                            "Authorization": f"token {sg_token}"
+                        }
+                    }
+                }
+            }
+        
+        # Find the Claude execution command and inject exit-plan-mode
+        result = []
+        for cmd in parent_commands:
+            if cmd.command and "claude " in cmd.command:
+                # Inject exit plan mode command before the actual task
+                # This tells Claude Code to exit planning mode and enable implementation
+                exit_plan_mode_cmd = ExecInput(
+                    command='echo "/ExitPlanMode" | claude --no-input',
+                    env=cmd.env or {},
+                )
+                result.append(exit_plan_mode_cmd)
+            
+            result.append(cmd)
+        
+        return result
+    
     async def _test_network_connectivity(self, environment: BaseEnvironment, sg_url: str) -> bool:
         """Test if container can reach Sourcegraph via HTTPS.
         
