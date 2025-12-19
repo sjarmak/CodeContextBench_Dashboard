@@ -25,13 +25,36 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
     """
     
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
-        """Create Claude commands.
+        """Create Claude commands with environment variables passed through.
 
+        Ensures ANTHROPIC_API_KEY is available to Claude inside the container.
         MCP configuration is handled via /workspace/.mcp.json file created during setup().
-        Claude Code will automatically discover and load this file when it starts.
         """
-        # Just return parent's commands - MCP config is in .mcp.json file
-        return super().create_run_agent_commands(instruction)
+        # Get parent's commands
+        parent_commands = super().create_run_agent_commands(instruction)
+        
+        # Inject ANTHROPIC_API_KEY into command environment
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        
+        modified_commands = []
+        for cmd in parent_commands:
+            # Create or update env dict for this command
+            env = cmd.env or {}
+            
+            # Inject API key if available
+            if anthropic_key:
+                env["ANTHROPIC_API_KEY"] = anthropic_key
+                self.logger.info(f"✓ Injected ANTHROPIC_API_KEY into command environment")
+            
+            # Preserve original command with updated environment
+            modified_commands.append(
+                ExecInput(
+                    command=cmd.command,
+                    env=env,
+                )
+            )
+        
+        return modified_commands
 
     async def _test_network_connectivity(self, environment: BaseEnvironment, sg_url: str) -> bool:
         """Test if container can reach Sourcegraph via HTTPS.
