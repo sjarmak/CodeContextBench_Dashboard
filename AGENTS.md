@@ -8,16 +8,14 @@ This file documents agent-specific patterns, workflows, and best practices for t
 - Linking to external resources rather than duplicating
 - This file should be the **quick reference**, not comprehensive documentation
 
-## Current Status (Phase 3: Real Benchmarks)
+## Current Status (Phase 4: Single-Task Validation)
 
-**Baseline Pilot**: RUNNING (10 tasks, claude-code agent)  
-**Start Time**: 2025-12-17 21:26 UTC  
-**ETA**: 1.5-2 hours  
-**Expected Result**: 30-40% success rate  
+**Status**: Root cause of Phase 3 failure identified and fixed  
+**Root Cause**: Claude Code's autonomous operation requires undocumented environment variables  
+**Fix Applied**: Dec 19 2025 - Added `FORCE_AUTO_BACKGROUND_TASKS=1` and `ENABLE_BACKGROUND_TASKS=1`  
+**Blocker**: Task Dockerfiles need to checkout code-before-fix (see CodeContextBench-mqz)  
 
-All 25 Dockerfiles fixed with git clone logic. Single test validated. MCP pilot queued after baseline.
-
-See `history/HARBOR_READY.md` for detailed phase status.
+See `AGENTS.md` (Phase 4 section below) and `history/PHASE4_ARCHITECTURE_FIX.md` for details.
 
 ## Project Overview
 
