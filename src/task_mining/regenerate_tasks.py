@@ -93,19 +93,24 @@ def update_dockerfile(
         logger.warning(f"No repo_url for {task_data.get('id')}")
         return
     
-    # Replace git checkout line with pre_fix_rev
-    old_checkout = 'git checkout main'
-    new_checkout = f'git checkout {pre_fix_rev}'
-    
-    if old_checkout in content:
-        content = content.replace(old_checkout, new_checkout)
+    # Check if git setup already exists
+    if "git clone" in content or "git checkout" in content:
+        # Replace existing git checkout line with pre_fix_rev
+        old_checkout = 'git checkout main'
+        new_checkout = f'git checkout {pre_fix_rev}'
         
-        with open(dockerfile_path, "w") as f:
-            f.write(content)
-        
-        logger.info(f"Updated {dockerfile_path} to checkout {pre_fix_rev}")
+        if old_checkout in content:
+            content = content.replace(old_checkout, new_checkout)
+            
+            with open(dockerfile_path, "w") as f:
+                f.write(content)
+            
+            logger.info(f"Updated {dockerfile_path} to checkout {pre_fix_rev}")
     else:
-        logger.debug(f"No 'git checkout main' found in {dockerfile_path}")
+        # No git setup found, log this for manual review
+        logger.info(f"No git setup in {dockerfile_path}. "
+                   f"Task {task_data.get('id')} may need manual Dockerfile updates. "
+                   f"Should checkout pre_fix_rev={pre_fix_rev}")
 
 
 def regenerate_tasks(
