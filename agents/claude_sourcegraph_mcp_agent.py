@@ -81,8 +81,10 @@ echo "=== Test Complete ==="
         """
 
         # Get Sourcegraph credentials to check if MCP will be available
-        sg_url = os.environ.get("SOURCEGRAPH_URL", "")
-        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN", "")
+        # Support both SOURCEGRAPH_URL and SRC_ENDPOINT for the URL
+        sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
+        # Support both SOURCEGRAPH_ACCESS_TOKEN and SRC_ACCESS_TOKEN for the token
+        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
 
         if sg_url and sg_token:
             # Ensure URL has protocol
@@ -96,6 +98,9 @@ echo "=== Test Complete ==="
             await self._test_network_connectivity(environment, sg_url)
 
             # Create .mcp.json with Sourcegraph MCP configuration
+            # Note: Sourcegraph MCP supports both "token" and "Bearer" schemes
+            # "token ACCESSTOKEN" is for Sourcegraph API tokens
+            # "Bearer ACCESSTOKEN" may also work depending on server config
             mcp_config = {
                 "mcpServers": {
                     "sourcegraph": {
