@@ -95,112 +95,6 @@ If you feel the urge to create a markdown file in root, STOP. Either:
 
 ---
 
-## Engram Integration: Continuous Learning Loop
-
-CodeContextBench uses **Engram** for structured learning from task execution. Every completed bead creates a learning signal that improves future agent performance.
-
-### Bead Closure: Only When Work is Actually Complete
-
-**⚠️ DO NOT close beads prematurely.** Only close a bead when the work is FULLY DONE and tested with **deterministic, specific tests** for the bead's exact requirements. Closing beads early means:
-- ❌ Work appears complete to other agents but is actually incomplete
-- ❌ The next agent wastes time discovering the work isn't done
-- ❌ Engram learns from incomplete work (bad signal)
-
-**What "complete" means (ALL required):**
-- ✅ **Bead-specific test**: A deterministic test that validates the EXACT behavior required by this bead (not generic tests)
-- ✅ **Unit tests**: Any new code changes have accompanying unit tests to prevent regressions
-- ✅ **Tests NOT mocked**: Use real implementations unless the bead explicitly specifies mocking
-- ✅ **All tests pass**: Run `python -m pytest tests/ -q` and verify EVERY test passes
-- ✅ **Code committed**: All code changes committed to git
-- ✅ **No known bugs**: No open issues or TODOs from this work
-- ✅ **Documentation**: Updated if functionality/API changed
-- ✅ **Ready to hand off**: Next agent can pick this up and immediately use it
-
-**Testing requirement details:**
-- Each bead MUST have a test that proves its specific requirement is met
-- Do NOT rely on generic test suites to validate bead-specific work
-- Do NOT use mocks unless the bead description explicitly says to mock something
-- Write unit tests alongside any code changes (test-first is preferred)
-
-**If work is NOT complete:** Keep the bead in `in_progress` status. Do NOT close it.
-
-### Engram Workflow
-
-**When work on a bead is COMPLETELY FINISHED:**
-
-```bash
-# 1. Create a bead-specific test (if one doesn't exist)
-# This test MUST prove the exact requirement of the bead is met
-# Example: If bead is "Add feature X", test should call feature X and verify it works
-# DO NOT use mocks unless the bead description says to
-
-# 2. Create unit tests for any new code
-# These prevent regressions when other agents modify the code later
-
-# 3. Run the bead-specific test to verify it passes
-python -m pytest tests/test_<feature_name>.py -v
-
-# 4. Run all tests to ensure no regressions
-python -m pytest tests/ -q
-
-# 5. Verify test results prove the bead requirement is met
-# If the test doesn't directly validate the bead requirement, your work isn't done
-
-# 6. Commit all code and tests
-git add .
-git commit -m "<bead-id>: [description]. Tests: [what tests validate the requirement]"
-
-# 7. ONLY then close the bead (and only if step 5 passed)
-bd close <bead-id> --reason "Completed: [detailed description]. Validated by: tests/<test_file>.py::<test_name>"
-```
-
-**What happens on `bd close`:**
-- Bead gets `closedAt` timestamp (marks it as finished)
-- Git hook automatically detects closure and runs `en learn`
-- Engram captures execution traces from your test/build runs
-- Engram extracts patterns and stores learnings in `.engram/engram.db`
-- Knowledge base is automatically updated for future work
-
-### Important Notes
-
-- **Each bead needs a specific test.** Don't rely on generic suites to validate bead requirements.
-- **Always use real implementations, not mocks**, unless the bead explicitly requires mocking.
-- **Unit tests are mandatory** for any code changes (prevents regressions).
-- **ONLY close when tests prove the requirement is met.** Passing generic tests ≠ bead complete.
-- **Closing a bead is a promise** that the next agent can pick it up and it will work.
-- **When in doubt, leave it in `in_progress`.** It's better to be conservative.
-- **Engram learns from complete, tested code.** Untested or incomplete code creates bad learning signals.
-
-### Manual Learning Capture (if needed)
-
-If you need to learn from specific test/build runs without closing:
-
-```bash
-# Run this after executing tests/builds
-en learn --beads <bead-id>
-```
-
-This runs the learning pipeline on a specific bead's execution traces.
-
-### Querying Learned Knowledge
-
-To see what Engram has learned:
-
-```bash
-# View patterns from AGENTS.md (auto-generated from database)
-grep "Bullet #ccb-" AGENTS.md | head -20
-
-# Or directly query the database
-sqlite3 .engram/engram.db "SELECT * FROM insights LIMIT 10;"
-```
-
-### Key Engram Concepts
-
-- **Trace**: Execution record (test pass/fail, build errors, etc.)
-- **Insight**: Extracted learning from one or more traces
-- **Bullet**: Formatted insight for reuse (stored in knowledge base)
-- **engram.db**: SQLite database containing all learnings
-
 ## Sourcegraph MCP Agent Implementation
 
 ### ClaudeCodeSourcegraphMCPAgent Pattern
@@ -355,7 +249,7 @@ cd jobs/claude-mcp-with-autonomous-vars/*/sgt-001__*/
 git diff --stat  # Should show modifications to NCCLUtils.cpp, NCCLUtils.hpp
 ```
 
-**Note on learning patterns:** Patterns are automatically captured by Engram when beads close. This file should NOT contain manually-added pattern bullets. Engram updates this file automatically.
+
 
 ## Development & Operations
 
@@ -366,14 +260,7 @@ git diff --stat  # Should show modifications to NCCLUtils.cpp, NCCLUtils.hpp
 - Debugging agent execution
 - Development commands and code quality standards
 
-**See troubleshooting guide:** `docs/TROUBLESHOOTING.md`
-
-- Agent initialization issues
-- Benchmark execution problems
-- Container and infrastructure issues
-- Result aggregation and comparison
-- Engram learning troubleshooting
-- Git and beads synchronization
+**See troubleshooting guide:** `docs/TROUBLESHOOTING.md` for agent initialization, benchmark execution, container, and infrastructure issues
 
 ### Documentation Maintenance
 
@@ -382,13 +269,12 @@ When working on CodeContextBench, keep these docs in sync with your changes:
 - **docs/ARCHITECTURE.md** - Update when directory structure, file organization, or agent architecture changes
 - **docs/DEVELOPMENT.md** - Update when adding new development workflows, commands, or setup procedures
 - **docs/TROUBLESHOOTING.md** - Update whenever you encounter and fix an issue not already documented
-- **AGENTS.md** - Update learned patterns section when discovering new patterns; keep file at ~500 lines max
+- **AGENTS.md** - Keep at ~500 lines max; move extensive documentation to `docs/`
 
 **Workflow:**
 1. Complete your work and commit code changes
 2. Update corresponding docs in `docs/` to reflect what you did
 3. Commit documentation updates together with code
-4. Close bead via `bd close` (triggers Engram learning)
 
 Documentation is part of the deliverable, not an afterthought.
 
@@ -527,13 +413,9 @@ bd close bd-42 --reason "Completed" --json
     git commit -m "<bead-id>: [description]. Tests: tests/test_<name>.py::<test_func>"
     ```
 11. **Only if work is 100% complete and tests prove it**: Close the bead
-    ```bash
-    bd close <id> --reason "Completed: [detailed summary]. Validated by: tests/test_<name>.py::<test_func>"
-    ```
-    - Finalizes the bead with a `closedAt` timestamp
-    - Git hook detects closure and auto-runs `en learn`
-    - Engram extracts patterns from your test/build runs
-    - Knowledge stored in `.engram/engram.db` for future work
+     ```bash
+     bd close <id> --reason "Completed: [detailed summary]. Validated by: tests/test_<name>.py::<test_func>"
+     ```
 
 **Key principles:** 
 - ✅ Create a **specific test for the bead requirement** (not generic tests)
@@ -611,7 +493,6 @@ AI assistants often create temporary planning documents during development:
 -  Link discovered work with `discovered-from` dependencies
 -  Check `bd ready` before asking "what should I work on?"
 -  Store AI planning/design docs in `history/` directory only
--  Record test results in bead metadata (via `ace capture` or test execution)
 -  Do NOT create markdown TODO lists in root
 -  Do NOT create status/progress markdown files in root
 -  Do NOT use external issue trackers
