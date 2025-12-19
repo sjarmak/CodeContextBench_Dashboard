@@ -4,9 +4,9 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 
 ## Philosophy
 
-- **Claude-first design**: Primary agents are Claude-based (baseline + MCP variants)
-- **Modular agent support**: Easy to add new agent types (Termius, Cursor, etc.)
-- **Structured observability**: NeMo-Agent-Toolkit integration for detailed metrics
+- **Claude-first design**: Primary agents use Claude Code CLI (baseline + MCP variants)
+- **Autonomous operation**: Claude Code must run in headless mode via environment variables
+- **Fair benchmarking**: Both agents have equal autonomous capabilities for valid comparison
 - **Continuous learning**: Engram framework captures execution patterns and improves future performance
 
 
@@ -98,17 +98,25 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 
 #### `agents/` - Agent Implementations
 
-All agents extend `BasePatchAgent` and implement:
+Both agents extend Harbor's built-in `ClaudeCode` and inject autonomous environment variables:
 
-- **claude_agent.py** - Claude baseline (no tools, vanilla command generation)
-- **claude_sourcegraph_mcp_agent.py** - Claude + Sourcegraph MCP (with Deep Search)
-- **base.py** - Abstract base class with common functionality
-- **install-claude.sh.j2** - Jinja2 template for Claude installation in containers
+- **claude_baseline_agent.py** - Claude baseline (autonomous mode, no Sourcegraph)
+  - Extends: `harbor.agents.installed.claude_code.ClaudeCode`
+  - Injects: `FORCE_AUTO_BACKGROUND_TASKS=1`, `ENABLE_BACKGROUND_TASKS=1`
+  - Tools: Bash, Read, Edit, Write, Grep, Glob
+  - Purpose: Fair baseline for MCP comparison
 
-**Key Design**: All agents generate identical commands; differentiation happens via:
-- Environment variables (SRC_ACCESS_TOKEN, SOURCEGRAPH_URL)
-- MCP configuration at Harbor runtime
-- NOT in agent code itself
+- **claude_sourcegraph_mcp_agent.py** - Claude + Sourcegraph MCP (autonomous mode + Deep Search)
+  - Extends: `harbor.agents.installed.claude_code.ClaudeCode`
+  - Injects: Same autonomous env vars as baseline
+  - Adds: `.mcp.json` configuration for Sourcegraph HTTP server
+  - Tools: Same as baseline + Sourcegraph Deep Search
+  - Purpose: Measure ROI of code intelligence
+
+**Key Design**: 
+- Both agents inject the same autonomous environment variables (critical for implementation mode)
+- Differentiation happens via environment/MCP setup, not core command logic
+- Allows fair A/B testing of Sourcegraph value
 
 #### `src/task_mining/` - GitHub Task Mining
 
@@ -149,12 +157,13 @@ Each task includes:
   - Submodules initialized: `git submodule update --init --recursive`
 - `tests/test.sh` - Validation script with reward file output (`/logs/verifier/reward.txt`)
 
-#### `runners/` - Benchmark Execution
+#### `runners/` - Benchmark Execution & Analysis
 
-- **harbor_benchmark.sh** - Main orchestrator (runs Harbor jobs, collects results)
-- **compare_results.py** - Comparative analysis (baseline vs treatment)
-- **aggregator.py** - Cross-benchmark result aggregation
-- **extract_nemo_traces.py** - Batch NeMo trace extraction from Harbor jobs
+- **capture_single_task_trace.py** - Extract comprehensive execution traces (code changes, test results, metrics)
+- **compare_results.py** - Comparative analysis (baseline vs MCP agent)
+- **aggregator.py** - Cross-task result aggregation
+- **collect_observability.py** - Gather metrics from Harbor job outputs
+- **validate_tasks.py** - Verify task setup and configuration
 
 #### `infrastructure/` - Container & Deployment
 
@@ -164,20 +173,19 @@ Each task includes:
 - **datasets.yaml** - External dataset references (10Figure corpus)
 - **load-env.sh** - Environment variable loader from .env.local
 
-#### `observability/` - Metrics & Observability
+#### `observability/` - Metrics & Trace Parsing
 
-**NeMo-Agent-Toolkit Integration** for structured execution tracing:
+Tools for extracting execution metrics from agent runs:
 
-- **nemo_trace_parser.py** - Parse NeMo traces (tool calls, latency, tokens, failures)
-- **manifest_writer.py** - Generate run_manifest.json with execution data
-- **metrics_collector.py** - Analyze metrics across multiple runs
-- **claude_output_parser.py** - Extract tokens from Claude CLI output (fallback)
+- **claude_output_parser.py** - Parse Claude CLI output for token counts and costs
+- **metrics_collector.py** - Aggregate metrics across multiple runs
+- **nemo_trace_parser.py** - Parse NeMo traces if available (future integration)
 
-**Features**:
-- Per-tool metrics (latency, token counts, failure rates)
-- Failure analysis by error type and tool
-- Cost breakdown per tool
-- Structured metrics suitable for benchmarking
+**Current Usage**:
+- Extract token counts from Claude output
+- Analyze success/failure rates
+- Collect metrics for comparative analysis
+- Support for structured trace formats
 
 #### `tests/` - Testing Suite
 
@@ -316,38 +324,20 @@ Both agents use the same command generation logic. Differentiation happens at ex
 
 See `infrastructure/PODMAN.md` for detailed setup.
 
-## NeMo-Agent-Toolkit Integration
+## Execution Tracing & Metrics
 
-CodeContextBench integrates with **NeMo-Agent-Toolkit** for structured execution tracing:
+### Current Approach
 
-### What We Get
+Metrics are extracted from Harbor job outputs and Claude CLI logs:
 
-- **Per-tool metrics**: Token counts, latency, success/failure rates per tool
-- **Operation timeline**: Complete execution sequence with timestamps
-- **Failure analysis**: Error types, which tools fail most often
-- **Cost breakdown**: Cost per tool for detailed optimization
+- **Code changes**: Captured via `git diff` in task containers
+- **Test results**: Parsed from task validation scripts (reward.txt)
+- **Token counts**: Extracted from Claude CLI output via `ClaudeOutputParser`
+- **Execution time**: Recorded by Harbor
 
-### How We Use It
+### Future: NeMo Integration
 
-```python
-from observability import NeMoTraceParser, ManifestWriter
-
-# Extract trace from Harbor job
-trace = NeMoTraceParser.extract_from_task_execution(job_dir)
-
-# Write manifest with structured metrics
-writer = ManifestWriter(job_dir)
-manifest_path = writer.write_manifest(
-    harness_name='harbor-v1',
-    agent_name='claude-baseline',
-    benchmark_name='10figure',
-    nemo_trace=trace  # Pass NeMo trace for structured metrics
-)
-```
-
-### Automatic Fallback
-
-If no NeMo trace available, we gracefully fall back to Claude log parsing via `ClaudeOutputParser`. This ensures we always have token counts and cost data.
+Full NeMo-Agent-Toolkit integration is planned for structured per-tool metrics (latency, failure analysis, cost breakdown). Currently using simplified metrics collection.
 
 ## Knowledge Base: Engram
 

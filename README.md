@@ -5,57 +5,50 @@ Benchmark framework for evaluating how improved codebase understanding through S
 ## Quick Overview
 
 - **Goal**: Measure ROI of Sourcegraph code search (via MCP) for coding agents
-- **Primary Agent**: Claude Code (via CLI through Harbor)
-- **Task Corpus**: github_mined (25 real-world PyTorch tasks, Phase 3 baseline)
-- **Framework**: Harbor + Podman (reproducible container execution)
-- **Evaluation**: Agent executes task → git diff captured → tests run → success/failure metrics
+- **Primary Agent**: Claude Code (via Harbor CLI integration)
+- **Task Corpus**: github_mined (25 real-world PyTorch tasks)
+- **Framework**: Harbor (container orchestration) + Claude Code CLI
+- **Evaluation**: Agent executes task → git diff captured → tests validate → reward score
 
-## Architecture
+## Directory Structure
 
 ```
-agents/              # Agent implementations (Claude Code baseline + variants)
-benchmarks/          # Task sets (10figure, github_mined, terminal-bench)
-configs/             # Repository configs, Harbor settings, tool profiles
-infrastructure/      # Podman docs, dataset specs, container configs
-observability/       # JSON logging + Harbor metrics (no NeMo complexity)
+agents/              # Agent implementations (Baseline + MCP variants)
+benchmarks/          # Task sets (github_mined: 25 PyTorch tasks)
+.beads/              # Issue tracking (auto-synced with git)
+.engram/             # Engram learning database (patterns from closed beads)
+configs/             # Configuration files
+docs/                # Project documentation (ARCHITECTURE, DEVELOPMENT, TROUBLESHOOTING)
+infrastructure/      # Container setup, deployment configs
+jobs/                # Harbor job outputs (auto-generated, git-ignored)
+observability/       # Trace parsing, metrics collection
 runners/             # Benchmark orchestration scripts
-src/benchmark/       # Task schema, manifest writers, metrics collectors
+src/                 # Core library code (task schema, mining, benchmarking)
 tests/               # Unit + integration tests
-tools/               # Utility scripts (task context, result validation)
-artifacts/           # Ephemeral results, logs, job outputs
+history/             # Temporary planning documents (git-ignored)
 ```
 
 ## Core Components
 
 ### Agent Implementations
 
-#### BasePatchAgent (agents/base.py)
-Abstract base class for all CLI agents. Provides:
-- Repository discovery (task.toml or /10figure/src/)
-- Git diff capture (baseline → patch)
-- Harbor integration
-- Extensible environment/command customization
-
-Subclasses must implement:
-- `get_agent_command(instruction, repo_dir)`: Shell command to run the agent
-- `get_agent_env()`: Environment variables required by the agent
-- `_install_agent_template_path`: Path to Jinja2 installation script
-
-#### ClaudeCodeAgent (agents/claude_agent.py)
-Claude Code baseline (no code search augmentation):
-- Uses Claude Code CLI (`claude -p` print mode)
-- JSON output format for structured results
-- Requires `ANTHROPIC_API_KEY` environment variable
-- Runs with `--dangerously-skip-permissions` for unattended execution
-- Suitable for baseline evaluation without Sourcegraph tools
+#### BaselineClaudeCodeAgent (agents/claude_baseline_agent.py)
+Claude Code baseline with autonomous implementation mode:
+- Extends Harbor's built-in ClaudeCode agent
+- Injects `FORCE_AUTO_BACKGROUND_TASKS=1` and `ENABLE_BACKGROUND_TASKS=1` (critical for autonomous operation)
+- Enables tool access: Bash, Read, Edit, Write, Grep, Glob
+- Requires: `ANTHROPIC_API_KEY`
+- No Sourcegraph integration
+- Fair baseline for MCP comparison
 
 #### ClaudeCodeSourcegraphMCPAgent (agents/claude_sourcegraph_mcp_agent.py)
-Claude Code with Sourcegraph MCP server integration:
-- Inherits baseline Claude functionality
-- Adds `SRC_ACCESS_TOKEN` and `SOURCEGRAPH_URL` credentials
-- Enables Deep Search APIs via Model Context Protocol
-- MCP server configuration handled via `--mcp-config` at runtime
-- Measures ROI of Sourcegraph code intelligence on agent performance
+Claude Code with Sourcegraph MCP integration:
+- Same autonomous env var injection as baseline
+- Adds Sourcegraph Deep Search via MCP (Model Context Protocol)
+- Creates `.mcp.json` configuration for Sourcegraph HTTP server
+- Requires: `ANTHROPIC_API_KEY` + `SOURCEGRAPH_ACCESS_TOKEN` + `SOURCEGRAPH_URL`
+- Provides intelligent codebase exploration vs manual grep
+- Measures ROI of code intelligence on agent success rate
 
 ## Datasets
 
@@ -68,28 +61,27 @@ Claude Code with Sourcegraph MCP server integration:
 
 ## Phase Status
 
-### Phase 1: Foundation (COMPLETE)
-- Directory skeleton and project structure
-- BasePatchAgent + ClaudeCodeAgent + ClaudeCodeMCPAgent
-- Installation templates and Harbor integration
-- 25 Kubernetes reference tasks (10figure baseline)
-- Agent tests (14 passing)
-
-### Phase 2a: Mining (COMPLETE)
-- Mined 50 real-world GitHub tasks (Kubernetes + PyTorch)
-- 98% schema validation pass rate (49/50)
-- All tasks multi-file, deterministic, ground-truth verified
-- Harbor task generation & validation infrastructure
-- See [docs/MINING_EXECUTION_REPORT.md](docs/MINING_EXECUTION_REPORT.md)
+### Phase 1-2: Foundation & Mining (COMPLETE)
+- Harbor integration with Claude Code CLI
+- 25 github_mined PyTorch tasks (from Phase 2a mining)
+- Task validation and reproducible execution
 
 ### Phase 3: Real Benchmarks (IN PROGRESS)
-- Fixed Docker repo cloning (all 25 tasks)
-- Baseline pilot (10 tasks, claude-code agent) - RUNNING
-- MCP pilot (10 tasks, +Sourcegraph Deep Search)
-- Metric extraction and comparative analysis
-- Hypothesis validation (30-40% baseline, 70-90% with MCP)
+- Harbor framework fully operational
+- Both agents with autonomous implementation mode enabled
+- Single-task validation (sgt-001) shows agents can make code changes
 
-See `.beads/issues.jsonl` for full task list.
+### Phase 4: Single-Task Validation (IN PROGRESS - Dec 19, 2025)
+- **Discovery**: Autonomous environment variables control Claude Code's operation mode
+  - `FORCE_AUTO_BACKGROUND_TASKS=1` and `ENABLE_BACKGROUND_TASKS=1` enable headless implementation
+  - Both baseline and MCP agents now have equal autonomous capability
+- **Critical Issue Found** (CodeContextBench-mqz): Task environments must checkout code BEFORE fixes were merged
+  - Current: Dockerfiles clone HEAD which already has fixes applied
+  - Problem: Agents can't implement something already in the baseline
+  - Solution: Update all task Dockerfiles to pre-fix commits
+- **Next**: After environment fixes, re-run Phase 4 validation and compare results
+
+See `.beads/issues.jsonl` for full task tracking.
 
 ## Contributing
 
