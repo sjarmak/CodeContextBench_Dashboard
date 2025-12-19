@@ -3,6 +3,7 @@ set -e
 
 # Create logs directory
 mkdir -p /logs/verifier
+PRE_FIX_REV="a06141f73d603084910db381504b7c41eedb7210"
 
 # Run actual tests
 echo "Running test command: make test"
