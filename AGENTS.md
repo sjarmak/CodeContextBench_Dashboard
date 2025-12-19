@@ -663,19 +663,42 @@ AI assistants often create temporary planning documents during development:
    bd sync
    ```
 
-6. **Clean up git state** - Clear old stashes and prune dead remote branches:
-   ```bash
-   git stash clear                    # Remove old stashes
-   git remote prune origin            # Clean up deleted remote branches
-   ```
+6. **Clean up root directory** - Remove any temporary files that shouldn't be in the root directory:
+    ```bash
+    # Check for files that don't belong in root
+    ls -la *.json *.py 2>/dev/null | grep -v setup.py
+    
+    # Remove temporary configs, test scripts, and testing artifacts
+    # Root should only contain:
+    #   - README.md, AGENTS.md (documentation)
+    #   - setup.py, pyproject.toml (project config)
+    #   - LICENSE, .gitignore, .gitattributes (repo config)
+    #   - Directories: src/, tests/, docs/, configs/, agents/, runners/, etc.
+    #
+    # DO NOT add to root:
+    #   - harbor-config-*.json (use configs/ or history/)
+    #   - test_*.py (use tests/)
+    #   - STATUS.md, PROGRESS.md, PLAN.md (use history/ or .beads/)
+    #   - IMPLEMENTATION.md, ARCHITECTURE_NOTES.md (use docs/)
+    #   - Any temporary .mcp.json, .env.* files (use .claude/ or configs/)
+    
+    # Verify no stray files
+    git status  # Should show no untracked root-level .json or .py files
+    ```
 
-7. **Verify clean state** - Ensure all changes are committed and pushed, no untracked files remain:
-   ```bash
-   git status
-   git log --oneline -5
-   ```
+7. **Clean up git state** - Clear old stashes and prune dead remote branches:
+    ```bash
+    git stash clear                    # Remove old stashes
+    git remote prune origin            # Clean up deleted remote branches
+    ```
 
-8. **Choose a follow-up issue for next session**
+8. **Verify clean state** - Ensure all changes are committed and pushed, no untracked files remain:
+    ```bash
+    git status
+    git log --oneline -5
+    ```
+
+9. **Choose a follow-up issue for next session**
    - Provide a prompt for the user to give to you in the next session
    - Format: "Continue work on bd-X: [issue title]. [Brief context about what's been done and what's next]"
 
@@ -711,15 +734,20 @@ git commit -m "Session: Closed bd-42 (feature X working, tested)"
 git pull --rebase
 bd sync
 
-# 6. Clean up
+# 6. Clean up root directory
+ls -la *.json *.py 2>/dev/null | grep -v setup.py  # Check for stray files
+# Remove any temporary configs/scripts if they exist
+git status  # Verify no untracked root files
+
+# 7. Clean git state
 git stash clear
 git remote prune origin
 
-# 7. Verify
+# 8. Verify
 git status
 bd ready  # See what's ready to work on
 
-# 8. Report back to user
+# 9. Report back to user
 # - Closed beads: bd-42 (feature X implemented and tested)
 # - Open beads: bd-43 (still needs test coverage and bug fix verification)
 # - New issues: follow-up work filed
