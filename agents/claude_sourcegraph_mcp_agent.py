@@ -52,6 +52,9 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
                     "claude ",
                     "claude --permission-mode acceptEdits "
                 )
+                self.logger.info(f"Modified command to enable acceptEdits mode")
+                self.logger.info(f"Original: {cmd.command[:100]}...")
+                self.logger.info(f"Modified: {modified_command[:100]}...")
                 result.append(
                     ExecInput(command=modified_command, env=cmd.env or {})
                 )
