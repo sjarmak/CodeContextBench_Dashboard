@@ -43,3 +43,5 @@ harbor-10figure-dataset/
 .env.*.local
 *.key
 *.pem
+.mcp.json
+.claude/
