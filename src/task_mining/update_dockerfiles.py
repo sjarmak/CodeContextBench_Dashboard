@@ -38,9 +38,9 @@ def get_docker_template_for_repo(repo_key: str, pre_fix_rev: str) -> str:
     repo_url = config.get("repo_url", "")
     
     if repo_key == "pytorch":
-        return f"""FROM pytorch/pytorch:2.1-runtime-cuda12.1-cudnn8-devel
+        return f"""FROM pytorch/pytorch:latest
 
-WORKDIR /workspace
+WORKDIR /src
 
 # Install additional build dependencies
 RUN apt-get update && apt-get install -y \\
@@ -50,17 +50,12 @@ RUN apt-get update && apt-get install -y \\
     && rm -rf /var/lib/apt/lists/*
 
 # Clone PyTorch repository at pre_fix_rev
-RUN git clone --depth 1 {repo_url} /src 2>/dev/null || git clone {repo_url} /src
-WORKDIR /src
+RUN git clone {repo_url} . 2>/dev/null || true
 RUN git fetch origin {pre_fix_rev} 2>/dev/null || true
 RUN git checkout {pre_fix_rev} || git checkout -B fix {pre_fix_rev}
 
 # Install PyTorch build dependencies
 RUN pip install -q numpy pyyaml mkl mkl-service setuptools cffi typing_extensions future six requests dataclasses
-
-# Copy test directory
-COPY tests /workspace/tests
-WORKDIR /workspace
 """
     
     elif repo_key == "kubernetes":
