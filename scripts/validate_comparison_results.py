@@ -31,10 +31,15 @@ def check_directory(base_dir: Path, agent_type: str) -> Tuple[int, List[str]]:
     
     for traj_file in trajectories:
         parts = traj_file.parts
+        task_name = None
         for part in parts:
-            if part.startswith("sgt-"):
+            if part.startswith("sgt-") or part.startswith("vsc-") or part.startswith("k8s-"):
                 task_name = part.split("__")[0]
                 break
+        
+        if not task_name:
+            # Fallback: use the immediate parent directory name
+            task_name = traj_file.parent.parent.name
         
         try:
             with open(traj_file) as f:
@@ -65,11 +70,15 @@ def check_directory(base_dir: Path, agent_type: str) -> Tuple[int, List[str]]:
             'has_error': has_api_error,
         }
     
-    # Check for missing tasks
+    # Check for missing tasks (only check sgt- tasks, not big_code_mcp tasks)
     expected_tasks = [f"sgt-{i:03d}" for i in range(1, 11)]
-    for expected in expected_tasks:
-        if expected not in tasks_by_name:
-            issues.append(f"❌ {expected}: Task not found")
+    found_sgt_tasks = [t for t in tasks_by_name if t.startswith("sgt-")]
+    
+    # Only validate all 10 tasks if we found any sgt- tasks
+    if found_sgt_tasks:
+        for expected in expected_tasks:
+            if expected not in tasks_by_name:
+                issues.append(f"❌ {expected}: Task not found")
     
     return task_count, issues
 
