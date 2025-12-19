@@ -32,29 +32,32 @@ class ClaudeCodeSourcegraphMCPAgent(ClaudeCode):
 
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
         """
-        Override to enable implementation mode (not planning mode) and inject MCP.
+        Override to enable implementation mode with full tool access.
         
         This modifies the Claude Code command to:
         1. Use --permission-mode acceptEdits to enable file modifications
-        2. Configure Sourcegraph MCP for deep search capabilities
+        2. Explicitly whitelist all necessary tools (Read, Edit, Write, Bash, Grep, Glob)
+        3. Configure Sourcegraph MCP for deep search capabilities
         """
         
         # Get parent's commands
         parent_commands = super().create_run_agent_commands(instruction)
         
-        # Modify the Claude command to enable implementation mode
+        # All tools Claude needs for implementation
+        allowed_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        
+        # Modify the Claude command to enable implementation mode with full tool access
         result = []
         for cmd in parent_commands:
             if cmd.command and "claude " in cmd.command:
-                # Inject --permission-mode acceptEdits to enable actual code changes
-                # This overrides the default "plan" mode which is read-only
+                # Inject both --permission-mode and --allowedTools
+                # This enables actual code changes and ensures tools are available
                 modified_command = cmd.command.replace(
                     "claude ",
-                    "claude --permission-mode acceptEdits "
+                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} "
                 )
-                self.logger.info(f"Modified command to enable acceptEdits mode")
-                self.logger.info(f"Original: {cmd.command[:100]}...")
-                self.logger.info(f"Modified: {modified_command[:100]}...")
+                self.logger.info(f"Modified command for implementation mode with tool whitelist")
+                self.logger.info(f"Tools enabled: {allowed_tools}")
                 result.append(
                     ExecInput(command=modified_command, env=cmd.env or {})
                 )
