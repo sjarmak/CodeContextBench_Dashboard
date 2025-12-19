@@ -40,7 +40,7 @@ def get_docker_template_for_repo(repo_key: str, pre_fix_rev: str) -> str:
     if repo_key == "pytorch":
         return f"""FROM pytorch/pytorch:latest
 
-WORKDIR /src
+WORKDIR /workspace
 
 # Install additional build dependencies
 RUN apt-get update && apt-get install -y \\
@@ -50,12 +50,15 @@ RUN apt-get update && apt-get install -y \\
     && rm -rf /var/lib/apt/lists/*
 
 # Clone PyTorch repository at pre_fix_rev
-RUN git clone {repo_url} . 2>/dev/null || true
+RUN git clone {repo_url} /workspace/src 2>/dev/null || true
+WORKDIR /workspace/src
 RUN git fetch origin {pre_fix_rev} 2>/dev/null || true
 RUN git checkout {pre_fix_rev} || git checkout -B fix {pre_fix_rev}
 
 # Install PyTorch build dependencies
 RUN pip install -q numpy pyyaml mkl mkl-service setuptools cffi typing_extensions future six requests dataclasses
+
+WORKDIR /workspace
 """
     
     elif repo_key == "kubernetes":
