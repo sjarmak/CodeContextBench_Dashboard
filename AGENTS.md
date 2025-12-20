@@ -326,6 +326,103 @@ python scripts/validate_comparison_results.py \
   jobs/comparison-YYYYMMDD-HHMM/mcp
 ```
 
+## Big Code Task Template & Experimental Design
+
+### Equal File Access Requirement
+
+When evaluating baseline vs MCP agents on big code tasks:
+
+**CRITICAL:** Both agents must have identical file access for valid comparison.
+
+```
+VALID SETUP:
+  ✅ Both agents: Pre-cloned repos in task container
+  ✅ Baseline: Local grep/find/rg on pre-cloned files
+  ✅ MCP: Sourcegraph semantic search on pre-cloned files
+  → Measures search strategy difference, not file visibility
+
+INVALID SETUP (Original Phase 3):
+  ❌ Baseline: Task container with empty directory stubs
+  ❌ MCP: Task container with empty stubs + Sourcegraph access (can clone)
+  → Measures file access capability, not search strategy
+```
+
+### Big Code Task Dockerfile Pattern
+
+All big code task containers should pre-clone their target repositories:
+
+```dockerfile
+FROM [appropriate language image]
+
+WORKDIR /workspace
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    git curl build-essential [language-specific deps]
+
+# Install Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
+# ✅ PRE-CLONE the actual repository (CRITICAL for equal file access)
+RUN git clone --depth 1 https://github.com/[owner]/[repo].git . && \
+    git config user.email "agent@example.com" && \
+    git config user.name "Agent"
+
+# Install language dependencies (optional, for testing)
+RUN [language-specific setup: npm install, go build, cargo build, etc.]
+```
+
+**Key points:**
+- Use `--depth 1` for shallow clone (faster, less disk)
+- Clone into `.` (current directory = /workspace)
+- Initialize git config (agents need to make commits)
+- Language dependencies optional (testing may fail, that's ok)
+
+### Big Code Task Instruction Template
+
+For all big code tasks, include explicit critical requirements:
+
+```markdown
+## CRITICAL REQUIREMENTS
+
+YOU MUST MAKE ACTUAL CODE CHANGES. Do not plan or analyze. You must:
+
+1. Understand the distributed architecture using Sourcegraph MCP
+   - Issue deepsearch questions about system architecture
+   - Find all locations where your changes need to be made
+   
+2. Make code changes to the real codebase
+   - Real files, real git commits
+   - Follow existing patterns and conventions
+   
+3. Attempt to run the test suite
+   - Run tests: [command]
+   - If tests fail due to environment (missing deps, build failure):
+     - Document the specific error
+     - Provide comprehensive alternative validation
+     - Show architectural correctness through code review
+   
+4. Commit all changes
+   - Proper git commit messages
+   - Each commit should be atomic (one feature/fix per commit)
+
+## What Counts ✅
+
+- Real code changes in real files
+- Proper git commits with sensible messages
+- Test execution attempt with documented failures
+- Integration with existing patterns
+
+## What Doesn't Count ❌
+
+- Mock implementations separate from real codebase
+- Test documentation without execution attempt
+- Architectural analysis without code changes
+- Skipping the test attempt entirely
+```
+
+---
+
 ## Sourcegraph MCP Agent Implementation
 
 ### ClaudeCodeSourcegraphMCPAgent Pattern

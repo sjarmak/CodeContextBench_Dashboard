@@ -69,7 +69,7 @@ echo ""
 
 harbor run \
   --path "benchmarks/${BENCHMARK_DIR}" \
-  --agent claude-code \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
   --model anthropic/claude-haiku-4-5-20251001 \
   --task-name "$TASK_NAME" \
   -n 1 \
