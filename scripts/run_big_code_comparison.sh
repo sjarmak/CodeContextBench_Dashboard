@@ -4,7 +4,21 @@
 
 set -e
 
+# CRITICAL: Source AND export credentials
+# Just sourcing makes them available to this script, but harbor subprocess won't see them
+# Must export for harbor CLI to pass them to agent subprocess
 source .env.local
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+
+# Verify credentials are available
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+    echo "ERROR: ANTHROPIC_API_KEY not set. Run: source .env.local && export ANTHROPIC_API_KEY"
+    exit 1
+fi
+if [ -z "$SOURCEGRAPH_ACCESS_TOKEN" ]; then
+    echo "ERROR: SOURCEGRAPH_ACCESS_TOKEN not set. Run: source .env.local && export SOURCEGRAPH_ACCESS_TOKEN"
+    exit 1
+fi
 
 TIMESTAMP=$(date +%Y%m%d-%H%M)
 JOBS_DIR="jobs/bigcode-comparison-${TIMESTAMP}"

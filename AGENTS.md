@@ -22,22 +22,42 @@ harbor run --model anthropic/claude-haiku-4-5-20251001 ...
 
 ---
 
-## Current Status (Phase 2: Big Code MCP Task Implementation)
+## Current Status (Phase 3: Big Code MCP Comparison Execution)
 
 **Phase 1 Completed (Dec 19 2025):**
 - ✅ Built custom task suite infrastructure (`benchmarks/big_code_mcp/`)
 - ✅ Implemented comparison framework (`scripts/run_mcp_comparison.sh`)
 - ✅ Enhanced MCP agent to auto-inject task guidance (`agents/claude_sourcegraph_mcp_agent.py`)
 - ✅ Created validation script for result integrity
-- ✅ Ran pilot comparison (vsc-001): baseline (188 steps, 5.1M tokens) vs MCP (149 steps, 8.3M tokens)
 
-**Phase 2 In Progress (Dec 20 2025):**
-- Implementing Trevor Nederlof's exact big code MCP tasks with `big-code-{codebase}-{id}` naming
-- Tasks: big-code-vsc-001, big-code-servo-001, big-code-k8s-001, big-code-trt-001
-- Reference: See `docs/TREVOR_RESEARCH_DEC2025.md` for research details and task rationale
-- Bead: CodeContextBench-c65
+**Phase 2 Completed (Dec 20 2025):**
+- ✅ Created 4 production-ready big code MCP tasks from Trevor's research
+- ✅ Added reward.json evaluation criteria for all 4 tasks
+- ✅ Built run_big_code_comparison.sh wrapper
+- ✅ Created extract_big_code_metrics.py for metric extraction
+- ✅ Verified github_mined comparisons work (sgt-001: reward=1.0)
 
-**Key Learning:** Deep Search MCP times out on >2GB codebases. Use full Sourcegraph MCP endpoint instead: `https://sourcegraph.sourcegraph.com/.api/mcp/v1`
+**Phase 3 In Progress (Dec 20 2025):**
+- Executing all 4 big code MCP comparisons: vsc-001, servo-001, k8s-001, trt-001
+- **CRITICAL FIX FOUND:** Must `export` credentials after sourcing .env.local
+- Validated on github_mined (sgt-001 now passing with correct exports)
+- Ready to run all 4 big code tasks with proper credential passing
+
+**Critical Credential Requirement:**
+```bash
+# WRONG (just sourcing):
+source .env.local
+
+# CORRECT (must export):
+source .env.local
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+# Now pass to harbor with --ek "KEY=$KEY" flags
+```
+
+**Key Learnings:** 
+1. Deep Search MCP times out on >2GB codebases. Use full Sourcegraph endpoint: `https://sourcegraph.sourcegraph.com/.api/mcp/v1`
+2. Harbor requires credentials EXPORTED in current shell, not just sourced
+3. `--ek` flag requires `key=value` format, not separate args
 
 ## Project Overview
 
