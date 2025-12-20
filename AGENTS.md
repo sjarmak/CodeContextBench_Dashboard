@@ -53,6 +53,48 @@ harbor run ...
 
 ---
 
+## Docker Disk Space Management
+
+**CRITICAL:** Harbor task containers accumulate disk space quickly. Run cleanup before/after benchmark sessions.
+
+### Pre-Benchmark Cleanup (Safe)
+
+```bash
+bash scripts/docker-cleanup.sh
+```
+
+This removes:
+- ✅ Stopped containers older than 24h
+- ✅ Dangling image layers (unreferenced)
+- ✅ Unused networks
+- ⚠️ Does NOT affect running tasks
+
+### Full Cleanup (Stops All Running Tasks)
+
+**Only use if disk is critical and no benchmarks running:**
+
+```bash
+docker stop $(docker ps -q) && docker system prune -a -f
+```
+
+**What it removes:**
+- ✅ All stopped containers
+- ✅ All unused images (even tagged ones)
+- ✅ All unused volumes/networks
+- ⚠️ **STOPS ALL RUNNING HARBOR TASKS** - only use during maintenance
+
+### Monitoring Disk Usage
+
+```bash
+docker system df              # Current usage
+docker image ls -a            # All images with sizes
+docker ps -a -s               # Container sizes
+```
+
+Typical state: ~25GB images + active container scratch space.
+
+---
+
 ## Current Status (Phase 3: Benchmark Adapter Integration)
 
 **Benchmark Adapters (IN PROGRESS - Dec 20 2025):**

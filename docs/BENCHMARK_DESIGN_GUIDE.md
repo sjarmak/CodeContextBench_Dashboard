@@ -6,6 +6,20 @@ This document provides a comprehensive framework for evaluating LLM-based coding
 
 The guide synthesizes insights from recent research benchmarks (DI-Bench, DependEval, RepoQA, CrossCodeEval, PerfBench, etc.) and proposes task categories that directly demonstrate the value of integrated code intelligence tools like Sourcegraph.
 
+### Enterprise Context
+
+This benchmark design is informed by real-world enterprise codebase characteristics documented in [ENTERPRISE_CODEBASES.md](ENTERPRISE_CODEBASES.md). Key insights:
+
+- **Scale:** Enterprise codebases range from millions to billions of LOC (Google: 2B LOC, Stripe: 20M LOC, Uber: 100M+ LOC)
+- **Developer time allocation:** 58% on code comprehension, 35% on navigation/search, 19% on external documentation
+- **Context switching cost:** 23 minutes to regain focus after interruption
+- **Repository patterns:** Monorepo (Google, Stripe), multi-monorepo (Uber: 6 language-specific repos), poly-repo microservices
+- **Impact scope:** Single commits at Uber can affect 100-1,000+ services
+- **Onboarding:** New developers take months to become productive at scale
+- **Tool adoption:** 65-70% of engineers at companies like Stripe use AI assistants
+
+These characteristics inform our task design, evaluation metrics, and expected performance baselines. See [ENTERPRISE_CODEBASES.md](ENTERPRISE_CODEBASES.md) for detailed analysis and recommendations.
+
 ---
 
 ## Goals and Challenges
@@ -515,9 +529,21 @@ By design, we anticipate these improvements for MCP-augmented agents:
 ## Document Status
 
 - **Last Updated:** December 20, 2025
+- **Related Documents:**
+  - [ENTERPRISE_CODEBASES.md](ENTERPRISE_CODEBASES.md): Real-world enterprise codebase characteristics and research insights
+  - [BENCHMARKING_GUIDE.md](BENCHMARKING_GUIDE.md): Practical guide for running benchmarks
 - **Related Beads:**
+  - CodeContextBench-1wi: Update benchmark design docs with enterprise codebase insights
   - CodeContextBench-2wz: Diverse Task Types Benchmark
-  - CodeContextBench-13j: Process Metrics Benchmark
-  - CodeContextBench-2wz: New Benchmark Design
   - CodeContextBench-13j: Process Quality Metrics
+  - CodeContextBench-jdm: Scale Testing Benchmark (Small → Enterprise)
+  - CodeContextBench-qp1: Monorepo vs Multi-repo Scenarios
+  - CodeContextBench-xiz: Developer Productivity Metrics
+  - CodeContextBench-tsd: Cross-Service Change Benchmark
+  - CodeContextBench-c74: Build/Test Integration Benchmarking
+  - CodeContextBench-ky2: Context Switching Cost Simulation
+  - CodeContextBench-ou2: Onboarding Simulation Benchmark
+  - CodeContextBench-2s1: Integrate Existing Enterprise-Scale Benchmarks
+  - CodeContextBench-2pw: Comparative Analysis vs Other Benchmarks
+  - CodeContextBench-2cv: Industry Validation Partnership
 - **Location:** docs/BENCHMARK_DESIGN_GUIDE.md
