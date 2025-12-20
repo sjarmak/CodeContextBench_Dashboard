@@ -53,25 +53,6 @@ harbor run ...
 
 ---
 
-## Benchmark Design Review (Deep Search Analysis - Dec 20 2025)
-
-**FINDINGS:** Deep Search identified critical flaws in how our benchmarks measure agent capabilities. Key issues:
-
-1. **Task Diversity Mismatch** - Existing benchmarks focus on specific task types (bug fixing, dependency inference) but don't validate they require real codebase understanding
-2. **Evaluation Scope** - Metrics like "test pass/fail" don't capture whether agents use tool capabilities effectively or just guess/memorize
-3. **MCP Value Measurement** - Baseline vs MCP comparisons don't control for file access; agents with Sourcegraph can clone repos while baseline agents can't
-
-**APPROACH:** Do NOT overwrite existing benchmarks. Instead:
-
-- ✅ Use existing benchmarks (github_mined, big_code_mcp, RepoQA, DI-Bench) as baseline
-- ✅ Document design assumptions and limitations in each benchmark's README
-- ✅ Create NEW benchmarks that address identified gaps (more diverse task types, tool-sensitive evaluation)
-- ✅ Link findings to specific beads for future improvement
-
-**See:** Deep Search conversation ac119810-661d-43c8-a3a2-f764b5484494 for full analysis
-
----
-
 ## Current Status (Phase 3: Benchmark Adapter Integration)
 
 **Benchmark Adapters (IN PROGRESS - Dec 20 2025):**
