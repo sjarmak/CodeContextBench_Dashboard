@@ -6,12 +6,13 @@ WORKDIR /workspace
 RUN apt-get update && apt-get install -y \
     git \
     curl \
+    npm \
     build-essential \
     cmake \
     ninja-build
 
 # Install Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code 2>&1 || npm install -g @anthropic-ai/claude-code
+RUN npm install -g @anthropic-ai/claude-code
 
 # Clone the actual TensorRT-LLM repository
 # This ensures BOTH baseline and MCP agents have identical file access
