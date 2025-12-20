@@ -1,0 +1,77 @@
+PHASE 3 STATUS - Dec 20, 2025 @ 10:26 UTC
+===========================================
+
+ISSUE FIXED: Credentials weren't being exported to subprocess
+ROOT CAUSE: source .env.local makes vars available to THIS shell only,
+           not to child processes (Harbor, Docker, subprocesses)
+           
+SOLUTION: export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+          after sourcing .env.local
+
+VERIFICATION: Tested on sgt-001 → reward=1.0 ✓ (no auth errors)
+
+CURRENT STATUS: All 4 big code tasks executing in background
+================
+
+Command Run (10:14 UTC):
+  source .env.local
+  export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+  bash scripts/run_big_code_comparison.sh
+
+Job Directory: jobs/bigcode-comparison-20251220-1014/
+
+Expected Tasks:
+  1. big-code-vsc-001 baseline    (10-15 min) - IN PROGRESS
+  2. big-code-vsc-001 mcp         (10-15 min) - QUEUED
+  3. big-code-servo-001 baseline  (10-15 min) - QUEUED
+  4. big-code-servo-001 mcp       (10-15 min) - QUEUED
+  5. big-code-k8s-001 baseline    (10-15 min) - QUEUED
+  6. big-code-k8s-001 mcp         (10-15 min) - QUEUED
+  7. big-code-trt-001 baseline    (10-15 min) - QUEUED
+  8. big-code-trt-001 mcp         (10-15 min) - QUEUED
+
+Total Expected Runtime: ~2 hours (8 × 15 min)
+Process Started: 10:14 UTC
+Expected Completion: ~12:14 UTC
+
+Log File: jobs/big-code-final.log
+Monitor with: tail -f jobs/big-code-final.log
+
+WHAT TO DO NEXT:
+================
+
+1. Wait for completion (~2 hours total):
+   Watch: ps aux | grep "harbor run"
+   Log: tail -f jobs/big-code-final.log
+
+2. Once all trajectories generated (jobs/bigcode-comparison-20251220-1014/*/*/trajectory.json):
+   
+   Extract metrics:
+   python scripts/extract_big_code_metrics.py jobs/bigcode-comparison-20251220-1014
+   
+   Analyze results:
+   - Compare baseline vs MCP token usage
+   - Check if MCP uses more tokens (expected for broader searches)
+   - Validate against Trevor's findings
+   
+3. Update PHASE3_STATUS.md with results
+
+KEY DOCUMENTS:
+==============
+- AGENTS.md: Prominent ⚠️ warning about credential exports (NEW)
+- docs/TREVOR_RESEARCH_DEC2025.md: Original research findings
+- scripts/run_big_code_comparison.sh: Comparison runner (now with proper exports)
+- scripts/extract_big_code_metrics.py: Metrics extraction script
+
+CRITICAL PATTERN (for all future work):
+=======================================
+# ✅ CORRECT:
+source .env.local
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+# subprocess sees vars
+
+# ❌ WRONG:
+source .env.local
+# subprocess doesn't see vars
+
+This applies to Harbor, Docker, any subprocess.
