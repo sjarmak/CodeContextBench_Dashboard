@@ -1,36 +1,29 @@
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
+FROM python:3.11-bookworm
 
 WORKDIR /workspace
 
-# Install Python and dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
     git \
     curl \
     build-essential \
     cmake \
-    nodejs \
-    npm
-
-# Install Python build tools
-RUN pip3 install --upgrade pip setuptools wheel
+    ninja-build
 
 # Install Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code
+RUN npm install -g @anthropic-ai/claude-code 2>&1 || npm install -g @anthropic-ai/claude-code
 
-# Initialize minimal TensorRT-LLM workspace structure
-# Claude will use Sourcegraph MCP to understand the real codebase,
-# so we just need a git repo with basic structure
-RUN git init /workspace && \
-    cd /workspace && \
+# Clone the actual TensorRT-LLM repository
+# This ensures BOTH baseline and MCP agents have identical file access
+RUN git clone --depth 1 https://github.com/NVIDIA/TensorRT-LLM.git . && \
     git config user.email "agent@example.com" && \
-    git config user.name "Agent" && \
-    mkdir -p tensorrt_llm tensorrt_llm/models tensorrt_llm/models/llama \
-             tensorrt_llm/quantization cpp tests && \
-    echo "# TensorRT-LLM (task environment)" > README.md && \
-    echo '{"name": "tensorrt_llm"}' > setup.py && \
-    git add . && \
-    git commit -m "Initial workspace"
+    git config user.name "Agent"
+
+# Install Python dependencies (basic setup only)
+# Full build may require CUDA and other deps, but we need the source files
+RUN pip install --upgrade pip && \
+    pip install pybind11 2>&1 || true
 
 # Task setup complete
+# Note: Both baseline and MCP agents now have access to the real TensorRT-LLM source.
+# Baseline will use local grep/find/rg. MCP will use Sourcegraph semantic search.

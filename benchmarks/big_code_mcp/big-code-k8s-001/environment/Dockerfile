@@ -1,31 +1,23 @@
-FROM golang:1.23-bullseye
+FROM golang:1.23-bookworm
 
 WORKDIR /workspace
 
-# Install dependencies including Node.js
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     git \
     curl \
-    build-essential \
-    rsync \
-    bash \
-    make \
-    nodejs \
-    npm
+    python3 \
+    python3-pip
 
 # Install Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code
+RUN npm install -g @anthropic-ai/claude-code 2>&1 || npm install -g @anthropic-ai/claude-code
 
-# Initialize minimal Kubernetes workspace structure
-# Claude will use Sourcegraph MCP to understand the real codebase,
-# so we just need a git repo with basic structure
-RUN git init /workspace && \
-    cd /workspace && \
+# Clone the actual Kubernetes repository
+# This ensures BOTH baseline and MCP agents have identical file access
+RUN git clone --depth 1 https://github.com/kubernetes/kubernetes.git . && \
     git config user.email "agent@example.com" && \
-    git config user.name "Agent" && \
-    mkdir -p pkg/kubelet pkg/scheduler pkg/controller-manager cmd && \
-    echo "# Kubernetes (task environment)" > README.md && \
-    git add . && \
-    git commit -m "Initial workspace"
+    git config user.name "Agent"
 
 # Task setup complete
+# Note: Both baseline and MCP agents now have access to the real Kubernetes source.
+# Baseline will use local grep/find/rg. MCP will use Sourcegraph semantic search.

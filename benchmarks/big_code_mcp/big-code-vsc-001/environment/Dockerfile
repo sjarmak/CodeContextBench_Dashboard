@@ -13,17 +13,15 @@ RUN apt-get update && apt-get install -y \
 # Install Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
 
-# Initialize minimal VS Code workspace structure
-# Claude will use Sourcegraph MCP to understand the real codebase,
-# so we just need a git repo with basic structure
-RUN git init /workspace && \
-    cd /workspace && \
+# Clone the actual VS Code repository
+# This ensures BOTH baseline and MCP agents have identical file access
+RUN git clone --depth 1 https://github.com/microsoft/vscode.git . && \
     git config user.email "agent@example.com" && \
-    git config user.name "Agent" && \
-    mkdir -p src/editor src/browser src/vs && \
-    echo "# VS Code (task environment)" > README.md && \
-    echo '{"version": "1.96.0"}' > package.json && \
-    git add . && \
-    git commit -m "Initial workspace"
+    git config user.name "Agent"
+
+# Install VS Code dependencies (required for testing)
+RUN npm install --legacy-peer-deps 2>&1 | tail -10 || true
 
 # Task setup complete
+# Note: Both baseline and MCP agents now have access to the real VS Code source.
+# Baseline will use local grep/find/rg. MCP will use Sourcegraph semantic search.
