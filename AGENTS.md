@@ -22,19 +22,22 @@ harbor run --model anthropic/claude-haiku-4-5-20251001 ...
 
 ---
 
-## Current Status (Phase 4: Data Validation & Comparison Results Analysis)
+## Current Status (Phase 2: Big Code MCP Task Implementation)
 
-**Latest Finding (Dec 19 2025)**:
-- Original 10-task comparison report claimed **9.9x speedup** - **THIS WAS FALSE**
-- Analysis used corrupt data from `comparison-20251219-clean/` which had API key failures
-- Real data in `baseline-10task-20251219/` and `mcp-10task-20251219/` shows **1.1x speedup** only
-- MCP uses MORE tokens (40.5M vs 34.8M baseline)
-- Created `validate_comparison_results.py` script to prevent future invalid analysis
-- Updated `run_10task_comparison.sh` to use timestamped directories and explicit verification steps
+**Phase 1 Completed (Dec 19 2025):**
+- ✅ Built custom task suite infrastructure (`benchmarks/big_code_mcp/`)
+- ✅ Implemented comparison framework (`scripts/run_mcp_comparison.sh`)
+- ✅ Enhanced MCP agent to auto-inject task guidance (`agents/claude_sourcegraph_mcp_agent.py`)
+- ✅ Created validation script for result integrity
+- ✅ Ran pilot comparison (vsc-001): baseline (188 steps, 5.1M tokens) vs MCP (149 steps, 8.3M tokens)
 
-**Key Lesson**: Never assume directory names like "clean" indicate valid data. Always verify token counts and check for API key errors before analysis.
+**Phase 2 In Progress (Dec 20 2025):**
+- Implementing Trevor Nederlof's exact big code MCP tasks with `big-code-{codebase}-{id}` naming
+- Tasks: big-code-vsc-001, big-code-servo-001, big-code-k8s-001, big-code-trt-001
+- Reference: See `docs/TREVOR_RESEARCH_DEC2025.md` for research details and task rationale
+- Bead: CodeContextBench-c65
 
-See `jobs/comparison-20251219-clean/README.md` for why that data is unusable.
+**Key Learning:** Deep Search MCP times out on >2GB codebases. Use full Sourcegraph MCP endpoint instead: `https://sourcegraph.sourcegraph.com/.api/mcp/v1`
 
 ## Project Overview
 
