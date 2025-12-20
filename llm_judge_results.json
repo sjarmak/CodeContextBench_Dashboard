@@ -6,43 +6,43 @@
     "evaluation": {
       "baseline": {
         "tests_pass": {
-          "score": 0.7,
-          "reasoning": "The baseline agent wrote test cases but they appear incomplete. The scheduler test only verifies the taint effect is included but doesn't test the actual filtering behavior. The endpoint slice test seems more comprehensive but there's no evidence the tests were actually executed - the agent just shows 'Executed TodoWrite' without running the tests.",
-          "evidence": "Added test case in `pkg/scheduler/framework/plugins/helper/taint_test.go` to verify the scheduler includes the new taint effect' but no test execution output shown"
+          "score": 0.8,
+          "reasoning": "The baseline agent wrote comprehensive tests and claimed they pass. Added test cases in taint_test.go for scheduler verification and reconciler_test.go for endpoint slice filtering. The test implementations look correct and cover the main scenarios (pods with/without tolerations, mixed scenarios). However, didn't show actual test execution output to confirm passing.",
+          "evidence": "Added test case in pkg/scheduler/framework/plugins/helper/taint_test.go, Added comprehensive test in staging/src/k8s.io/endpointslice/reconciler_test.go (TestReconcileNoScheduleNoTrafficTaint) covering multiple scenarios"
         },
         "code_changes": {
-          "score": 1.0,
-          "reasoning": "The baseline agent made all necessary code modifications across multiple files: added the constant in types.go, updated the scheduler filter function, modified the endpoint slice reconciler with a helper function to check for the taint, and created test files.",
-          "evidence": "1. Taint Effect Constant Definition (`pkg/apis/core/types.go`), 2. Scheduler Plugin Update (`pkg/scheduler/framework/plugins/helper/taint.go`), 3. Endpoint Slice Controller (`staging/src/k8s.io/endpointslice/reconciler.go`)"
+          "score": 0.95,
+          "reasoning": "Made substantial and correct code changes across all required areas: defined the constant in types.go, updated scheduler's DoNotScheduleTaintsFilterFunc, modified endpoint slice reconciler with hasNoScheduleNoTrafficTaint helper, and added tests. All changes were properly committed to git.",
+          "evidence": "1. pkg/apis/core/types.go - Added TaintEffectNoScheduleNoTraffic constant, 2. pkg/scheduler/framework/plugins/helper/taint.go - Updated DoNotScheduleTaintsFilterFunc(), 3. staging/src/k8s.io/endpointslice/reconciler.go - Added hasNoScheduleNoTrafficTaint() and modified reconcileByAddressType(), Commit Hash: bc8149af"
         },
         "architecture": {
-          "score": 0.8,
-          "reasoning": "Shows good understanding of the system - correctly identified that scheduler needs updating for admission control, endpoint slice controller needs modification for traffic routing, and that node controller doesn't need changes since this effect doesn't evict pods. However, missed some details like validation logic.",
-          "evidence": "The node controller doesn't need modifications since this effect doesn't evict pods' and proper separation of scheduling vs traffic concerns"
+          "score": 0.85,
+          "reasoning": "Shows good understanding of Kubernetes architecture - correctly identified where taint constants are defined, how scheduler filters work, and how endpoint slice reconciliation operates. Understood that NoExecute triggers eviction while this new effect should not. However, missed some areas like validation logic that the MCP agent found.",
+          "evidence": "Correctly noted 'The node controller doesn't need modifications since this effect doesn't evict pods', Updated both scheduler plugin and endpoint slice controller showing understanding of the dual nature of the requirement"
         },
-        "overall": 0.81
+        "overall": 0.87
       },
       "mcp": {
         "tests_pass": {
-          "score": 1.0,
-          "reasoning": "The MCP agent not only wrote comprehensive test cases but actually executed them and showed passing results. The tests cover multiple scenarios including pods without tolerations, with matching tolerations, and with wildcard tolerations. Test execution shows '\u2705 TestTaintTolerationFilter (all 18 test cases passing)'",
+          "score": 0.95,
+          "reasoning": "The MCP agent not only wrote comprehensive tests but also executed them and showed passing results. Added 3 test cases to taint_toleration_test.go and verified their execution with specific output showing all 18 test cases passing.",
           "evidence": "All scheduler tests pass including the new NoScheduleNoTraffic tests: \u2705 TestTaintTolerationFilter (all 18 test cases passing), \u2705 TestTaintTolerationFilterWithFeatureGate (all 6 test cases passing)"
         },
         "code_changes": {
           "score": 1.0,
-          "reasoning": "Made comprehensive code changes across all required areas plus additional critical components. Modified constant definitions in both locations (pkg and staging), updated scheduler filter, modified endpoint slice controller with helper function, AND crucially added validation logic that the baseline missed.",
-          "evidence": "5 distinct areas modified: 1. Constants in 2 files, 2. Scheduler logic, 3. Endpoint controller + utils, 4. Validation in validation.go:4287,4293, 5. Comprehensive tests"
+          "reasoning": "Made more comprehensive code changes than baseline, including validation logic that baseline missed. Updated constants in both locations (pkg and staging), modified scheduler filter, endpoint slice controller with proper helper function, AND added validation in validation.go. All changes properly committed.",
+          "evidence": "1. Added constant in TWO locations: pkg/apis/core/types.go:3640-3643 AND staging/src/k8s.io/api/core/v1/types.go:4070-4073, 2. Updated validation in pkg/apis/core/validation/validation.go:4287,4293, 3. Modified scheduler and endpoint controller, Commit: 54eeb6a5"
         },
         "architecture": {
-          "score": 1.0,
-          "reasoning": "Demonstrates deep understanding of Kubernetes architecture by identifying and modifying all relevant components including validation which baseline missed. Shows understanding that constants need to be defined in both pkg and staging directories, knows about the validation layer, and correctly identifies node lifecycle controller behavior.",
-          "evidence": "Updated `pkg/apis/core/validation/validation.go:4287,4293` to accept the new effect as a valid taint effect' - this critical validation step was missed by baseline. Also updated both pkg/apis/core/types.go AND staging/src/k8s.io/api/core/v1/types.go"
+          "score": 0.95,
+          "reasoning": "Demonstrated deeper architectural understanding by finding and updating validation logic, recognizing the need to update constants in both pkg and staging directories (showing understanding of Kubernetes' staging structure), and properly implementing the helper function in utils.go rather than inline. Also showed better understanding of the test structure.",
+          "evidence": "Found and updated validation logic that baseline missed, Updated constants in both pkg/apis/core AND staging/src/k8s.io/api locations showing understanding of staging structure, Added nodeHasNoScheduleNoTrafficTaint() in utils.go showing better code organization"
         },
-        "overall": 1.0
+        "overall": 0.97
       },
       "mcp_advantage": {
-        "category": "tests_pass",
-        "explanation": "The MCP agent's most significant advantage was in test execution and validation. While the baseline agent wrote tests, the MCP agent actually ran them and showed passing results, providing confidence the implementation works. Additionally, MCP found and fixed the validation logic in validation.go which is critical for the feature to actually work in production - without this, the new taint effect would be rejected as invalid. The MCP agent also demonstrated better architectural understanding by updating constants in both locations (pkg and staging) and providing more comprehensive test coverage with actual execution results."
+        "category": "completeness_and_validation",
+        "explanation": "The MCP agent found and implemented critical validation logic that the baseline missed, ensuring the new taint effect would be accepted as valid. It also updated constants in both required locations (pkg and staging), showing deeper understanding of Kubernetes' code organization. Most importantly, MCP actually executed tests and verified they pass, while baseline only claimed success without showing execution results. This demonstrates MCP's ability to navigate complex codebases more thoroughly and validate implementations properly."
       }
     }
   },
@@ -53,37 +53,90 @@
     "evaluation": {
       "baseline": {
         "tests_pass": {
-          "score": 0.0,
-          "reasoning": "The agent created test files but there's no evidence they actually run or pass. The files appear to be WPT test files placed in a directory, but there's no test execution shown, no test runner invoked, and no passing test output. The agent claims 'All Met \u2705' but provides no evidence of test execution."
+          "score": 0.3,
+          "reasoning": "The baseline agent created WPT test files but there's no evidence of running tests or verifying implementation. The agent claims tests are ready but provides no test execution output. The test files appear to be templates/stubs rather than executable tests that validate the implementation.",
+          "evidence": "Created 6 WPT test files (scrollend-wheel.html, scrollend-keyboard.html, etc.) but no test execution shown. Final summary claims '\u2705 Full WPT test coverage' without verification."
         },
         "code_changes": {
           "score": 0.4,
-          "reasoning": "The agent created 4 source files (scrollendevent.rs, scroll_debouncer.rs, window_scrollend.rs, element_scrollend.rs) and 6 test files. However, these appear to be standalone files without integration into the actual Servo codebase. The agent made a git commit but the files seem disconnected from the existing Servo architecture."
+          "reasoning": "The baseline agent created 4 source files with basic structure but the implementation appears incomplete. Files were created but lack integration with existing Servo codebase. No modifications to existing Servo files to actually hook into the event system.",
+          "evidence": "Created scrollendevent.rs, scroll_debouncer.rs, window_scrollend.rs, element_scrollend.rs. Git commit shows '4 files changed, 456 insertions(+)' but these appear to be standalone files without integration."
         },
         "architecture": {
-          "score": 0.1,
-          "reasoning": "The solution shows minimal understanding of Servo's architecture. The files created appear to be standalone implementations rather than integrated into Servo's existing DOM event system, compositor, or scroll handling. There's no evidence of modifying existing Servo files or hooking into the actual event dispatch mechanism."
+          "score": 0.2,
+          "reasoning": "Shows basic understanding of needed components (debouncing, window vs element scrolling) but lacks deep integration with Servo's actual architecture. No evidence of understanding Servo's existing event dispatch system, compositor integration, or how to hook into actual scroll handlers.",
+          "evidence": "Created separate modules for different concerns but no integration with Servo's script thread, constellation, or compositor. No modifications to existing Servo event handling code."
         },
-        "overall": 0.17
+        "overall": 0.3
+      },
+      "mcp": {
+        "tests_pass": {
+          "score": 0.85,
+          "reasoning": "The MCP agent created comprehensive unit tests and WPT tests, with clear evidence of tests passing. Shows '\u2705 All 17 unit tests pass' with specific test categories validated. Created executable test infrastructure with proper assertions.",
+          "evidence": "Output shows 'running 17 tests... test result: ok. 17 passed'. Created both unit tests and WPT tests with proper test harness integration. Tests cover debouncing, bounds validation, event management, etc."
+        },
+        "code_changes": {
+          "score": 0.9,
+          "reasoning": "Made substantial, well-structured code changes with proper module organization. Created a complete implementation with 7 source files, proper Cargo.toml configuration, and comprehensive functionality. Code shows proper Rust patterns and error handling.",
+          "evidence": "Created complete module structure in src/dom/ with event_names.rs, scroll_event.rs, event_dispatcher.rs, element_scroll.rs, window_scroll.rs. Git commit shows comprehensive changes with proper module declarations and library structure."
+        },
+        "architecture": {
+          "score": 0.8,
+          "reasoning": "Demonstrates strong understanding of event-driven architecture with proper separation of concerns. Implements debouncing manager, event dispatcher, and separate handlers for element vs window scrolling. Shows understanding of DOM event propagation and listener management.",
+          "evidence": "ScrollendManager tracks multiple elements, EventDispatcher handles listener registration/dispatch with proper propagation, separate handlers for window vs element scrolling. Implements W3C spec-compliant 150ms debouncing."
+        },
+        "overall": 0.85
+      },
+      "mcp_advantage": {
+        "category": "MAJOR",
+        "explanation": "The MCP agent delivered a significantly more complete and tested implementation. While the baseline created basic file stubs, MCP built a fully functional event system with proven test coverage (17 passing tests), proper architectural patterns (event dispatcher, debouncing manager), and comprehensive documentation. The MCP agent's ability to create and verify working code with passing tests demonstrates a much deeper understanding of the requirements and ability to deliver production-ready code."
+      }
+    }
+  },
+  {
+    "task": "big-code-trt-001",
+    "baseline_tokens": 3130552,
+    "mcp_tokens": 15994388,
+    "evaluation": {
+      "baseline": {
+        "tests_pass": {
+          "score": 0.0,
+          "reasoning": "The baseline agent created a mock implementation from scratch rather than modifying the actual TensorRT-LLM codebase. While their mock tests pass (34/34), these are tests of their own simplified implementation, not tests that would validate actual TensorRT-LLM functionality. The agent admits in their files that kernel selection returns 'Mock kernel name' and the implementation is a simplified simulation.",
+          "evidence": "Created mock files like `tensorrt_llm/quantization/quant_config.py` with simplified implementations. Test output shows '34 passed' but these are testing mock code, not real TensorRT-LLM integration."
+        },
+        "code_changes": {
+          "score": 0.2,
+          "reasoning": "The baseline agent created extensive mock code (1,551 lines) but failed to modify the actual TensorRT-LLM codebase. They created their own directory structure and files from scratch rather than finding and modifying the real implementation files. This demonstrates coding ability but completely misses the actual task requirement.",
+          "evidence": "Created files in empty directories: `tensorrt_llm/quantization/quant_config.py`, `cpp/include/tensorrt_llm/quantization/quantization_mode.h`, etc. These are new files, not modifications to existing TensorRT-LLM code."
+        },
+        "architecture": {
+          "score": 0.3,
+          "reasoning": "The baseline agent showed some understanding of what components would be needed (Python enums, C++ enums, bindings, validation) but failed to locate or integrate with the actual TensorRT-LLM architecture. They built a parallel mock system rather than understanding how to navigate and modify the real codebase.",
+          "evidence": "Created reasonable mock structure with Python-C++ bindings, model builder, and validation, but missed the actual architecture - e.g., real enum is in `QuantAlgo` not a custom `QuantMode` class they created."
+        },
+        "overall": 0.13
       },
       "mcp": {
         "tests_pass": {
           "score": 0.9,
-          "reasoning": "The agent wrote comprehensive unit tests and ran them with clear passing output: 'test result: ok. 17 passed; 0 failed'. The tests cover debouncing, scroll bounds, element registration, event listeners, and position change detection. Additionally created WPT tests for integration testing."
+          "reasoning": "The MCP agent modified the actual TensorRT-LLM codebase and added comprehensive tests that validate the real implementation. They correctly added test cases to the existing test file `tests/unittest/trt/quantization/test_mode.py` that test the actual QuantMode and QuantAlgo classes. The tests verify proper mode creation, serialization, and distinction from other modes.",
+          "evidence": "Added 4 test methods to `tests/unittest/trt/quantization/test_mode.py` testing real functionality: `test_w4a8_mxfp4_int8()`, `test_w4a8_mxfp4_int8_from_quant_algo()`, `test_w4a8_mxfp4_int8_to_dict()`, `test_w4a8_mxfp4_modes_distinct()`"
         },
         "code_changes": {
           "score": 0.95,
-          "reasoning": "The agent made extensive, well-structured code changes including: event type definitions, scroll event management with debouncing, event dispatcher, element scroll handler, window scroll handler, and proper module organization. All files are properly integrated with Cargo.toml and module declarations. The implementation includes proper APIs like scrollTo(), scrollBy(), and scroll()."
+          "reasoning": "The MCP agent made precise, targeted modifications to the actual TensorRT-LLM source files. They correctly identified and modified the real implementation files (`tensorrt_llm/quantization/mode.py` and `cpp/include/tensorrt_llm/common/quantization.h`), adding the new quantization mode following existing patterns perfectly.",
+          "evidence": "Modified actual files: Added `W4A8_MXFP4_INT8 = 'W4A8_MXFP4_INT8'` to QuantAlgo enum, implemented `has_w4a8_mxfp4_int8()` method, updated `from_description()` with `use_w4a8_mxfp4_int8` parameter, modified C++ header with bit position 17 for the new mode."
         },
         "architecture": {
-          "score": 0.85,
-          "reasoning": "The solution demonstrates strong architectural understanding by creating a proper event system with: EventType enum for type safety, ScrollendManager for centralized state management, proper debouncing with 150ms window per W3C spec, separation of concerns between window and element scrolling, and clean event propagation. The modular design with proper Rust module organization shows understanding of how a browser engine should be structured."
+          "score": 0.95,
+          "reasoning": "The MCP agent demonstrated deep understanding of the TensorRT-LLM architecture by correctly identifying the actual implementation files, understanding the Python-C++ boundary, following existing patterns for similar modes (W4A8_MXFP4_FP8), and properly integrating with the bit-flag based quantization system.",
+          "evidence": "Correctly identified that QuantAlgo is in `mode.py` not a separate file, understood the bit-flag system (using bit 17), maintained Python-C++ synchronization, followed the exact pattern of W4A8_MXFP4_FP8 implementation."
         },
-        "overall": 0.9
+        "overall": 0.93
       },
       "mcp_advantage": {
-        "category": "MASSIVE",
-        "explanation": "The MCP agent delivered a complete, tested, and architecturally sound implementation while the baseline agent created disconnected files without proper integration or testing. The MCP agent's solution includes 17 passing unit tests, proper module organization, W3C spec compliance (150ms debouncing), and clean separation of concerns. The baseline agent's approach of creating standalone files without integration or test execution would not result in a working feature in Servo."
+        "category": "DECISIVE",
+        "explanation": "The MCP agent successfully completed the actual task by finding and modifying the real TensorRT-LLM codebase, while the baseline agent created an elaborate mock implementation that wouldn't integrate with the actual system. The MCP agent's ability to search through the large codebase allowed them to locate the exact files needing modification (`tensorrt_llm/quantization/mode.py` and `cpp/include/tensorrt_llm/common/quantization.h`), understand the existing patterns, and make surgical changes. The baseline agent, lacking this search capability, resorted to creating a parallel mock system from scratch, completely missing the actual implementation requirement."
       }
     }
   },
@@ -95,36 +148,36 @@
       "baseline": {
         "tests_pass": {
           "score": 1.0,
-          "reasoning": "The baseline agent wrote comprehensive tests (18 tests) and all tests pass. The agent created test files for both DiagnosticsService and ProblemsPanel, testing file deletion, updates, refresh triggers, Git branch switches, and problem sorting. The final test run shows '\u2713 18' with all tests passing."
+          "reasoning": "The baseline agent wrote comprehensive tests and all 18 tests pass successfully. The agent created test files for DiagnosticsService and ProblemsPanel, covering file deletion, updates, Git branch switches, and problem sorting. The final test run shows '\u2705 18 tests passed'."
         },
         "code_changes": {
-          "score": 0.7,
-          "reasoning": "The baseline agent made code changes but created entirely new files rather than modifying existing VS Code files. It created DiagnosticsService, ProblemsPanel, and supporting infrastructure from scratch. While these are functional implementations, they don't integrate with the actual VS Code codebase - they're standalone implementations that would need significant work to integrate."
+          "score": 1.0,
+          "reasoning": "The baseline agent made extensive code modifications, creating 7 new implementation files including DiagnosticsService, ProblemsPanel, and supporting infrastructure. They implemented a complete solution with file watchers, event emitters, and diagnostic refresh mechanisms. The changes were committed to git (shown in final steps)."
         },
         "architecture": {
-          "score": 0.4,
-          "reasoning": "The baseline agent shows some understanding of VS Code patterns (Disposables, Service pattern, event emitters) but doesn't demonstrate knowledge of the actual VS Code architecture. It created its own parallel implementation rather than finding and modifying the real diagnostics pipeline. The agent didn't locate or modify actual VS Code files like mainThreadDiagnostics.ts or extHostDiagnostics.ts."
+          "score": 0.7,
+          "reasoning": "The baseline agent created a new architecture from scratch rather than integrating with VS Code's existing diagnostics pipeline. While the solution is well-structured with services and event-driven patterns, it doesn't demonstrate deep understanding of VS Code's actual architecture (mainThreadDiagnostics, extHost protocol, MarkerService). The agent built a parallel system rather than fixing the existing one."
         },
-        "overall": 0.74
+        "overall": 0.9
       },
       "mcp": {
         "tests_pass": {
           "score": 0.0,
-          "reasoning": "The MCP agent did not write any tests. While it made actual modifications to the VS Code codebase, there's no evidence of test creation or execution. The agent claims the solution works but provides no test validation."
+          "reasoning": "The MCP agent did not write any tests. While they made code changes to the existing VS Code codebase, there's no evidence of test creation or test execution in the trajectory. The agent focused solely on modifying existing files without verifying the changes through tests."
         },
         "code_changes": {
           "score": 1.0,
-          "reasoning": "The MCP agent made precise, surgical modifications to the actual VS Code codebase. It modified three real files: mainThreadDiagnostics.ts (added file watching), extHost.protocol.ts (added protocol methods), and extHostDiagnostics.ts (added refresh handler). These are the exact files that need modification in the real codebase."
+          "reasoning": "The MCP agent made targeted, surgical code changes to the actual VS Code codebase. They modified mainThreadDiagnostics.ts to add file system monitoring, updated extHost.protocol.ts to add communication methods, and modified extHostDiagnostics.ts to handle refresh requests. Changes were committed to git (commit b4ce43c)."
         },
         "architecture": {
           "score": 1.0,
-          "reasoning": "The MCP agent demonstrates deep understanding of VS Code's architecture. It correctly identified the main thread/extension host separation, found the exact files in the diagnostics pipeline (mainThreadDiagnostics.ts, extHostDiagnostics.ts), understood the protocol layer between them, and implemented a solution that follows VS Code's architectural patterns perfectly. The agent leveraged IFileService, MarkerService, and the extension host protocol correctly."
+          "reasoning": "The MCP agent demonstrated excellent understanding of VS Code's actual architecture. They correctly identified the mainThread/extHost communication pattern, used the existing MarkerService for diagnostics, integrated with IFileService for change detection, and followed VS Code's protocol-based extension host communication. The solution works within the existing system rather than creating a parallel one."
         },
-        "overall": 0.5
+        "overall": 0.65
       },
       "mcp_advantage": {
-        "category": "architecture",
-        "explanation": "The MCP agent's use of Sourcegraph allowed it to find and understand the actual VS Code diagnostics pipeline architecture, leading to surgical modifications of the correct files (mainThreadDiagnostics.ts, extHost.protocol.ts, extHostDiagnostics.ts). While the baseline agent created a working solution, it was essentially a parallel implementation that doesn't integrate with VS Code. The MCP agent's solution would actually work in production VS Code, demonstrating the value of code search tools for understanding large codebases."
+        "category": "Architecture Understanding",
+        "explanation": "The MCP agent's key advantage was in understanding and working within VS Code's actual architecture. Using Sourcegraph MCP, they correctly identified the real components (mainThreadDiagnostics, extHost protocol, MarkerService) and made surgical changes to the existing pipeline. The baseline agent, without this context, built a complete but parallel solution that wouldn't integrate with VS Code's actual diagnostics system. However, the baseline agent's comprehensive testing gives them the overall edge in this evaluation."
       }
     }
   }
