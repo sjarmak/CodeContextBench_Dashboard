@@ -1,0 +1,64 @@
+PHASE 3 EVALUATION PLAN
+=======================
+
+CURRENT STATUS (as of now):
+  2/8 trajectories complete
+  - big-code-vsc-001 baseline ✓
+  - big-code-vsc-001 mcp ✓
+  - big-code-servo-001 baseline (IN PROGRESS)
+
+REMAINING:
+  6 trajectories to create (~90 min remaining)
+
+EVALUATION WORKFLOW (once all 8 trajectories complete):
+====================================================
+
+Step 1: Extract Metrics
+  python scripts/extract_big_code_metrics.py jobs/bigcode-comparison-20251220-1014
+  
+  Output:
+  - Token counts (baseline vs MCP)
+  - Step counts
+  - Total runtime
+  - Aggregate statistics
+
+Step 2: LLM Quality Judge
+  python scripts/llm_judge_big_code.py jobs/bigcode-comparison-20251220-1014
+  
+  Output:
+  - Quality scores (0-1.0) for each task pair:
+    * Tests Pass (50% weight)
+    * Code Changes Made (30% weight)
+    * Architecture Understanding (20% weight)
+  - MCP vs Baseline comparison
+  - Which areas MCP excels
+  - Overall quality assessment
+
+Step 3: Analysis & Comparison
+  Compare results to Trevor's research findings:
+  - Does MCP show architectural understanding advantage?
+  - Does broader search (more tokens) translate to better solutions?
+  - Which task types benefit most from MCP?
+
+TIMING:
+  ~12:00-12:15 UTC: All 8 trajectories complete
+  ~12:15-12:20 UTC: Metrics extraction
+  ~12:20-12:30 UTC: LLM judge evaluation (calls Claude)
+  ~12:30 UTC: Full analysis ready
+
+WHAT WE'LL MEASURE:
+  1. Token efficiency (Baseline vs MCP)
+  2. Solution quality (LLM judge scores)
+  3. Architectural understanding (Judge evaluation)
+  4. MCP value for big code tasks (Token spend vs Quality gain)
+
+EVALUATION CRITERIA (from reward.json):
+  - Tests Pass: Did code changes make tests pass?
+  - Code Changes: Did agent actually modify code (not just analyze)?
+  - Architecture: Does solution show understanding of full system design?
+
+EXPECTED FINDINGS (from Trevor's research):
+  - MCP should use MORE tokens (broader searches)
+  - MCP should show BETTER architecture understanding
+  - MCP should find ALL integration points (not just partial)
+  - Token-for-token: MCP more valuable on large codebases

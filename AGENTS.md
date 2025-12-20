@@ -75,10 +75,17 @@ Harbor adapters are installed separately in the Harbor package. Work done on ada
 - **Structure:** Follows DI-Bench patterns (adapter.py, run_adapter.py, templates)
 - **Task Types:** Dependency Recognition, Repository Construction, Multi-file Editing
 
-**RepoQA Adapter** 📋 TODO
-- **Location:** `~/harbor/adapters/repoqa/` (to be created)
-- **Task Type:** Semantic code navigation (function search with long context)
-- **Status:** Not yet started
+**RepoQA Adapter** ✅ COMPLETE
+- **Location:** `~/harbor/adapters/repoqa/`
+- **Status:** Production-ready (Dec 20, 2025)
+- **Task Types:** Three variants for semantic code navigation
+  - SR-QA: Semantic Retrieval (find function by description)
+  - MD-QA: Multi-Hop Dependency (find call path through code)
+  - NR-QA: Negative/Disambiguation (pick correct function among similar ones)
+- **Files:** `adapter.py`, `run_adapter.py`, `ground_truth_extractor.py`, `verifiers.py`, templates
+- **Tests:** 23 comprehensive unit and integration tests - All passing
+- **Key Achievement:** Transformed RepoQA from long-context memorization test to tool-sensitive semantic navigation benchmark
+- **Docs:** `DESIGN.md` (architecture), `README.md` (overview), `QUICKSTART.md` (usage)
 
 **Phase 3 Completed (Dec 20 2025):**
 - ✅ Built big code MCP comparison infrastructure (`scripts/run_mcp_comparison.sh`)
