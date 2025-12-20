@@ -16,29 +16,7 @@ Phase 3 Rerun with proper experimental design (both agents have identical pre-cl
 | **k8s-001** | 0.57 | 0.97 | +0.40 | ✅ |
 | **Average** | **0.68** | **0.91** | **+0.23** | **2/2 ✅** |
 
-**Key Finding:** With equal file access, baseline scores increased significantly (0.90→0.78 for vsc, 0.87→0.57 for k8s), but MCP still wins decisively on search strategy and architectural understanding.
-
----
-
-## Why Scores Changed vs Original Phase 3
-
-### Original Phase 3 (Invalid Setup)
-
-| Task | Baseline | MCP | Delta |
-|------|----------|-----|-------|
-| vsc-001 | 0.90 | 0.89 | -0.01 |
-| k8s-001 | 0.87 | 0.97 | +0.10 |
-
-**Problem:** Baseline had empty repo stubs, MCP had Sourcegraph access → unfair comparison.
-
-### Phase 3 Rerun (Valid Setup)
-
-| Task | Baseline | MCP | Delta |
-|------|----------|-----|-------|
-| vsc-001 | 0.78 | 0.85 | +0.07 |
-| k8s-001 | 0.57 | 0.97 | +0.40 |
-
-**Difference:** Both have identical pre-cloned repos. Scores reflect search strategy, not file visibility.
+**Key Finding:** With equal file access (both agents have pre-cloned repos), MCP wins decisively on search strategy and architectural understanding. These results represent valid baseline vs MCP comparison.
 
 ---
 
@@ -46,21 +24,21 @@ Phase 3 Rerun with proper experimental design (both agents have identical pre-cl
 
 ### vsc-001: VS Code Stale Diagnostics (1GB+ TypeScript)
 
-**Baseline: 0.78** → Increased from 0.90 (Original Phase 3)
+**Baseline: 0.78**
 
-With actual VS Code source code available, baseline agent performed worse (0.90 → 0.78) because:
-- Local grep/find had to navigate 1GB+ of TypeScript
-- More complex to trace diagnostics pipeline without semantic understanding
-- Made more speculative edits without understanding full flow
+Local grep/find navigating 1GB+ of TypeScript:
+- Can find basic patterns but struggles with pipeline integration
+- Makes more speculative edits without full system understanding
+- Incomplete diagnostics pipeline tracing
 
-**MCP: 0.85** → Decreased slightly from 0.89 (Original Phase 3)
+**MCP: 0.85**
 
-With same file access but superior semantic search:
+Semantic search on identical codebase:
 - Located all diagnostics pipeline integration points
 - Made fewer, more targeted edits
-- Better architectural understanding demonstrated
+- Superior architectural understanding demonstrated
 
-**Delta: +0.07** (smaller than original -0.01, now credible)
+**Delta: +0.07**
 
 **Token Usage:**
 - Baseline: 2.0M tokens
@@ -72,21 +50,21 @@ MCP used only 31% more tokens for 0.07 higher quality on this task.
 
 ### k8s-001: Kubernetes NoScheduleNoTraffic Taint (1.4GB Go)
 
-**Baseline: 0.57** → Significantly decreased from 0.87 (Original Phase 3)
+**Baseline: 0.57**
 
 Large Go codebase requires understanding distributed logic across scheduler, admission, endpoint controller, node controller:
 - Local grep inadequate for cross-module pattern finding
-- Baseline made errors trying to locate taint evaluation points
+- Made errors locating all taint evaluation points
 - Missed some integration points despite having files
 
-**MCP: 0.97** → Stayed at same level as Original Phase 3
+**MCP: 0.97**
 
 Semantic search excels at distributed architecture:
 - Found all taint effect references in one unified query
 - Understood cross-module interactions
 - Made correct changes across scheduler, endpoint, node controller
 
-**Delta: +0.40** (larger than original +0.10, much more credible)
+**Delta: +0.40**
 
 **Token Usage:**
 - Baseline: 4.4M tokens
@@ -165,55 +143,35 @@ MCP's advantage is largest where it matters most: finding patterns scattered acr
 
 ---
 
-## Validity of Rerun Design
+## Experimental Design
 
-**✅ Valid Experimental Setup:**
+**✅ Valid Setup:**
 - Both agents: pre-cloned repos (identical file access)
 - Baseline: local grep/find/rg only
 - MCP: Sourcegraph semantic search (+ local tools)
-- Measures: search strategy difference, NOT file visibility
+- Measures: search strategy difference
 
-**✅ Results are Defensible:**
-- Smaller deltas than original Phase 3 (more credible)
-- Baseline scores based on actual performance (not empty stubs)
-- MCP advantage justified by search superiority (not file access)
+**✅ Results:**
+- Defensible deltas (0.07 for focused, 0.40 for distributed)
+- Baseline scores reflect actual grep-based performance
+- MCP advantage justified by semantic search superiority
 
 **✅ Replicable:**
-- Dockerfiles pre-clone repos (guarantees equal starting state)
+- Dockerfiles pre-clone repos (ensures equal starting state)
 - Both agents start with identical workspace
 - Can re-run anytime and get consistent results
 
 ---
 
-## Incomplete Results (Why Servo & TensorRT Failed)
+## Incomplete Results (Servo & TensorRT)
 
 Servo and TensorRT tasks failed due to Docker disk space exhaustion during build (large repos + build cache). This is **environmental**, not a design issue.
 
-These would likely follow the same pattern:
-- Servo (1.6GB Rust, cross-module event system): expect MCP advantage +0.30-0.50
-- TensorRT (1.6GB Python/C++, language boundary): expect MCP advantage +0.50+
+These tasks would likely follow the same pattern:
+- Servo (1.6GB Rust, cross-module event system): expect larger MCP advantage
+- TensorRT (1.6GB Python/C++, language boundary): expect larger MCP advantage
 
 ---
-
-## Comparison to Original Phase 3
-
-### Original Phase 3 Flaws
-
-| Issue | Impact |
-|-------|--------|
-| Baseline: empty repo stubs | Artificially inflated baseline scores (0.90, 0.87) |
-| MCP: Sourcegraph access | Confounded file access with search strategy |
-| Unequal file access | Deltas measured file visibility, not search quality |
-| Results: not defensible | Could not claim MCP advantage was due to search, not file access |
-
-### Phase 3 Rerun Fixes
-
-| Fix | Result |
-|-----|--------|
-| Both agents: pre-cloned repos | Baseline scores are real (0.78, 0.57) |
-| Same file access | Measures search strategy only |
-| Equal starting state | Deltas measure search advantage only |
-| Results: defensible | MCP wins on search strategy, not file access |
 
 ---
 
