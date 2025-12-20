@@ -32,7 +32,7 @@ This function **cannot be found by searching for its name** because the name is 
 
 ## Output Format
 
-You MUST provide your answer as valid JSON:
+You MUST provide your answer as valid JSON and **SAVE IT TO A FILE**:
 
 ```json
 {
@@ -41,6 +41,27 @@ You MUST provide your answer as valid JSON:
   "justification": "Why this function matches: describe the behavior you found"
 }
 ```
+
+**CRITICAL**: You MUST save the JSON to `/app/solution.json`. This is not optional.
+
+**Your final step MUST be to run this exact bash command:**
+
+```bash
+cat > /app/solution.json << 'JSONEOF'
+{
+  "function_path": "ACTUAL_PATH",
+  "function_name": "ACTUAL_NAME", 
+  "justification": "ACTUAL_JUSTIFICATION_TEXT"
+}
+JSONEOF
+```
+
+Replace:
+- `ACTUAL_PATH`: The file path you found (e.g., "requests/cookies.py" or "src/requests/cookies.py")
+- `ACTUAL_NAME`: The function name (e.g., "extract_cookies_to_jar")
+- `ACTUAL_JUSTIFICATION_TEXT`: Your explanation of why this is the right function
+
+**You must run this bash command to complete the task.** The verifier will read `/app/solution.json` to grade your answer.
 
 ## Notes
 

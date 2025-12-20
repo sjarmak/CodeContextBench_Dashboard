@@ -58,20 +58,20 @@ run_task_with_agent() {
     if [ "$agent" == "baseline" ]; then
         # Run baseline without MCP
         harbor run \
-            --task "$task_path" \
+            --path "$task_path" \
             --agent claude-code \
             --model anthropic/claude-haiku-4-5-20251001 \
             -n 1 \
-            --timeout 300 \
+            --timeout-multiplier 5 \
             2>&1 | tee "$output_dir/run.log" || true
     else
         # Run with MCP agent
         harbor run \
-            --task "$task_path" \
+            --path "$task_path" \
             --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
             --model anthropic/claude-haiku-4-5-20251001 \
             -n 1 \
-            --timeout 300 \
+            --timeout-multiplier 5 \
             2>&1 | tee "$output_dir/run.log" || true
     fi
 }

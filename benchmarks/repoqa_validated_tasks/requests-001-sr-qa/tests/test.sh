@@ -14,18 +14,18 @@ echo "RepoQA Verifier"
 echo "Task Variant: sr-qa"
 echo "=========================================="
 
-# Agent's output should be in /app/solution.json
 # Ground truth is in /app/tests/ground_truth.json
-
-if [ ! -f /app/solution.json ]; then
-    echo "ERROR: No solution.json found"
-    echo '{"correct_function": 0.0, "correct_path": 0.0, "justification_score": 0.0, "reasoning": "No solution provided"}' > /logs/verifier/reward.json
+if [ ! -f /app/tests/ground_truth.json ]; then
+    echo "ERROR: No ground_truth.json found"
+    echo '{"score": 0.0}' > /logs/verifier/reward.json
     exit 0
 fi
 
-if [ ! -f /app/tests/ground_truth.json ]; then
-    echo "ERROR: No ground_truth.json found"
-    echo '{"correct_function": 0.0, "correct_path": 0.0, "justification_score": 0.0, "reasoning": "Ground truth not available"}' > /logs/verifier/reward.json
+# Check if solution.json exists
+if [ ! -f /app/solution.json ]; then
+    echo "ERROR: Agent did not create /app/solution.json"
+    echo "The agent must run: cat > /app/solution.json << 'JSONEOF' ... JSONEOF"
+    echo '{"score": 0.0}' > /logs/verifier/reward.json
     exit 0
 fi
 
@@ -39,39 +39,44 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import verifiers from adapter directory
-from verifiers import RepoQAVerifier
+from verifiers import SemanticRetrievalQAVerifier
 
 try:
-    verifier = RepoQAVerifier(
-        Path("/app/tests/ground_truth.json"),
-        task_variant="sr-qa"
-    )
+    # Load ground truth
+    with open("/app/tests/ground_truth.json") as f:
+        ground_truth = json.load(f)
     
-    result = verifier.verify(Path("/app/solution.json"))
+    # Load agent output (as JSON)
+    with open("/app/solution.json") as f:
+        agent_output = json.load(f)
     
+    # Verify using SR-QA verifier
+    verifier = SemanticRetrievalQAVerifier(ground_truth)
+    result = verifier.verify(agent_output)
+    
+    # Build reward dict - Harbor expects a SINGLE scalar metric
+    # We use correct_function (0.0-1.0) as the primary metric
     reward = {
-        "correct_function": result.correct_function,
-        "correct_path": result.correct_path,
-        "justification_score": result.justification_score,
-        "reasoning": result.reasoning,
+        "score": float(result.correct_function),
     }
+    
+    # Log the detailed breakdown
+    print(f"\nVerification Results:")
+    print(f"  Correct Function: {result.correct_function:.2f}")
+    print(f"  Correct Path: {result.correct_path:.2f}") 
+    print(f"  Justification: {result.justification_score:.2f}")
+    print(f"  Details: {result.reasoning}")
     
     # Write reward for Harbor
     with open("/logs/verifier/reward.json", "w") as f:
         json.dump(reward, f, indent=2)
-    
-    print(f"Verification complete:")
-    print(f"  Correct Function: {result.correct_function:.2f}")
-    print(f"  Correct Path: {result.correct_path:.2f}")
-    print(f"  Justification: {result.justification_score:.2f}")
 
 except Exception as e:
+    import traceback
     print(f"ERROR: Verification failed: {e}")
+    traceback.print_exc()
     reward = {
-        "correct_function": 0.0,
-        "correct_path": 0.0,
-        "justification_score": 0.0,
-        "reasoning": f"Verification error: {str(e)}",
+        "score": 0.0,
     }
     with open("/logs/verifier/reward.json", "w") as f:
         json.dump(reward, f, indent=2)

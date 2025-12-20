@@ -4,6 +4,7 @@
   "canonical_name": "get_type",
   "language": "python",
   "nl_description": "Extracts cookie attributes from HTTP response headers and manages cookies across requests in a session",
+  "task_variant": "sr-qa",
   "mutates_state": false,
   "throws_errors": false,
   "performs_io": false,
