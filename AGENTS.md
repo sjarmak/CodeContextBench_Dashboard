@@ -287,6 +287,10 @@ The `comparison-20251219-clean/` directory is corrupted and should NOT be used. 
 
 ## RepoQA Benchmark Execution
 
+### Architecture: Separate Agent and Verifier Containers
+
+**Critical insight (Dec 20, 2025):** Agent and verifier run in SEPARATE Docker containers with separate filesystems. Agent writes must go to `/app/` (mounted in both containers), NOT `/logs/verifier/` (container-specific).
+
 ### Using Validated Dataset
 
 A pre-validated dataset with 5 instances from the requests repository is available:
@@ -355,6 +359,15 @@ python scripts/validate_comparison_results.py \
   jobs/comparison-YYYYMMDD-HHMM/baseline \
   jobs/comparison-YYYYMMDD-HHMM/mcp
 ```
+
+### Verifier Output Files
+
+The RepoQA verifier:
+1. Expects agent output at `/app/solution.json` (shared mount between agent & verifier containers)
+2. Expects ground truth at `/tests/ground_truth.json` (uploaded by Harbor)
+3. Writes verification results to `/logs/verifier/reward.json` (downloaded by Harbor after verifier completes)
+
+**Key fix (Dec 20, 2025):** Instructions updated to use `/app/solution.json`, not `/logs/verifier/solution.json`, because agent container's `/logs/` is not visible to verifier container.
 
 ## Big Code Task Template & Experimental Design
 

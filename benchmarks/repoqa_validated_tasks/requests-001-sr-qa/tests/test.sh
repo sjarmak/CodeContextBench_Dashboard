@@ -32,23 +32,18 @@ if [ ! -f /tests/ground_truth.json ]; then
 fi
 echo "DEBUG: Found /tests/ground_truth.json"
 
-# The agent should have created solution.json in /logs/verifier/
-# But since the test runs in a fresh container, it won't be there yet
-# We'll check in /app/solution.json (which is in the current container's /app if agent wrote it)
-# Or we can try /logs/verifier/solution.json if it was somehow preserved
-
+# The agent writes solution.json to /app/ (shared mount between agent and verifier)
 SOLUTION_FILE="/app/solution.json"
-if [ ! -f "$SOLUTION_FILE" ]; then
-    # Try alternate location
-    SOLUTION_FILE="/logs/verifier/solution.json"
-fi
 
 if [ ! -f "$SOLUTION_FILE" ]; then
-    echo "ERROR: Agent did not create solution.json in /app/ or /logs/verifier/"
-    echo "The agent must run: mkdir -p /logs/verifier && cat > /logs/verifier/solution.json << 'JSONEOF' ... JSONEOF"
+    echo "ERROR: Agent did not create solution.json in /app/"
+    echo "The agent must run: cat > /app/solution.json << 'JSONEOF' ... JSONEOF"
+    echo "Contents of /app:"
+    ls -la /app/ | head -20
     echo '{"score": 0.0}' > /logs/verifier/reward.json
     exit 0
 fi
+echo "DEBUG: Found /app/solution.json"
 
 # Run verifier
 python3 << 'VERIFY_SCRIPT'
@@ -67,21 +62,11 @@ try:
     with open("/tests/ground_truth.json") as f:
         ground_truth = json.load(f)
     
-    # Load agent output (as JSON)
-    # Try multiple possible locations
-    solution_paths = [
-        Path("/app/solution.json"),
-        Path("/logs/verifier/solution.json"),
-    ]
+    # Load agent output (as JSON from shared /app directory)
+    solution_file = Path("/app/solution.json")
     
-    solution_file = None
-    for path in solution_paths:
-        if path.exists():
-            solution_file = path
-            break
-    
-    if solution_file is None:
-        raise FileNotFoundError("No solution.json found in /app/ or /logs/verifier/")
+    if not solution_file.exists():
+        raise FileNotFoundError(f"No solution.json found at /app/solution.json")
     
     with open(solution_file) as f:
         agent_output = json.load(f)
