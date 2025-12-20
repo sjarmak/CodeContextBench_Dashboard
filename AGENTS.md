@@ -53,6 +53,25 @@ harbor run ...
 
 ---
 
+## Benchmark Design Review (Deep Search Analysis - Dec 20 2025)
+
+**FINDINGS:** Deep Search identified critical flaws in how our benchmarks measure agent capabilities. Key issues:
+
+1. **Task Diversity Mismatch** - Existing benchmarks focus on specific task types (bug fixing, dependency inference) but don't validate they require real codebase understanding
+2. **Evaluation Scope** - Metrics like "test pass/fail" don't capture whether agents use tool capabilities effectively or just guess/memorize
+3. **MCP Value Measurement** - Baseline vs MCP comparisons don't control for file access; agents with Sourcegraph can clone repos while baseline agents can't
+
+**APPROACH:** Do NOT overwrite existing benchmarks. Instead:
+
+- ✅ Use existing benchmarks (github_mined, big_code_mcp, RepoQA, DI-Bench) as baseline
+- ✅ Document design assumptions and limitations in each benchmark's README
+- ✅ Create NEW benchmarks that address identified gaps (more diverse task types, tool-sensitive evaluation)
+- ✅ Link findings to specific beads for future improvement
+
+**See:** Deep Search conversation ac119810-661d-43c8-a3a2-f764b5484494 for full analysis
+
+---
+
 ## Current Status (Phase 3: Benchmark Adapter Integration)
 
 **Benchmark Adapters (IN PROGRESS - Dec 20 2025):**
@@ -204,24 +223,54 @@ Names are for the next agent or developer reading your code months later.
 
 ### 6. Root Directory is Sacred
 
-**CRITICAL RULE:** Do NOT create random markdown files in the root directory.
+**CRITICAL RULE:** Do NOT create random markdown files, scripts, or config files in the root directory.
 
-- ✅ **DO:** `docs/`, `history/`, `.beads/`, `src/`, `tests/`
-- ❌ **DON'T:** `PLAN.md`, `STATUS.md`, `NOTES.md`, `IMPLEMENTATION.md`, `TODO.md` in root
-- ❌ **DON'T:** `MIGRATION_STATUS.md`, `PROGRESS.md`, `SESSION_SUMMARY.md` in root
+**This is not a suggestion—it's a hard rule enforced every "land the plane" session.**
 
-**Where things go:**
+The repository root is visible to EVERY user and tool that views the repository. Cluttering it with ephemeral files degrades the user experience and makes finding actual project structure harder.
 
-- **Permanent documentation:** `docs/` (ARCHITECTURE.md, DEVELOPMENT.md, API.md)
-- **Temporary planning:** `history/` (PLAN.md, SESSION_NOTES.md)
-- **Issue tracking:** `.beads/issues.jsonl` (NOT markdown files)
-- **This file (AGENTS.md):** Quick reference for agents only
+**What belongs in root (ONLY):**
+- `README.md` (project overview)
+- `AGENTS.md` (agent workflow guide)
+- `LICENSE`, `.gitignore`, `.gitattributes`
+- `setup.py`, `pyproject.toml`, `poetry.lock` (project config)
+- Essential directories: `src/`, `tests/`, `docs/`, `agents/`, `runners/`, `benchmarks/`, `scripts/`, `infrastructure/`, `.beads/`, `configs/`
 
-If you feel the urge to create a markdown file in root, STOP. Either:
+**What NEVER goes in root:**
 
-1. Add it to AGENTS.md if it's agent guidance
-2. Put it in `docs/` if it's permanent documentation
-3. Put it in `history/` if it's temporary planning
+| File Type | Where to Put | Rationale |
+|-----------|-------------|-----------|
+| `*.md` status files (STATUS.md, PROGRESS.md, MIGRATION_STATUS.md, PHASE3_*.md) | `history/` | Ephemeral—becomes stale and duplicates bead tracking |
+| Planning/design docs (PLAN.md, IMPLEMENTATION.md, DESIGN.md, ARCHITECTURE_NOTES.md) | `history/` | AI-generated planning, not permanent docs |
+| Session notes, evaluation results, test reports | `history/` | Temporary artifacts |
+| `.mcp.json`, `.env.*` config files | `configs/` or `.claude/` | Credentials/secrets (never commit anyway) |
+| Temporary scripts, test runners | `scripts/` or `runners/` | Code belongs in modules |
+| JSON test/benchmark outputs | `artifacts/` or `jobs/` | Results, not source files |
+| `*.py` test/helper scripts | `tests/` or `runners/` | Code organization |
+
+**Examples of files that got cluttered in root (DO NOT REPEAT):**
+- `PHASE3_SUMMARY.txt`, `PHASE3_EVALUATION_UPDATE.md`, `PHASE3_FINAL_EVALUATION.md` (all in `history/` or `.beads/`)
+- `PHASE3_RERUN_GUIDE.md`, `PHASE3_RERUN_SESSION_SUMMARY.md` (temporary planning)
+- `ANALYSIS_SCRIPTS_GUIDE.md` (should be in `docs/`)
+- `llm_judge_results.json` (should be in `artifacts/`)
+- `vsc-001-evaluation.json` (should be in `artifacts/` or `jobs/`)
+- `check_status.sh`, `dependeval_repos_for_indexing.txt` (scripts/configs)
+
+**How to prevent root clutter:**
+
+1. **Before creating a file in root**, ask: "Is this permanent project documentation?" If no, it goes elsewhere.
+2. **During development**, put planning/notes in `history/` with clear timestamps (e.g., `history/session-20251220-planning.md`)
+3. **After finishing work**, ALWAYS verify no stray files remain in root during "land the plane"
+4. **During code review**, flag any new root-level files that aren't in the "What belongs" list
+
+**Clean root directory check (do this every session):**
+
+```bash
+# List all files in root (excluding directories and dotfiles)
+ls -la / | grep -E "\.md$|\.json$|\.py$|\.sh$|\.txt$" | grep -v "setup.py\|pyproject.toml"
+
+# This should return nothing. If it doesn't, files need to move.
+```
 
 ---
 
@@ -758,29 +807,38 @@ AI assistants often create temporary planning documents during development:
    bd sync
    ```
 
-6. **Clean up root directory** - Remove any temporary files that shouldn't be in the root directory:
+6. **Clean up root directory** - This is MANDATORY, not optional. Every "land the plane" must have a completely clean root:
 
-   ```bash
-   # Check for files that don't belong in root
-   ls -la *.json *.py 2>/dev/null | grep -v setup.py
-
-   # Remove temporary configs, test scripts, and testing artifacts
-   # Root should only contain:
-   #   - README.md, AGENTS.md (documentation)
-   #   - setup.py, pyproject.toml (project config)
-   #   - LICENSE, .gitignore, .gitattributes (repo config)
-   #   - Directories: src/, tests/, docs/, configs/, agents/, runners/, etc.
-   #
-   # DO NOT add to root:
-   #   - harbor-config-*.json (use configs/ or history/)
-   #   - test_*.py (use tests/)
-   #   - STATUS.md, PROGRESS.md, PLAN.md (use history/ or .beads/)
-   #   - IMPLEMENTATION.md, ARCHITECTURE_NOTES.md (use docs/)
-   #   - Any temporary .mcp.json, .env.* files (use .claude/ or configs/)
-
-   # Verify no stray files
-   git status  # Should show no untracked root-level .json or .py files
-   ```
+    ```bash
+    # STEP 1: Identify all files in root that don't belong
+    ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyproject|LICENSE|\.)"
+    
+    # STEP 2: For each file found, move it to the appropriate directory:
+    #   - *.md (not README/AGENTS) → history/ or docs/
+    #   - *.json (config/data) → artifacts/, jobs/, configs/, or .claude/
+    #   - *.py (scripts) → scripts/, runners/, or tests/
+    #   - *.sh (shell scripts) → scripts/ or infrastructure/
+    #   - *.txt (data) → artifacts/, history/, or configs/
+    #
+    # Examples of moves that MUST happen:
+    #   mv STATUS.md history/
+    #   mv PHASE3_*.md history/
+    #   mv PROGRESS.md history/
+    #   mv PLAN.md history/
+    #   mv llm_judge_results.json artifacts/
+    #   mv check_status.sh scripts/
+    #   mv dependeval_repos_for_indexing.txt artifacts/
+    
+    # STEP 3: Verify no stray files
+    ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyproject|LICENSE|\.)"
+    # Should return NOTHING if root is clean
+    
+    # STEP 4: Stage and commit cleanup
+    git add .
+    git commit -m "Session cleanup: Move ephemeral files out of root directory"
+    ```
+    
+    **⚠️ DO NOT commit files to root that belong elsewhere. This is enforced by code review.**
 
 7. **Clean up git state** - Clear old stashes and prune dead remote branches:
 
