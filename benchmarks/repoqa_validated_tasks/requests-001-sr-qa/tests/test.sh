@@ -14,14 +14,23 @@ echo "RepoQA Verifier"
 echo "Task Variant: sr-qa"
 echo "=========================================="
 
+# DEBUG: Check what directories exist
+echo "DEBUG: Checking directories..."
+ls -la /logs/ 2>&1 || echo "Cannot list /logs"
+echo "Creating /logs/verifier if needed..."
+mkdir -p /logs/verifier 2>&1 || echo "Cannot create /logs/verifier"
+
 # Ground truth is uploaded by Harbor to /tests/ground_truth.json
+echo "DEBUG: Checking for /tests/ground_truth.json..."
 if [ ! -f /tests/ground_truth.json ]; then
     echo "ERROR: No ground_truth.json found at /tests/ground_truth.json"
     echo "Contents of /tests:"
     ls -la /tests/ || echo "Cannot list /tests"
     echo '{"score": 0.0}' > /logs/verifier/reward.json
+    echo "DEBUG: Wrote error reward to /logs/verifier/reward.json"
     exit 0
 fi
+echo "DEBUG: Found /tests/ground_truth.json"
 
 # The agent should have created solution.json in /logs/verifier/
 # But since the test runs in a fresh container, it won't be there yet
