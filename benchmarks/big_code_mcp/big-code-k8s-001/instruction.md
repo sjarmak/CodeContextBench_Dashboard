@@ -5,6 +5,8 @@
 **Category:** big_code_feature
 **Task Type:** Feature Implementation - Large Codebase
 
+**Reference:** [Trevor's Big Code Research](../../../docs/TREVOR_RESEARCH_DEC2025.md#2-kubernetes-noschedulenotraffic-taint-effect)
+
 ## Description
 
 Implement a new Node taint effect called `NoScheduleNoTraffic` that:

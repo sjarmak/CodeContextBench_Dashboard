@@ -1,25 +1,25 @@
 version = "1.0"
 
 [metadata]
-name = "k8s-001"
-description = "Implement NoScheduleNoTraffic taint effect in Kubernetes"
+name = "big-code-servo-001"
+description = "Add scrollend DOM event support in Servo"
 license = "Apache-2.0"
 
 [task]
-id = "k8s-001"
-repo = "kubernetes"
+id = "big-code-servo-001"
+repo = "servo"
 category = "big_code_feature"
-language = "go"
-pre_fix_rev = "v1.30.0"
+language = "rust"
+pre_fix_rev = "main"
 difficulty = "hard"
-time_limit_sec = 900
+time_limit_sec = 1500
 
 [verification]
 type = "test"
 command = "bash /workspace/tests/test.sh"
 
 [environment]
-build_timeout_sec = 1800.0
+build_timeout_sec = 2400.0
 
 [environment.setup_scripts]
 mcp_config = """#!/bin/bash
