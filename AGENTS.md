@@ -9,6 +9,31 @@ This file documents agent-specific patterns, workflows, and best practices for t
 - Linking to external resources rather than duplicating
 - This file should be the **quick reference**, not comprehensive documentation
 
+## 🔒 CRITICAL: Secret Management
+
+**⚠️ IF YOU COMMIT A SECRET, ROTATE IT IMMEDIATELY**
+
+⚠️ **Important:** Claude's context renderer shows `[REDACTED:...]` for sensitive data, but the raw secret may still be in git history. Do not assume `[REDACTED]` means it's safe. If you see a secret pattern in output:
+
+1. **Rotate the credential immediately** (don't wait to verify)
+2. **Never try to "remove" it with git commits** - it's already in history
+3. **Use `git filter-repo`** only if absolutely necessary to purge from history
+
+**Pre-commit hook prevents secrets from being committed:**
+- Blocks commits containing `sgp_`, `SOURCEGRAPH_ACCESS_TOKEN`, `ANTHROPIC_API_KEY`
+- Blocks commits of `.env`, `.env.local`, `.mcp.json` files
+- If blocked, remove the secret and try again
+
+**If a secret gets committed anyway:**
+```bash
+# 1. Rotate the credential in Sourcegraph/Anthropic console
+# 2. Document in security log (internal)
+# 3. Use git-filter-repo to purge from history (if needed)
+git filter-repo --invert-paths --path vsc-001-evaluation.json
+```
+
+---
+
 ## Critical: Model Configuration
 
 **⚠️ ALWAYS USE: `anthropic/claude-haiku-4-5-20251001`**

@@ -37,11 +37,16 @@ history/
 10figure/
 harbor-10figure-dataset/
 
-# Environment variables and credentials (never commit)
+# Environment variables and credentials (CRITICAL: never commit)
+# If you've committed any of these, rotate all credentials immediately
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
 *.key
 *.pem
 .mcp.json
 .claude/
+configs/.mcp.json
+jobs/**/.mcp.json
