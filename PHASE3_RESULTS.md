@@ -259,6 +259,35 @@ Average premium: **+91% tokens, +36 points quality improvement**
 
 ---
 
+## Critical Experimental Design Issue
+
+**IMPORTANT:** These results are from an **invalid experimental setup**.
+
+The baseline and MCP agents were given different file access:
+- **Baseline agent:** Task container with empty repo stubs (no actual source files)
+- **MCP agent:** Access to Sourcegraph + ability to clone real upstream repos
+
+This is **not a fair comparison** of agent capabilities. The baseline's low scores (0.13-0.30) reflect inability to access code at all, not inferior search strategy.
+
+**Valid experimental design requires:**
+1. **Pre-clone all target repos into the task container** before task starts
+2. **Both baseline and MCP agents have identical file access** (cloned repos available locally)
+3. **Baseline:** Uses local `grep/rg/find` only
+4. **MCP:** Uses Sourcegraph semantic search (with local tools as fallback)
+
+This measures actual search strategy differences, not file visibility differences.
+
+**Current results tell us:**
+- MCP is good at working around missing files (using Sourcegraph to find real repos)
+- Baseline is helpless without local files
+- **This is not a valid measure of architectural understanding**
+
+**Next steps:**
+- Re-run Phase 3 with proper setup (repos pre-cloned)
+- Then the comparison will be meaningful
+
+---
+
 ## Conclusions
 
 ### MCP is Essential for Big Code
