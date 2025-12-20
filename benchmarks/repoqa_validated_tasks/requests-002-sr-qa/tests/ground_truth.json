@@ -1,0 +1,11 @@
+{
+  "function_id": "requests/cookies.py::get_host",
+  "canonical_path": "requests/cookies.py",
+  "canonical_name": "get_host",
+  "language": "python",
+  "nl_description": "Retrieves the host name from a URL, parsing and extracting the domain component",
+  "mutates_state": false,
+  "throws_errors": false,
+  "performs_io": true,
+  "is_async": false
+}

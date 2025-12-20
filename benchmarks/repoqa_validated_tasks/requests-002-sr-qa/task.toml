@@ -1,0 +1,24 @@
+version = "1.0"
+
+[metadata]
+author_name = "RepoQA Adapter"
+author_email = "unknown"
+difficulty = "hard"
+category = "semantic-code-navigation"
+tags = [ "repoqa", "python", "repoqa-sr-qa",]
+repository = "requests/requests"
+commit = "6e4134b204f675268296b2b44c2d52c8a7927b2c"
+language = "python"
+task_variant = "sr-qa"
+
+[verifier]
+timeout_sec = 300.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 300.0
+cpus = 2
+memory_mb = 4096
+storage_mb = 10240

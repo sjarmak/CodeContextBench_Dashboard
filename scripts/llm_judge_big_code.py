@@ -102,7 +102,8 @@ Format as JSON:
 }}"""
 
     # Call Claude
-    client = anthropic.Anthropic()
+    import os
+    client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
     response = client.messages.create(
         model="claude-opus-4-1-20250805",
         max_tokens=2000,

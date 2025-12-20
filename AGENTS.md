@@ -75,16 +75,17 @@ Harbor adapters are installed separately in the Harbor package. Work done on ada
 - **Structure:** Follows DI-Bench patterns (adapter.py, run_adapter.py, templates)
 - **Task Types:** Dependency Recognition, Repository Construction, Multi-file Editing
 
-**RepoQA Adapter** ✅ COMPLETE
+**RepoQA Adapter** ✅ COMPLETE + VALIDATED
 - **Location:** `~/harbor/adapters/repoqa/`
-- **Status:** Production-ready (Dec 20, 2025)
+- **Status:** Production-ready (Dec 20, 2025) - Commit validation added
 - **Task Types:** Three variants for semantic code navigation
   - SR-QA: Semantic Retrieval (find function by description)
   - MD-QA: Multi-Hop Dependency (find call path through code)
   - NR-QA: Negative/Disambiguation (pick correct function among similar ones)
-- **Files:** `adapter.py`, `run_adapter.py`, `ground_truth_extractor.py`, `verifiers.py`, templates
+- **Files:** `adapter.py`, `run_adapter.py`, `ground_truth_extractor.py`, `verifiers.py`, `commit_validator.py`, templates
 - **Tests:** 23 comprehensive unit and integration tests - All passing
 - **Key Achievement:** Transformed RepoQA from long-context memorization test to tool-sensitive semantic navigation benchmark
+- **Validation:** Added `commit_validator.py` to validate commit hashes before task generation
 - **Docs:** `DESIGN.md` (architecture), `README.md` (overview), `QUICKSTART.md` (usage)
 
 **Phase 3 Completed (Dec 20 2025):**
@@ -253,6 +254,77 @@ Before analyzing any comparison results, ALWAYS:
 The `comparison-20251219-clean/` directory is corrupted and should NOT be used. It was a re-run attempt that failed due to lost API credentials. The real data is in:
 - `baseline-10task-20251219/` (10/10 tasks, 34.8M tokens)
 - `mcp-10task-20251219/` (9/10 tasks, 40.5M tokens, sgt-003 missing)
+
+## RepoQA Benchmark Execution
+
+### Using Validated Dataset
+
+A pre-validated dataset with 5 instances from the requests repository is available:
+
+```bash
+benchmarks/repoqa_instances_validated.jsonl
+```
+
+All commit hashes in this dataset have been verified to exist in their respective repositories.
+
+### Generating Tasks
+
+```bash
+cd ~/harbor/adapters/repoqa
+
+# Generate with commit validation (recommended)
+python run_adapter.py \
+  --dataset_path /path/to/CodeContextBench/benchmarks/repoqa_instances_validated.jsonl \
+  --output_dir /path/to/output/repoqa_tasks \
+  --variants sr-qa \
+  --limit 5
+
+# Skip validation for speed (only if dataset is pre-validated)
+python run_adapter.py \
+  --dataset_path repoqa-instances.jsonl \
+  --output_dir repoqa_tasks \
+  --variants sr-qa \
+  --skip-validation
+```
+
+### Validating Commit Hashes
+
+Before using a dataset, validate all commit hashes:
+
+```bash
+cd ~/harbor/adapters/repoqa
+python commit_validator.py repoqa-instances.jsonl
+```
+
+Output shows:
+- ✅ VALID COMMITS: Commits found in repositories
+- ❌ INVALID COMMITS: Commits not found (with error details)
+- Summary: X/Y instances valid
+
+**Commit validation checks:**
+- Full SHA-1 format (40 characters)
+- Commit exists in target repository
+- Repository is accessible
+
+### Running Baseline vs MCP Comparison
+
+After generating tasks:
+
+```bash
+cd /path/to/CodeContextBench
+
+# Setup environment
+source .env.local
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+
+# Run comparison
+bash scripts/run_mcp_comparison.sh repoqa_benchmark requests-001-sr-qa
+
+# Validate results
+python scripts/validate_comparison_results.py \
+  jobs/comparison-YYYYMMDD-HHMM/baseline \
+  jobs/comparison-YYYYMMDD-HHMM/mcp
+```
 
 ## Sourcegraph MCP Agent Implementation
 
