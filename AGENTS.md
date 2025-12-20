@@ -22,6 +22,37 @@ harbor run --model anthropic/claude-haiku-4-5-20251001 ...
 
 ---
 
+## ⚠️ CRITICAL: Running Harbor Commands (ALL Phases)
+
+**YOU MUST export credentials or harbor will fail:**
+
+```bash
+# Step 1: Source environment file
+source .env.local
+
+# Step 2: EXPORT variables to subprocesses (this is critical!)
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+
+# Step 3: Now run harbor commands
+harbor run --path benchmarks/big_code_mcp/big-code-vsc-001 --agent claude-code -n 1
+bash scripts/run_big_code_comparison.sh
+```
+
+**Why?** Sourcing makes variables available to THIS shell. Harbor spawns subprocesses (Claude Code) that won't see sourced variables. You MUST export them.
+
+```bash
+# ❌ WRONG - subprocess won't see vars:
+source .env.local
+harbor run ...
+
+# ✅ RIGHT - subprocess inherits vars:
+source .env.local
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+harbor run ...
+```
+
+---
+
 ## Current Status (Phase 3: Big Code MCP Comparison Execution)
 
 **Phase 1 Completed (Dec 19 2025):**
