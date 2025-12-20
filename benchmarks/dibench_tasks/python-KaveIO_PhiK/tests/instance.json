@@ -1,0 +1,28 @@
+{
+  "instance_id": "KaveIO_PhiK",
+  "language": "python",
+  "metadata": {
+    "name": "PhiK",
+    "repo_name": "KaveIO/PhiK",
+    "full_name": "KaveIO/PhiK",
+    "html_url": "https://github.com/KaveIO/PhiK",
+    "description": "Phi_K correlation analyzer library",
+    "stargazers_count": 156,
+    "default_branch": "master",
+    "language": "Python",
+    "topics": [],
+    "pushed_at": "2024-10-07T09:09:40+00:00",
+    "created_at": "2018-11-20T11:11:44+00:00",
+    "updated_at": "2024-10-17T20:10:00+00:00",
+    "commit_sha": "d929670"
+  },
+  "build_files": [
+    "pyproject.toml"
+  ],
+  "env_specs": {
+    "SDK": "Python 3.8",
+    "OS": "ubuntu-22.04"
+  },
+  "act_command": "act -j 'build' --matrix platform:ubuntu-latest --matrix python-version:3.8 -W '.github/workflows/test_matrix.yml'",
+  "ci_file": ".github/workflows/test_matrix.yml"
+}

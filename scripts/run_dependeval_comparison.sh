@@ -56,10 +56,10 @@ run_task_with_agent() {
     mkdir -p "$output_dir"
     
     if [ "$agent" == "baseline" ]; then
-        # Run baseline without MCP
+        # Run baseline without MCP (but with autonomous implementation mode)
         harbor run \
             --path "$task_path" \
-            --agent claude-code \
+            --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
             --model anthropic/claude-haiku-4-5-20251001 \
             -n 1 \
             --timeout-multiplier 5 \

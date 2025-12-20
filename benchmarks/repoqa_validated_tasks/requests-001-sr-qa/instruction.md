@@ -42,12 +42,12 @@ You MUST provide your answer as valid JSON and **SAVE IT TO A FILE**:
 }
 ```
 
-**CRITICAL**: You MUST save the JSON to `/app/solution.json`. This is not optional.
+**CRITICAL**: You MUST save the JSON to `/logs/verifier/solution.json`. This location is required for Harbor verification.
 
 **Your final step MUST be to run this exact bash command:**
 
 ```bash
-cat > /app/solution.json << 'JSONEOF'
+mkdir -p /logs/verifier && cat > /logs/verifier/solution.json << 'JSONEOF'
 {
   "function_path": "ACTUAL_PATH",
   "function_name": "ACTUAL_NAME", 
@@ -61,7 +61,7 @@ Replace:
 - `ACTUAL_NAME`: The function name (e.g., "extract_cookies_to_jar")
 - `ACTUAL_JUSTIFICATION_TEXT`: Your explanation of why this is the right function
 
-**You must run this bash command to complete the task.** The verifier will read `/app/solution.json` to grade your answer.
+**You must run this bash command to complete the task.** Harbor will preserve files in `/logs/verifier/` for the verification step.
 
 ## Notes
 

@@ -1,0 +1,37 @@
+{
+  "instance_id": "MartinThoma_flake8-simplify",
+  "language": "python",
+  "metadata": {
+    "name": "flake8-simplify",
+    "repo_name": "MartinThoma/flake8-simplify",
+    "full_name": "MartinThoma/flake8-simplify",
+    "html_url": "https://github.com/MartinThoma/flake8-simplify",
+    "description": "\u2744 A flake8 plugin that helps you to simplify code",
+    "stargazers_count": 186,
+    "default_branch": "main",
+    "language": "Python",
+    "topics": [
+      "flake8",
+      "flake8-plugin",
+      "flake8-extensions",
+      "python",
+      "python3",
+      "python-style",
+      "linter",
+      "code-quality"
+    ],
+    "pushed_at": "2023-12-25T09:43:40+00:00",
+    "created_at": "2020-09-19T16:59:41+00:00",
+    "updated_at": "2024-10-17T23:04:37+00:00",
+    "commit_sha": "4f1b89f"
+  },
+  "build_files": [
+    "pyproject.toml"
+  ],
+  "env_specs": {
+    "SDK": "Python 3.8",
+    "OS": "ubuntu-22.04"
+  },
+  "act_command": "act -j 'build' --matrix python-version:3.8 -W '.github/workflows/unit-test.yml'",
+  "ci_file": ".github/workflows/unit-test.yml"
+}

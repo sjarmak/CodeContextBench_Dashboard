@@ -1,0 +1,43 @@
+{
+  "instance_id": "ManiMozaffar_aioclock",
+  "language": "python",
+  "metadata": {
+    "name": "aioclock",
+    "repo_name": "ManiMozaffar/aioclock",
+    "full_name": "ManiMozaffar/aioclock",
+    "html_url": "https://github.com/ManiMozaffar/aioclock",
+    "description": "A modern python scheduling framework with dependency injection and modular integration support. Alternative for Rocketry or apscheduler",
+    "stargazers_count": 158,
+    "default_branch": "main",
+    "language": "Python",
+    "topics": [
+      "async",
+      "asynchronous",
+      "asyncio",
+      "pydantic",
+      "pydantic-v2",
+      "python",
+      "rocketry",
+      "scheduler",
+      "scheduling",
+      "apscheduler",
+      "celery",
+      "cron",
+      "cronjob",
+      "crontab"
+    ],
+    "pushed_at": "2024-10-04T19:42:25+00:00",
+    "created_at": "2024-03-31T08:35:47+00:00",
+    "updated_at": "2024-10-27T08:36:51+00:00",
+    "commit_sha": "3d196b2"
+  },
+  "build_files": [
+    "pyproject.toml"
+  ],
+  "env_specs": {
+    "SDK": "Python 3.9",
+    "OS": "ubuntu-22.04"
+  },
+  "act_command": "act -j 'tox' --matrix python-version:3.9 -W '.github/workflows/main.yml'",
+  "ci_file": ".github/workflows/main.yml"
+}

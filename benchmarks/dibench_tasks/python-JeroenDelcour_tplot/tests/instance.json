@@ -1,0 +1,31 @@
+{
+  "instance_id": "JeroenDelcour_tplot",
+  "language": "python",
+  "metadata": {
+    "name": "tplot",
+    "repo_name": "JeroenDelcour/tplot",
+    "full_name": "JeroenDelcour/tplot",
+    "html_url": "https://github.com/JeroenDelcour/tplot",
+    "description": "A library for creating text-based graphs in the terminal",
+    "stargazers_count": 167,
+    "default_branch": "master",
+    "language": "Python",
+    "topics": [
+      "python",
+      "terminal"
+    ],
+    "pushed_at": "2023-12-14T10:07:50+00:00",
+    "created_at": "2018-05-15T12:21:14+00:00",
+    "updated_at": "2024-10-12T23:36:16+00:00",
+    "commit_sha": "8b12564"
+  },
+  "build_files": [
+    "pyproject.toml"
+  ],
+  "env_specs": {
+    "SDK": "Python 3.8",
+    "OS": "ubuntu-22.04"
+  },
+  "act_command": "act -j 'test' --matrix python-version:3.8 --matrix os:ubuntu-latest -W '.github/workflows/tests.yml'",
+  "ci_file": ".github/workflows/tests.yml"
+}
