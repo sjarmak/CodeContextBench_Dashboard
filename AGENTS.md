@@ -90,6 +90,39 @@ export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
 2. Harbor requires credentials EXPORTED in current shell, not just sourced
 3. `--ek` flag requires `key=value` format, not separate args
 
+## DI-Bench Adapter with Python Validators
+
+**Problem Solved (Dec 20 2025):**
+- DI-Bench Dockerfile required Docker-in-Docker for `act` (GitHub Actions runner)
+- Incompatible with Podman setup (no Sysbox runtime available)
+
+**Solution: Python-based validators (CodeContextBench-0ji)**
+- Replaced `act` with language-specific syntax validators in `validators.py`
+- Supports Python, Rust, JavaScript, C#
+- Validates: build file syntax, dependency declarations, format errors
+- No Docker-in-Docker or act required
+- All 33 tests passing (24 unit + 9 integration tests)
+
+**Files Created:**
+- `harbor/adapters/dibench/validators.py` - Main validator module (4 language classes)
+- `harbor/adapters/dibench/templates/environment/Dockerfile.simplified` - No Docker-in-Docker
+- `harbor/adapters/dibench/templates/tests/test_python.sh` - Validator invocation
+- `harbor/adapters/dibench/VALIDATORS.md` - Comprehensive documentation
+- `harbor/adapters/dibench/tests/test_validators.py` - 24 unit tests
+- `harbor/adapters/dibench/tests/test_integration.py` - 9 integration tests
+
+**What Validators Check:**
+- ✅ Build files exist and are accessible
+- ✅ Syntax errors (malformed JSON, mismatched brackets, invalid format)
+- ✅ Required sections present ([package] for Cargo, [dependencies], etc.)
+- ✅ At least some dependencies declared
+- ❌ Does NOT: Run full CI/CD, check registry validity, build/compile projects
+
+**Integration:**
+- Adapter can generate tasks using simplified Dockerfile + Python validators
+- Compatible with existing Podman setup (no special requirements)
+- Ready for MCP benchmarking without Docker infrastructure changes
+
 ## Project Overview
 
 CodeContextBench is a benchmark evaluation framework for assessing how improved codebase understanding through Sourcegraph tools improves coding agent output. It supports multiple agent implementations (Claude Code, Claude+MCP, etc.) running against standardized benchmark task sets.
