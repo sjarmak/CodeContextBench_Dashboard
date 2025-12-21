@@ -153,6 +153,35 @@ harbor run \
 
 ---
 
+## MCP Agent Variants (A/B Testing)
+
+**File:** `agents/mcp_variants.py`
+
+Three agent variants for testing different tool combinations:
+
+| Variant | Class | Purpose |
+|---------|-------|---------|
+| Deep Search Focused | `DeepSearchFocusedAgent` | Aggressively prompts to use `sg_deepsearch` FIRST |
+| MCP No Deep Search | `MCPNonDeepSearchAgent` | Uses `sg_keyword_search`/`sg_nls_search` only |
+| Full Toolkit | `FullToolkitAgent` | All tools, neutral prompting (control) |
+
+**Usage:**
+```bash
+# Run single variant
+harbor run \
+  --path benchmarks/big_code_mcp/big-code-vsc-001 \
+  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
+
+# Run all variants comparison
+./scripts/run_mcp_variants_comparison.sh benchmarks/big_code_mcp/big-code-vsc-001
+```
+
+**Reference:** CodeContextBench-1md
+
+---
+
 ## Development & Operations
 
 **Guides:**
