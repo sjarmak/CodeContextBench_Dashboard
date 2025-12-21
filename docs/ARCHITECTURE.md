@@ -227,10 +227,10 @@ Tools for extracting execution metrics from agent runs:
        (loads ANTHROPIC_API_KEY, SRC_ACCESS_TOKEN, etc.)
 
 3. AGENT INITIALIZATION
-   └─> agents/claude_agent.py or claude_sourcegraph_mcp_agent.py
-       ├─> Get installation template
-       ├─> Get environment variables
-       └─> Generate Harbor command
+    └─> agents/ (BaselineClaudeCodeAgent or MCP variant agents)
+        ├─> Get installation template
+        ├─> Get environment variables
+        └─> Generate Harbor command
 
 4. HARBOR EXECUTION
    └─> runners/harbor_benchmark.sh
@@ -264,24 +264,40 @@ Tools for extracting execution metrics from agent runs:
 
 ## Agent Design
 
-### Claude Baseline
+Four production agents for A/B testing MCP impact:
 
-**File**: `agents/claude_agent.py`
+### BaselineClaudeCodeAgent
 
-- Uses Claude 3.5 Sonnet
-- NO tools (vanilla command generation)
+**File**: `agents/claude_baseline_agent.py`
+
+- Control: Claude Code without MCP
+- Tests Claude's autonomous capabilities
 - Requires: ANTHROPIC_API_KEY
-- For testing whether Deep Search helps or hurts
+- For establishing baseline performance
 
-### Claude + MCP (With Sourcegraph Deep Search)
+### DeepSearchFocusedAgent
 
-**File**: `agents/claude_sourcegraph_mcp_agent.py`
+**File**: `agents/mcp_variants.py`
 
-- Uses Claude 3.5 Sonnet
-- Sourcegraph Deep Search via MCP
+- MCP with aggressive Deep Search prompting
+- Tests if Deep Search prompting improves task success
 - Requires: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN
-- MCP configuration at Harbor runtime (--mcp-config flag)
-- NOT in agent code
+
+### MCPNonDeepSearchAgent
+
+**File**: `agents/mcp_variants.py`
+
+- MCP with keyword/NLS search only (Deep Search disabled)
+- Tests if simpler MCP tools are sufficient
+- Requires: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN
+
+### FullToolkitAgent
+
+**File**: `agents/mcp_variants.py`
+
+- MCP with all tools available, neutral prompting
+- Tests agent's natural tool choice with all options
+- Requires: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN
 
 ### Why This Design?
 

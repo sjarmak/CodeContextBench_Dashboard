@@ -93,9 +93,9 @@ python3 aggregator.py --runs jobs/ --output analysis.json
 ## Supported Agents
 
 ### claude-baseline
-Claude Code CLI without Sourcegraph tools.
+Claude Code CLI without Sourcegraph tools (control).
 - Requires: `ANTHROPIC_API_KEY`
-- Import path: `agents.claude_agent:ClaudeCodeAgent`
+- Import path: `agents:BaselineClaudeCodeAgent`
 
 ### claude-mcp
 Claude Code with Sourcegraph MCP server for code intelligence.

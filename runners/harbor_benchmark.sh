@@ -123,20 +123,20 @@ validate_environment() {
 # ============================================================================
 
 get_agent_import_path() {
-    local agent=$1
-    case "$agent" in
-        claude-baseline)
-            echo "agents.claude_agent:ClaudeCodeAgent"
-            ;;
-        claude-mcp)
-            echo "agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent"
-            ;;
-        *)
-            log_error "Unknown agent: $agent"
-            exit 1
-            ;;
-    esac
-}
+     local agent=$1
+     case "$agent" in
+         claude-baseline)
+             echo "agents:BaselineClaudeCodeAgent"
+             ;;
+         claude-mcp)
+             echo "agents:ClaudeCodeSourcegraphMCPAgent"
+             ;;
+         *)
+             log_error "Unknown agent: $agent"
+             exit 1
+             ;;
+     esac
+ }
 
 # ============================================================================
 # Benchmark Execution

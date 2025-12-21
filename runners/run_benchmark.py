@@ -25,8 +25,7 @@ from datetime import datetime
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from agents.claude_agent import ClaudeCodeAgent
-from agents.claude_sourcegraph_mcp_agent import ClaudeCodeSourcegraphMCPAgent
+from agents import BaselineClaudeCodeAgent, ClaudeCodeSourcegraphMCPAgent
 
 
 class BenchmarkRunner:
@@ -39,12 +38,12 @@ class BenchmarkRunner:
         self.project_root = Path(__file__).parent.parent
         
         # Select agent
-        if agent_name == "claude-baseline":
-            self.agent = ClaudeCodeAgent()
-        elif agent_name == "claude-mcp":
-            self.agent = ClaudeCodeSourcegraphMCPAgent()
-        else:
-            raise ValueError(f"Unknown agent: {agent_name}")
+         if agent_name == "claude-baseline":
+             self.agent = BaselineClaudeCodeAgent()
+         elif agent_name == "claude-mcp":
+             self.agent = ClaudeCodeSourcegraphMCPAgent()
+         else:
+             raise ValueError(f"Unknown agent: {agent_name}")
         
         print(f"✓ Loaded agent: {agent_name}")
         print(f"  Agent class: {self.agent.__class__.__name__}")

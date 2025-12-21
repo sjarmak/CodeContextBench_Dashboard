@@ -1,8 +1,0 @@
-{
-  "instance_id": "requests-003",
-  "repository": "requests/requests",
-  "commit": "420d16bc7ef326f7b65f90e4644adc0f6a0e1d44",
-  "language": "python",
-  "task_variant": "sr-qa",
-  "canonical_function": "requests/models.py::raise_for_status"
-}

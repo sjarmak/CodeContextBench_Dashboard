@@ -50,14 +50,18 @@ Claude Code with Sourcegraph MCP integration:
 - Provides intelligent codebase exploration vs manual grep
 - Measures ROI of code intelligence on agent success rate
 
-## Datasets
+## Benchmarks
 
-- **github_mined**: 25 real-world PyTorch tasks (Phase 3 baseline)
-  - `benchmarks/github_mined/sgt-001` through `sgt-025`
-  - Mixed difficulty levels, deterministic verification
-  - Exact commit SHAs locked in Dockerfiles for reproducibility
-- **10Figure-Codebases**: `/Users/sjarmak/10Figure-Codebases/` (~5GB, 23 repos, reference corpus)
-- **terminal-bench**: Self-contained implementation tasks (future corpus)
+All benchmarks are self-contained in `benchmarks/` directory:
+
+- **big_code_mcp**: 4 real large-codebase tasks (VS Code, Kubernetes, Servo, TensorRT)
+- **github_mined**: 25 PyTorch real-world PR tasks
+- **dependeval_benchmark**: 9 multi-file/cross-repo reasoning tasks
+- **10figure**: 4 legacy codebase challenges (requires `~/10Figure-Codebases/` corpus)
+- **dibench**: Multi-language dependency inference (Harbor adapter, variable task count)
+- **repoqa**: Tool-sensitive code understanding tasks (Harbor adapter, newly completed)
+
+See [benchmarks/README.md](benchmarks/README.md) for detailed benchmark descriptions and usage.
 
 ## Phase Status
 

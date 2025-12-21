@@ -45,11 +45,11 @@ mkdir -p "$BASELINE_JOB"
 python3 << 'EOF'
 import sys
 sys.path.insert(0, '/Users/sjarmak/CodeContextBench')
-from agents.claude_agent import ClaudeCodeAgent
+from agents import BaselineClaudeCodeAgent
 from pathlib import Path
 
-agent = ClaudeCodeAgent()
-print(f"✓ Loaded ClaudeCodeAgent")
+agent = BaselineClaudeCodeAgent()
+print(f"✓ Loaded BaselineClaudeCodeAgent")
 print(f"  Template: {agent._install_agent_template_path}")
 EOF
 

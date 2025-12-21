@@ -79,10 +79,10 @@ class BenchmarkValidator:
         print("\n[AGENTS]")
         
         try:
-            from agents.claude_agent import ClaudeCodeAgent
-            baseline = ClaudeCodeAgent()
+            from agents import BaselineClaudeCodeAgent
+            baseline = BaselineClaudeCodeAgent()
             self.check(
-                "ClaudeCodeAgent (baseline) loads",
+                "BaselineClaudeCodeAgent (baseline) loads",
                 lambda: (
                     baseline._install_agent_template_path.exists(),
                     f"Template: {baseline._install_agent_template_path}"
@@ -90,12 +90,12 @@ class BenchmarkValidator:
                 critical=True
             )
         except Exception as e:
-            self.errors.append(f"ClaudeCodeAgent load failed: {str(e)}")
-            print(f"  ✗ ClaudeCodeAgent (baseline) loads: {str(e)}")
+            self.errors.append(f"BaselineClaudeCodeAgent load failed: {str(e)}")
+            print(f"  ✗ BaselineClaudeCodeAgent (baseline) loads: {str(e)}")
             return False
         
         try:
-            from agents.claude_sourcegraph_mcp_agent import ClaudeCodeSourcegraphMCPAgent
+            from agents import ClaudeCodeSourcegraphMCPAgent
             mcp = ClaudeCodeSourcegraphMCPAgent()
             self.check(
                 "ClaudeCodeSourcegraphMCPAgent (MCP) loads",

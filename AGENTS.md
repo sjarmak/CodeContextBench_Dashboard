@@ -128,55 +128,55 @@ ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyp
 
 ---
 
-## Sourcegraph MCP Agent
+## Agent File Organization
 
-**File:** `agents/claude_sourcegraph_mcp_agent.py`
+**Production Agents:**
+- `agents/claude_baseline_agent.py` - BaselineClaudeCodeAgent
+- `agents/mcp_variants.py` - 3 MCP variants (Deep Search Focused, No Deep Search, Full Toolkit)
 
-Extends Harbor's `ClaudeCode` agent with Sourcegraph MCP integration:
-1. Lazy imports (no Harbor at module load)
-2. Reads `SOURCEGRAPH_INSTANCE` and `SOURCEGRAPH_ACCESS_TOKEN` from env
-3. Generates `.mcp.json` with HTTP server config
-4. Uploads to task container at `/app/.mcp.json`
-
-**Usage:**
-```bash
-export SOURCEGRAPH_INSTANCE="sourcegraph.com"
-export SOURCEGRAPH_ACCESS_TOKEN="your-token"
-
-harbor run \
-  --path benchmarks/github_mined \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  -n 1
-```
-
-**See:** `docs/MCP_SETUP.md` for full setup guide.
+**Compatibility/Deprecated:**
+- `agents/claude_sourcegraph_mcp_agent.py` - Deprecated alias to DeepSearchFocusedAgent (kept for backward compat)
 
 ---
 
-## MCP Agent Variants (A/B Testing)
+## Benchmark Agents
 
-**File:** `agents/mcp_variants.py`
+Four agents for comparing MCP impact on coding task performance:
 
-Three agent variants for testing different tool combinations:
+| Agent | Class | File | Purpose |
+|-------|-------|------|---------|
+| Baseline Claude Code | `BaselineClaudeCodeAgent` | `agents/claude_baseline_agent.py` | Control: Claude Code with autonomous mode, NO MCP |
+| Deep Search Focused | `DeepSearchFocusedAgent` | `agents/mcp_variants.py` | MCP + aggressive Deep Search prompting |
+| MCP No Deep Search | `MCPNonDeepSearchAgent` | `agents/mcp_variants.py` | MCP with keyword/NLS search only (Deep Search disabled) |
+| Full Toolkit | `FullToolkitAgent` | `agents/mcp_variants.py` | MCP with all tools, neutral prompting (control) |
 
-| Variant | Class | Purpose |
-|---------|-------|---------|
-| Deep Search Focused | `DeepSearchFocusedAgent` | Aggressively prompts to use `sg_deepsearch` FIRST |
-| MCP No Deep Search | `MCPNonDeepSearchAgent` | Uses `sg_keyword_search`/`sg_nls_search` only |
-| Full Toolkit | `FullToolkitAgent` | All tools, neutral prompting (control) |
+**Design:**
+- **Baseline**: Tests Claude Code's autonomous capabilities without MCP
+- **Deep Search Focused**: Tests if Deep Search prompting improves task success
+- **No Deep Search**: Tests if simpler MCP tools (keyword/NLS) are sufficient
+- **Full Toolkit**: Tests agent's natural tool choice with all options available
 
 **Usage:**
 ```bash
-# Run single variant
+# Run single agent variant
 harbor run \
   --path benchmarks/big_code_mcp/big-code-vsc-001 \
   --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent \
   --model anthropic/claude-haiku-4-5-20251001 \
   -n 1
 
+# Run baseline agent
+harbor run \
+  --path benchmarks/big_code_mcp/big-code-vsc-001 \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
+
 # Run all variants comparison
 ./scripts/run_mcp_variants_comparison.sh benchmarks/big_code_mcp/big-code-vsc-001
 ```
+
+**See:** [benchmarks/README.md](benchmarks/README.md) for complete benchmark listing and comparison matrix.
 
 **Reference:** CodeContextBench-1md
 

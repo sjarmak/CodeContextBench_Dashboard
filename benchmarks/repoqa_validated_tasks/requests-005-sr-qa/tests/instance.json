@@ -1,8 +1,0 @@
-{
-  "instance_id": "requests-005",
-  "repository": "requests/requests",
-  "commit": "5a270e2a95cdf84e746f26face11efdda3aa0127",
-  "language": "python",
-  "task_variant": "sr-qa",
-  "canonical_function": "requests/adapters.py::send"
-}
