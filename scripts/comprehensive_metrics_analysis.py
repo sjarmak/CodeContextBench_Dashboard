@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 """
+DEPRECATED: Use scripts/extract_enterprise_metrics.py instead.
+
+This script's functionality overlaps with extract_enterprise_metrics.py
+and collect_metrics.py. Future consolidation planned.
+
+See docs/SCRIPTS.md for the recommended scripts to use.
+
+---
 Comprehensive metrics analysis with timing, tool usage, and code changes.
 """
 

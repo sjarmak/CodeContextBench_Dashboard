@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 """
+DEPRECATED: Use runners/compare_results.py instead.
+
+This script is hardcoded for 10 tasks. The canonical comparison script is
+runners/compare_results.py which handles arbitrary task counts.
+
+See docs/SCRIPTS.md for the recommended scripts to use.
+
+---
 Analyze 10-task comparison results between baseline and MCP agents.
 Extracts metrics from Harbor result.json files and generates comparison table.
 """
