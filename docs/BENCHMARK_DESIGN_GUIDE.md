@@ -474,6 +474,135 @@ By design, we anticipate these improvements for MCP-augmented agents:
 
 ---
 
+## Enterprise-Grounded Design Principles
+
+Based on real-world enterprise metrics documented in [ENTERPRISE_CODEBASES.md](ENTERPRISE_CODEBASES.md), we derive concrete design principles for CodeContextBench:
+
+### Principle 1: Prioritize Comprehension Tasks (58% of Developer Time)
+
+**Metric:** Developers spend ~58% of their time on code reading and comprehension.
+
+**Implications:**
+- Weight benchmark toward comprehension-heavy tasks (RepoQA, code summarization, architecture understanding)
+- Measure time-to-comprehension, not just correctness
+- Tasks should require understanding before modification—no "blind edits"
+
+**Task Design:**
+- Include tasks where agents must explain code before modifying it
+- Require multi-step reasoning: understand → locate → modify → verify
+- Penalize solutions that skip comprehension phase
+
+### Principle 2: Emphasize Navigation Efficiency (35% of Developer Time)
+
+**Metric:** ~35% of developer time is spent on navigation and search.
+
+**Implications:**
+- Code search quality is a primary differentiator
+- Count and evaluate search queries (not just final answers)
+- MCP agents should show dramatically better navigation efficiency
+
+**Task Design:**
+- Tasks requiring cross-file navigation (find all usages, trace call chains)
+- Measure search query refinement patterns
+- Track files read before finding relevant code
+
+### Principle 3: Simulate Context Switching Costs (23 Minutes Recovery)
+
+**Metric:** Developers need ~23 minutes to regain focus after interruption.
+
+**Implications:**
+- Multi-step tasks should penalize excessive context switches
+- Agents that maintain coherent working memory should outperform
+- Design tasks requiring sustained attention across phases
+
+**Task Design:**
+- Multi-phase tasks (investigate → plan → implement → verify)
+- Track context retention across phases
+- Include "continuation" scenarios where agents resume interrupted work
+
+### Principle 4: Support Multiple Repository Patterns
+
+**Metric:** Enterprises use varied patterns: monorepo (Google: 2B LOC), multi-monorepo (Uber: 6 repos by language), poly-repo microservices.
+
+**Implications:**
+- Benchmark must test across repository patterns
+- Cross-repo coordination is an enterprise pain point
+- Wide-impact changes (affecting 100+ modules) are real scenarios
+
+**Task Design:**
+- Include both single-repo and multi-repo tasks
+- Test scenarios where changes affect multiple services
+- Simulate shared library updates with downstream impact
+
+### Principle 5: Scale Testing from Small to Enterprise
+
+**Metric:** Codebases range from 10K LOC (small) to 2B LOC (Google-scale).
+
+**Implications:**
+- Tools must work across scales
+- Performance should degrade gracefully, not catastrophically
+- Index and search efficiency matters at scale
+
+**Task Design:**
+- Test same task types at different scales
+- Measure performance degradation curves
+- Identify scale thresholds where approaches fail
+
+### Principle 6: Account for Build/Test Overhead
+
+**Metric:** Slow build/test cycles are top burnout contributor (68% of developers); integration tests can take 12+ hours; ~40% CI failures are flaky.
+
+**Implications:**
+- Efficient agents minimize build/test iterations
+- "Test early, test often" must be balanced against overhead
+- Agents should handle flaky test results gracefully
+
+**Task Design:**
+- Track build/test cycle count per task
+- Include scenarios with realistic test latency
+- Measure ability to interpret test failures efficiently
+
+### Principle 7: Measure Against AI Assistant Baseline
+
+**Metric:** 65-70% of engineers at companies like Stripe use AI assistants.
+
+**Implications:**
+- Baseline comparison should be realistic (AI-assisted, not unassisted)
+- MCP value is incremental improvement over capable baseline
+- Focus on gaps where current AI assistants fail
+
+**Task Design:**
+- Baseline agent should be competitive AI assistant (Claude Code)
+- Measure relative improvement, not just absolute performance
+- Identify task categories with largest MCP advantage
+
+### Principle 8: Simulate Onboarding Scenarios
+
+**Metric:** New developers take months to become productive at enterprise scale; remote onboarding adds 3-6 weeks.
+
+**Implications:**
+- "New to codebase" is a valid agent scenario
+- Knowledge discovery tasks are high-value
+- Documentation quality affects outcomes
+
+**Task Design:**
+- Include tasks simulating new-hire exploration
+- Test agent's ability to learn codebase organization
+- Measure knowledge acquisition efficiency
+
+### Applying Principles to Task Categories
+
+| Task Category | Primary Principles | Key Metrics |
+|--------------|-------------------|-------------|
+| Dependency Inference | 1, 2, 5 | Comprehension accuracy, search efficiency |
+| Code Search/QA | 2, 3 | Navigation paths, query refinement |
+| Cross-File Edits | 2, 4, 5 | Completeness, consistency across files |
+| Bug Localization | 1, 2, 3 | Time to locate, search query count |
+| Performance Tasks | 1, 6 | Build cycles, optimization correctness |
+| Multi-Repo Tasks | 4, 5 | Cross-repo consistency, scale handling |
+
+---
+
 ## Implementation Roadmap
 
 ### Phase 1: Task Design and Sourcing (2-3 weeks)
@@ -529,6 +658,7 @@ By design, we anticipate these improvements for MCP-augmented agents:
 ## Document Status
 
 - **Last Updated:** December 20, 2025
+- **Version Note:** Added "Enterprise-Grounded Design Principles" section (8 principles citing real-world metrics)
 - **Related Documents:**
   - [ENTERPRISE_CODEBASES.md](ENTERPRISE_CODEBASES.md): Real-world enterprise codebase characteristics and research insights
   - [BENCHMARKING_GUIDE.md](BENCHMARKING_GUIDE.md): Practical guide for running benchmarks
