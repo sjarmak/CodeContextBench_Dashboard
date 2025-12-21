@@ -27,15 +27,47 @@ python -m pytest tests/test_agent_env_injection.py -v
 
 ## Setting Up a New Agent Implementation
 
-1. Create agent class in `agents/<agent_name>_agent.py` inheriting from BasePatchAgent
-2. Implement required methods:
-   - `get_agent_command(instruction, repo_dir)` - Generate shell command
-   - `get_agent_env()` - Return required environment variables
-   - `_install_agent_template_path` - Path to Jinja2 installation template
-3. Create installation template in `agents/install-<agent_name>.sh.j2` with Jinja2 variables
-4. Add agent to `runners/harbor_benchmark.sh` execution loop
-5. Write tests in `tests/test_<agent_name>_agent.py`
-6. Run smoke tests: `python tests/smoke_test_10figure.py`
+Agents extend Harbor's `ClaudeCode` class. See `agents/claude_sourcegraph_mcp_agent.py` for reference.
+
+1. Create agent class in `agents/<agent_name>_agent.py`:
+
+```python
+from harbor.agents.installed.claude_code import ClaudeCode
+from harbor.agents.installed.base import ExecInput
+
+class MyAgent(ClaudeCode):
+    """Custom agent extending ClaudeCode."""
+
+    def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
+        """Override to customize Claude command and environment."""
+        parent_commands = super().create_run_agent_commands(instruction)
+        # Modify commands, add env vars, etc.
+        return modified_commands
+
+    def setup(self, env: BaseEnvironment, paths: EnvironmentPaths) -> None:
+        """Optional: Run setup before agent execution (e.g., upload config files)."""
+        super().setup(env, paths)
+        # Custom setup logic
+```
+
+2. Key override methods:
+   - `create_run_agent_commands()` - Modify Claude CLI command and environment
+   - `setup()` - Upload files, configure container before agent runs
+
+3. Enable implementation mode by injecting:
+   - `FORCE_AUTO_BACKGROUND_TASKS=1` and `ENABLE_BACKGROUND_TASKS=1` env vars
+   - `--permission-mode acceptEdits` flag
+   - `--allowedTools Bash,Read,Edit,Write,Grep,Glob` flag
+
+4. Write tests in `tests/test_<agent_name>_agent.py`
+
+5. Run agent with Harbor:
+```bash
+harbor run \
+  --path benchmarks/github_mined \
+  --agent-import-path agents.<module>:<ClassName> \
+  -n 1
+```
 
 ## Executing a Benchmark Run
 
