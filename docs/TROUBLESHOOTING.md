@@ -6,7 +6,7 @@
 - Check `ANTHROPIC_API_KEY` environment variable is set
 - For Claude+MCP: verify `SRC_ACCESS_TOKEN` is set
 - Check Sourcegraph URL: `echo $SOURCEGRAPH_URL`
-- Run test: `python tests/test_agent_comparison.py`
+- Run test: `python -m pytest tests/test_agent_env_injection.py -v`
 
 ### Agent command not executing
 - Verify repository exists at specified path
@@ -38,7 +38,7 @@
 - Review validation output: `cat /logs/verifier/validation_result.json`
 
 ### Results fail validation
-- Review result schema in `docs/API.md`
+- Review task schema in `src/benchmark/task_schema.py`
 - Check for required fields: agent_name, task_id, status, timestamp
 - Validate JSON structure: `python -m json.tool jobs/run-*/result.json`
 - Check reward score extracted correctly: `jq '.verifier_result.rewards.reward' result.json`

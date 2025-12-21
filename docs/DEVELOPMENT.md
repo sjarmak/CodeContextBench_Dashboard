@@ -10,7 +10,7 @@ python setup.py check
 python -m pytest tests/ -q
 
 # Run specific test
-python -m pytest tests/test_claude_agents.py -v
+python -m pytest tests/test_mcp_agent_setup.py -v
 
 # Format code
 black agents/ runners/ observability/ tests/
@@ -21,8 +21,8 @@ mypy agents/ runners/ observability/
 # Smoke test infrastructure
 python tests/smoke_test_10figure.py
 
-# Agent comparison test
-python tests/test_agent_comparison.py
+# Agent environment injection test
+python -m pytest tests/test_agent_env_injection.py -v
 ```
 
 ## Setting Up a New Agent Implementation

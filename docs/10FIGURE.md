@@ -316,7 +316,7 @@ cat benchmarks/10figure/<task_id>/instruction.md
 
 ### Task Schema Validation
 
-All tasks are validated against the Task schema in `docs/API.md`:
+All tasks are validated against the Task schema in `src/benchmark/task_schema.py`:
 
 ```bash
 python tests/test_task_schema.py -v

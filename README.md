@@ -93,5 +93,6 @@ See `.beads/issues.jsonl` for full task tracking.
 ## References
 
 - AGENTS.md: Project-specific patterns and workflows
-- docs/PAPER_DRAFT_121625.md: Research paper and motivation
-- docs/LITERATURE_REVIEW.md: Related work survey
+- docs/ARCHITECTURE.md: System design and component overview
+- docs/DEVELOPMENT.md: Development commands and setup
+- docs/BENCHMARK_DESIGN_GUIDE.md: Enterprise-informed benchmark design principles
