@@ -1,6 +1,8 @@
 # Sourcegraph MCP Setup for Claude Code Agent
 
-⚠️ **DEPRECATED** - See [agents/README.md](../agents/README.md) for current agent configuration and setup instructions. This document is kept for reference/history.
+⚠️ **DEPRECATED** - See [agents/README.md](../agents/README.md) for current agent configuration and setup instructions.
+
+**Note:** This document is kept for reference/history only. MCP agent setup is now documented in `agents/README.md`.
 
 ---
 

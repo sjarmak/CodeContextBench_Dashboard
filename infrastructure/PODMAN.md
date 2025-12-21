@@ -285,5 +285,5 @@ All of these should succeed if setup is correct.
 ## See Also
 
 - [Infrastructure README](./README.md) - Container and dataset configuration
-- [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md) - Development setup and workflows
+- [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md) - Development environment setup, commands, and workflows
 - [Podman Documentation](https://docs.podman.io/) - Official Podman docs

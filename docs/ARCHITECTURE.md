@@ -19,7 +19,7 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 │                                                                   │
 │  ┌──────────────────┐      ┌──────────────────┐                 │
 │  │  Benchmark Task  │      │  Benchmark Task  │                 │
-│  │  (Terminal-Bench)│  ... │  (10Figure)      │                 │
+│  │  (BigCodeMCP)    │  ... │  (10Figure)      │                 │
 │  └────────┬─────────┘      └────────┬─────────┘                 │
 │           │                         │                            │
 │           └────────────┬────────────┘                            │
@@ -137,16 +137,20 @@ Automated pipeline for mining real-world tasks from GitHub repositories:
 
 **Output**: `benchmarks/github_mined/` with 50 Kubernetes + PyTorch tasks
 
-See [docs/MINING_EXECUTION_REPORT.md](MINING_EXECUTION_REPORT.md) for Phase 2a results.
+See [history/MINING_EXECUTION_REPORT.md](../history/MINING_EXECUTION_REPORT.md) for Phase 2a results.
 
 #### `benchmarks/` - Task Sets
 
 Standardized benchmark task sets with consistent format:
 
-- **terminal-bench/** - Terminal-Bench 2.0 (89 self-contained implementation tasks)
-- **10figure/** - 10Figure-Codebases (25 reference cross-file reasoning tasks)
-- **github_mined/** - Real-world GitHub tasks (25 PyTorch tasks, Phase 3 baseline)
-- **custom/** - Project-specific custom tasks
+- **big_code_mcp/** - Large Codebase MCP Comparison (4 tasks, high MCP value)
+- **github_mined/** - Real-world GitHub tasks (25 PyTorch tasks, general capability)
+- **dependeval_benchmark/** - Multi-File & Cross-Repo Tasks (9 tasks, dependency reasoning)
+- **10figure/** - Legacy Codebase Challenges (4 tasks, large codebase understanding)
+- **dibench/** - Dependency Inference Benchmark (variable tasks, language-diverse)
+- **repoqa/** - Tool-Sensitive Code Understanding (variable tasks, MCP-sensitive)
+
+See [benchmarks/README.md](../benchmarks/README.md#benchmark-comparison-matrix) for comparison matrix and setup details.
 
 Each task includes:
 - `instruction.md` - Task description (includes commit SHA for reproducibility)
@@ -268,45 +272,100 @@ Four production agents for A/B testing MCP impact:
 
 ### BaselineClaudeCodeAgent
 
-**File**: `agents/claude_baseline_agent.py`
+**File**: `agents/claude_baseline_agent.py`  
+**Import**: `agents.claude_baseline_agent:BaselineClaudeCodeAgent`
 
-- Control: Claude Code without MCP
-- Tests Claude's autonomous capabilities
-- Requires: ANTHROPIC_API_KEY
-- For establishing baseline performance
+- **Purpose**: Control baseline for Claude Code autonomous capabilities
+- **Features**: Claude Code CLI in autonomous mode, NO MCP tools
+- **Environments**: ANTHROPIC_API_KEY only
+- **Use Case**: Establish baseline performance without code intelligence
+
+**Usage**:
+```bash
+harbor run --task <task_path> \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent
+```
 
 ### DeepSearchFocusedAgent
 
-**File**: `agents/mcp_variants.py`
+**File**: `agents/mcp_variants.py`  
+**Import**: `agents.mcp_variants:DeepSearchFocusedAgent`
 
-- MCP with aggressive Deep Search prompting
-- Tests if Deep Search prompting improves task success
-- Requires: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN
+- **Purpose**: Test MCP value with aggressive Deep Search prompting
+- **Features**: MCP with Sourcegraph Deep Search enabled + dedicated system prompts
+- **Environments**: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN + SOURCEGRAPH_URL
+- **Use Case**: Maximize Deep Search impact on task success
+
+**Usage**:
+```bash
+harbor run --task <task_path> \
+  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent
+```
 
 ### MCPNonDeepSearchAgent
 
-**File**: `agents/mcp_variants.py`
+**File**: `agents/mcp_variants.py`  
+**Import**: `agents.mcp_variants:MCPNonDeepSearchAgent`
 
-- MCP with keyword/NLS search only (Deep Search disabled)
-- Tests if simpler MCP tools are sufficient
-- Requires: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN
+- **Purpose**: Test if simpler search (keyword/NLS) is sufficient without Deep Search
+- **Features**: MCP with keyword and natural language search only (Deep Search disabled)
+- **Environments**: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN + SOURCEGRAPH_URL
+- **Use Case**: Measure Deep Search overhead vs simpler search strategies
+
+**Usage**:
+```bash
+harbor run --task <task_path> \
+  --agent-import-path agents.mcp_variants:MCPNonDeepSearchAgent
+```
 
 ### FullToolkitAgent
 
-**File**: `agents/mcp_variants.py`
+**File**: `agents/mcp_variants.py`  
+**Import**: `agents.mcp_variants:FullToolkitAgent`
 
-- MCP with all tools available, neutral prompting
-- Tests agent's natural tool choice with all options
-- Requires: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN
+- **Purpose**: Control for all-MCP tools with neutral prompting
+- **Features**: MCP with all available tools, no task-specific prompts (baseline MCP)
+- **Environments**: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN + SOURCEGRAPH_URL
+- **Use Case**: Measure agent's natural tool choices with all options available
 
-### Why This Design?
+**Usage**:
+```bash
+harbor run --task <task_path> \
+  --agent-import-path agents.mcp_variants:FullToolkitAgent
+```
 
-Both agents use the same command generation logic. Differentiation happens at execution time:
+### Deprecated Shim
 
-1. **Base class** (`BasePatchAgent`) handles all common logic
-2. **Subclasses** override only environment setup
-3. **Harbor** applies MCP config at runtime via flags
-4. **Result**: Easy to test impact of Deep Search without code duplication
+**File**: `agents/claude_sourcegraph_mcp_agent.py`  
+**Alias for**: `DeepSearchFocusedAgent` (kept for backward compatibility)
+
+This file is maintained for backward compatibility. New code should use:
+```python
+from agents.mcp_variants import DeepSearchFocusedAgent
+```
+
+### Agent Comparison Framework
+
+The 4-agent design enables systematic MCP evaluation:
+
+| Agent | MCP | Prompting | Purpose |
+|-------|-----|-----------|---------|
+| Baseline | No | N/A | Control: pure Claude Code |
+| DeepSearchFocused | Yes | Aggressive Deep Search | Max Deep Search impact |
+| MCPNonDeepSearch | Yes | Keyword/NLS only | Test Deep Search necessity |
+| FullToolkit | Yes | Neutral | Control: all MCP tools |
+
+**Testing Matrix**:
+- **Baseline vs FullToolkit**: Total MCP value (all tools)
+- **FullToolkit vs DeepSearchFocused**: Deep Search prompting impact
+- **FullToolkit vs MCPNonDeepSearch**: Deep Search necessity vs simpler search
+- **DeepSearchFocused vs MCPNonDeepSearch**: Aggressive prompting benefit
+
+**Design**:
+- All agents use identical command generation logic (same base class)
+- Differentiation happens via `.mcp.json` configuration and system prompts
+- Environment variables injected at Harbor runtime (no code duplication)
+- Fair comparison: all agents have equal autonomous capabilities
 
 ## Testing Strategy
 
@@ -427,7 +486,7 @@ Best practices:
 
 ## See Also
 
-- **docs/DEVELOPMENT.md** - Development setup and workflows
+- **docs/DEVELOPMENT.md** - Development environment setup, commands, and workflows
 - **docs/OBSERVABILITY.md** - Metrics and observability guide
 - **docs/TROUBLESHOOTING.md** - Common issues and solutions
 - **infrastructure/PODMAN.md** - Podman setup details

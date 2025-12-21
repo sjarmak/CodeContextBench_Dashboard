@@ -344,5 +344,5 @@ python runners/compare_results.py jobs/claude-baseline-* jobs/claude-mcp-*
 - **benchmarks/10figure/README.md** - Task generation guide
 - **runners/gen_harbor_tasks.py** - Task generator source
 - **benchmarks/10figure/templates/test.sh.j2** - Validation script template
-- **docs/DEVELOPMENT.md#working-with-benchmarks** - Development workflow
+- **docs/DEVELOPMENT.md** - Development setup and commands
 - **AGENTS.md** - Agent implementation patterns

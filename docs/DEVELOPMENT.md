@@ -1,5 +1,107 @@
 # Development Guide
 
+## Setup: Development & Benchmark Environments
+
+CodeContextBench uses two separate Python environments:
+1. **`.venv`** - Development environment (tests, utilities, analysis)
+2. **`harbor/`** - Harbor environment (for running benchmarks with Daytona)
+
+### Quick Start: Development
+
+#### 1. Create Development Virtual Environment
+
+```bash
+cd CodeContextBench
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+#### 2. Install Dependencies
+
+```bash
+# Install CodeContextBench with dependencies
+pip install -e .
+
+# If testing NeMo integration, install from local source
+pip install -e ~/NeMo-Agent-Toolkit/
+```
+
+#### 3. Python Version
+
+- **Required**: Python 3.12.11
+- Check with: `python --version`
+- Set via: `pyenv local 3.12.11` (if using pyenv)
+
+#### 4. Virtual Environment Management
+
+All development and testing should use the `.venv` environment:
+
+```bash
+# Activate
+source .venv/bin/activate
+
+# Deactivate
+deactivate
+
+# View Python location
+which python
+
+# View installed packages
+pip list
+```
+
+### Harbor Setup: Benchmarks with Daytona
+
+To run benchmarks, use the **Harbor venv** instead of `.venv`:
+
+```bash
+# Activate Harbor environment (sets up Daytona credentials, DOCKER_HOST, PATH)
+source harbor/bin/activate
+
+# Run Harbor with Daytona backend
+harbor run \
+  --dataset swebench-verified@1.0 \
+  --agent oracle \
+  --env daytona \
+  -n 1
+```
+
+See **infrastructure/PODMAN.md** for complete Harbor + Daytona setup and troubleshooting.
+
+### Dependencies
+
+#### Core
+
+- pathlib, json, statistics (Python stdlib)
+
+#### Observability
+
+- **ManifestWriter**: Writes Harbor benchmark manifests
+- **MetricsCollector**: Analyzes execution metrics
+- **NeMoTraceParser**: Parses NeMo-Agent-Toolkit traces
+- **ClaudeOutputParser**: Extracts token usage from Claude logs
+
+#### Optional
+
+- **NeMo-Agent-Toolkit**: For structured execution tracing
+  - Install from ~/NeMo-Agent-Toolkit/
+  - Provides structured trace format for agent execution
+
+### Environment Variables
+
+Optional environment variables:
+
+```bash
+# SRC_ACCESS_TOKEN for Sourcegraph Deep Search
+export SRC_ACCESS_TOKEN=<your_token>
+
+# ANTHROPIC_API_KEY for Claude
+export ANTHROPIC_API_KEY=<your_key>
+
+# Debug mode for extra logging
+export DEBUG=1
+```
+
 ## Development Commands
 
 ```bash
@@ -23,6 +125,87 @@ python tests/smoke_test_10figure.py
 
 # Agent environment injection test
 python -m pytest tests/test_agent_env_injection.py -v
+
+# With coverage
+pytest tests/ --cov=src --cov=observability --cov=runners
+```
+
+## Common Development Tasks
+
+### Run All Tests
+
+```bash
+pytest tests/ -q
+```
+
+### Run Specific Test
+
+```bash
+pytest tests/test_observability.py::TestNeMoTraceParser -v
+```
+
+### Extract NeMo Traces from Jobs
+
+```bash
+python runners/extract_nemo_traces.py --jobs-dir jobs/ --agent claude-baseline
+```
+
+### Generate Metrics Report
+
+```bash
+python -c "
+from pathlib import Path
+from observability import MetricsCollector
+
+collector = MetricsCollector(Path('jobs'))
+manifests = collector.load_manifests()
+metrics = collector.extract_metrics(manifests)
+report = collector.generate_report(metrics)
+collector.print_report(report)
+"
+```
+
+### Testing NeMo Integration
+
+The NeMo integration requires NeMo-Agent-Toolkit to be installed:
+
+```bash
+# Install NeMo from local source
+pip install -e ~/NeMo-Agent-Toolkit/
+
+# Run NeMo-specific tests
+pytest tests/test_observability.py::TestNeMoTraceParser -v
+
+# Test trace extraction
+python runners/extract_nemo_traces.py --jobs-dir jobs/ --all
+```
+
+## Troubleshooting Setup
+
+### ModuleNotFoundError: No module named 'observability'
+
+**Solution**: Make sure you're in the `.venv` and have installed CodeContextBench:
+
+```bash
+source .venv/bin/activate
+pip install -e .
+```
+
+### Tests fail with "No such file or directory"
+
+**Solution**: Run tests from the project root:
+
+```bash
+cd /Users/sjarmak/CodeContextBench
+pytest tests/ -v
+```
+
+### NeMo-related imports fail
+
+**Solution**: Install NeMo-Agent-Toolkit:
+
+```bash
+pip install -e ~/NeMo-Agent-Toolkit/
 ```
 
 ## Setting Up a New Agent Implementation

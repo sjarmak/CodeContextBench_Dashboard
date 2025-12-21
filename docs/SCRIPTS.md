@@ -87,7 +87,7 @@ Generates Harbor-compatible task directories from source task definitions.
 bash runners/harbor_benchmark.sh --benchmark github_mined --agent claude-baseline --tasks 10
 ```
 
-Primary benchmark runner. See `docs/BENCHMARK_EXECUTION.md` for detailed usage.
+Primary benchmark runner. See `benchmarks/README.md` for detailed usage.
 
 ---
 

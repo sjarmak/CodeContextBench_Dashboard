@@ -98,5 +98,5 @@ See `.beads/issues.jsonl` for full task tracking.
 
 - AGENTS.md: Project-specific patterns and workflows
 - docs/ARCHITECTURE.md: System design and component overview
-- docs/DEVELOPMENT.md: Development commands and setup
+- docs/DEVELOPMENT.md: Development environment setup, commands, and agent implementation
 - docs/BENCHMARK_DESIGN_GUIDE.md: Enterprise-informed benchmark design principles

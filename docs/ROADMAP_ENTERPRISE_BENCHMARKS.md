@@ -34,7 +34,7 @@ Update docs/BENCHMARK_DESIGN_GUIDE.md to integrate ENTERPRISE_CODEBASES.md insig
 
 Comprehensive documentation including:
 - README.md: Quick-start guide
-- DEVELOPMENT.md: Mining pipeline, agent setup
+- DEVELOPMENT.md: Mining pipeline, agent setup, development commands
 - TROUBLESHOOTING.md: Common issues
 - Integration of ENTERPRISE_CODEBASES.md insights
 

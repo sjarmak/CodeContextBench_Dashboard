@@ -200,13 +200,15 @@ harbor run \
 ## Development & Operations
 
 **Guides:**
-- `docs/DEVELOPMENT.md` - Setup, commands, agent implementation
+- `docs/DEVELOPMENT.md` - Setup, commands, agent implementation, testing
+- `docs/OBSERVABILITY.md` - Observability, metrics collection, enterprise metrics
 - `docs/TROUBLESHOOTING.md` - Common issues
-- `docs/BENCHMARK_EXECUTION.md` - RepoQA, Big Code task execution
+- `benchmarks/README.md` - Benchmark guide (replaces archived BENCHMARK_EXECUTION.md)
 
 **Documentation Maintenance:**
 - Update `docs/ARCHITECTURE.md` when structure changes
 - Update `docs/DEVELOPMENT.md` when workflows change
+- Update `docs/OBSERVABILITY.md` when observability/metrics features change
 - Update `docs/TROUBLESHOOTING.md` when you fix issues
 
 ---

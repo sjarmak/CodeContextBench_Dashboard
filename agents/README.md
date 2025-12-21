@@ -171,5 +171,5 @@ See existing variants for patterns.
 ## References
 
 - [AGENTS.md](../AGENTS.md) - Agent framework and benchmarking guide
-- [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md) - Development setup
+- [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md) - Development setup and commands
 - [benchmarks/README.md](../benchmarks/README.md) - Benchmark usage
