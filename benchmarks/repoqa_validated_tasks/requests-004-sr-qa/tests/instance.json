@@ -1,0 +1,8 @@
+{
+  "instance_id": "requests-004",
+  "repository": "requests/requests",
+  "commit": "3c8decb92fb9062cac4bdd12d6c0d32fb3a2d119",
+  "language": "python",
+  "task_variant": "sr-qa",
+  "canonical_function": "requests/sessions.py::prepare_request"
+}

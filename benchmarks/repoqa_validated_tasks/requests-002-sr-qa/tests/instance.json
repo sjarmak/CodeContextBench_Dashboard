@@ -1,0 +1,8 @@
+{
+  "instance_id": "requests-002",
+  "repository": "requests/requests",
+  "commit": "6e4134b204f675268296b2b44c2d52c8a7927b2c",
+  "language": "python",
+  "task_variant": "sr-qa",
+  "canonical_function": "requests/cookies.py::get_host"
+}
