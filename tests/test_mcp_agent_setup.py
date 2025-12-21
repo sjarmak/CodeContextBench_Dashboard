@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 try:
+    from agents.mcp_variants import DeepSearchFocusedAgent
+    # Backward compat alias for deprecated agent path
     from agents.claude_sourcegraph_mcp_agent import ClaudeCodeSourcegraphMCPAgent
 except ImportError as e:
     pytest.skip(f"Harbor not available: {e}", allow_module_level=True)

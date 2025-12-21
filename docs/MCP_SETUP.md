@@ -1,5 +1,9 @@
 # Sourcegraph MCP Setup for Claude Code Agent
 
+⚠️ **DEPRECATED** - See [agents/README.md](../agents/README.md) for current agent configuration and setup instructions. This document is kept for reference/history.
+
+---
+
 This guide explains how to configure the Claude Code agent with Sourcegraph Deep Search via MCP (Model Context Protocol) for use in Harbor benchmarks.
 
 ## Overview

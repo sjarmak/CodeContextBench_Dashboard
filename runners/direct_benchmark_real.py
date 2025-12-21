@@ -25,7 +25,8 @@ import shutil
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from agents import BaselineClaudeCodeAgent, ClaudeCodeSourcegraphMCPAgent
+from agents.claude_baseline_agent import BaselineClaudeCodeAgent
+from agents.mcp_variants import DeepSearchFocusedAgent
 
 
 class RealBenchmarkRunner:
@@ -39,12 +40,12 @@ class RealBenchmarkRunner:
         self.runtime = container_runtime
         
         # Select agent
-         if agent_name == "claude-baseline":
-             self.agent = BaselineClaudeCodeAgent()
-         elif agent_name == "claude-mcp":
-             self.agent = ClaudeCodeSourcegraphMCPAgent()
-         else:
-             raise ValueError(f"Unknown agent: {agent_name}")
+        if agent_name == "claude-baseline":
+            self.agent = BaselineClaudeCodeAgent()
+        elif agent_name == "claude-mcp":
+            self.agent = DeepSearchFocusedAgent()
+        else:
+            raise ValueError(f"Unknown agent: {agent_name}")
         
         print(f"✓ Loaded agent: {agent_name}")
         

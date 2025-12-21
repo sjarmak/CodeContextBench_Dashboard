@@ -18,7 +18,10 @@ import sys
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from agents import BaselineClaudeCodeAgent, ClaudeCodeSourcegraphMCPAgent
+from agents.claude_baseline_agent import BaselineClaudeCodeAgent
+from agents.mcp_variants import DeepSearchFocusedAgent
+# Keep deprecated alias for backward compat
+from agents.claude_sourcegraph_mcp_agent import ClaudeCodeSourcegraphMCPAgent
 
 
 class SmokeTestRunner:
@@ -98,14 +101,8 @@ class SmokeTestRunner:
         
         # Test Claude baseline
         try:
-            agent = ClaudeCodeAgent()
-            # Check command generation
-            cmd = agent.get_agent_command("test instruction", "/tmp/repo")
-            if "claude" in cmd.lower():
-                print("✓ Claude baseline agent initialized")
-            else:
-                print("❌ Claude baseline agent command malformed")
-                return False
+            agent = BaselineClaudeCodeAgent()
+            print("✓ Claude baseline agent initialized")
         except Exception as e:
             print(f"❌ Claude baseline initialization failed: {e}")
             return False

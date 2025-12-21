@@ -79,7 +79,7 @@ class BenchmarkValidator:
         print("\n[AGENTS]")
         
         try:
-            from agents import BaselineClaudeCodeAgent
+            from agents.claude_baseline_agent import BaselineClaudeCodeAgent
             baseline = BaselineClaudeCodeAgent()
             self.check(
                 "BaselineClaudeCodeAgent (baseline) loads",
@@ -95,8 +95,8 @@ class BenchmarkValidator:
             return False
         
         try:
-            from agents import ClaudeCodeSourcegraphMCPAgent
-            mcp = ClaudeCodeSourcegraphMCPAgent()
+            from agents.mcp_variants import DeepSearchFocusedAgent
+            mcp = DeepSearchFocusedAgent()
             self.check(
                 "ClaudeCodeSourcegraphMCPAgent (MCP) loads",
                 lambda: (

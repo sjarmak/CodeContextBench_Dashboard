@@ -182,6 +182,21 @@ harbor run \
 
 ---
 
+## Benchmarks & Comparison Matrix
+
+| Benchmark | MCP Value | Task Count | Setup Time | Best For |
+|-----------|-----------|-----------|-----------|----------|
+| big_code_mcp | ⭐⭐⭐⭐⭐ (high) | 4 | 5min | MCP capability testing |
+| github_mined | ⭐⭐ (low) | 25 | 2min | General agent capability |
+| dependeval | ⭐⭐⭐ (medium) | 9 | 10min | Multi-file reasoning |
+| 10figure | ⭐⭐⭐⭐ (high) | 4 | 20min | Large codebase understanding |
+| dibench | ⭐⭐⭐ (medium) | Variable | 15min | Dependency inference |
+| repoqa | ⭐⭐⭐⭐ (high) | Variable | 10min | Tool-sensitive MCP eval |
+
+**See:** [benchmarks/README.md](benchmarks/README.md#benchmark-comparison-matrix) for full details and setup instructions.
+
+---
+
 ## Development & Operations
 
 **Guides:**
