@@ -39,10 +39,10 @@ Uses Claude as judge to evaluate code quality, test coverage, and architecture d
 
 ## Metrics Collection
 
-**Use:** `scripts/extract_enterprise_metrics.py` for Phase 3+ data
+**Use:** `scripts/extract_enterprise_metrics.py` for baseline/MCP comparison data
 
 ```bash
-python scripts/extract_enterprise_metrics.py jobs/phase3-run/
+python scripts/extract_enterprise_metrics.py jobs/comparison-run/
 ```
 
 Extracts enterprise metrics: time allocation, tool usage patterns, file access.

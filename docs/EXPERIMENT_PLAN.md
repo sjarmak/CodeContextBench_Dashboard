@@ -13,7 +13,7 @@ We've created 17 new beads (bringing total from 74 → 91) focused on:
 
 ## Critical Path: Ready to Execute
 
-### Phase 1: Foundation (P1 - Immediate)
+### Foundation: Immediate Priority
 
 #### CodeContextBench-zez: Enterprise Metrics Collection Infrastructure
 **Status:** Open | **Priority:** P1 | **Blocks:** 7 beads
@@ -57,7 +57,7 @@ Test if agents mirror human time allocation (58% comprehension, 35% navigation).
 
 **Key Question:** Do AI agents show similar patterns? Does MCP shift allocation?
 
-### Phase 2: Core Experiments (P1 - After Infrastructure)
+### Core Experiments: Foundation-Dependent
 
 #### CodeContextBench-trg: Run Baseline vs MCP with Enterprise Metrics
 **Status:** Open | **Priority:** P1 | **Depends on:** zez, qg9 | **Blocks:** 2 beads
@@ -72,7 +72,7 @@ Execute comprehensive comparison:
 - Which patterns benefit most
 - Tool usage correlation with success
 
-## Benchmark Expansion Projects (P2)
+## Benchmark Expansion Projects (Secondary)
 
 ### CodeContextBench-zyq: Monorepo Simulation
 Combine 10-20 OSS projects → 1M+ LOC monorepo
@@ -128,7 +128,7 @@ Create comparative dashboard:
 - Build/test cycles
 - Process quality radar charts
 
-## Targeted Experiments (P2)
+## Targeted Experiments (Secondary)
 
 ### CodeContextBench-lxl: Scale Impact Experiment
 **Hypothesis:** MCP performance more stable across scales
@@ -171,7 +171,7 @@ Three conditions:
 
 **Deliverable:** Heat map showing sweet spots for each tool
 
-## Research Dissemination (P3)
+## Research Dissemination
 
 ### CodeContextBench-4vb: Research Paper
 Prepare publication for ICSE/FSE/ASE/EMSE:
@@ -301,7 +301,7 @@ Retrospective Analysis (eaf) ← Existing Data
 ## Document Status
 
 - **Created:** December 20, 2025
-- **Last Updated:** December 20, 2025
+- **Last Updated:** December 21, 2025
 - **Status:** Active execution plan
 - **Owner:** CodeContextBench team
-- **Next Review:** After Phase 1 completion
+- **Next Review:** After Foundation phase completion
