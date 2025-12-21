@@ -1,53 +1,34 @@
 # CodeContextBench Agent Workflow Guide
 
-This file documents agent-specific patterns, workflows, and best practices for the CodeContextBench repository.
+Quick reference for agent-specific patterns, workflows, and best practices.
 
-**Note:** Keep this file at ~500 lines max. If adding content, consider:
-
-- Moving detailed docs to `docs/` directory
-- Archiving past examples to `history/` directory
-- Linking to external resources rather than duplicating
-- This file should be the **quick reference**, not comprehensive documentation
-
-## 🔒 CRITICAL: Secret Management
-
-**⚠️ IF YOU COMMIT A SECRET, ROTATE IT IMMEDIATELY**
-
-⚠️ **Important:** Claude's context renderer shows `[REDACTED:...]` for sensitive data, but the raw secret may still be in git history. Do not assume `[REDACTED]` means it's safe. If you see a secret pattern in output:
-
-1. **Rotate the credential immediately** (don't wait to verify)
-2. **Never try to "remove" it with git commits** - it's already in history
-3. **Use `git filter-repo`** only if absolutely necessary to purge from history
-
-**Pre-commit hook prevents secrets from being committed:**
-- Blocks commits containing `sgp_`, `SOURCEGRAPH_ACCESS_TOKEN`, `ANTHROPIC_API_KEY`
-- Blocks commits of `.env`, `.env.local`, `.mcp.json` files
-- If blocked, remove the secret and try again
-
-**If a secret gets committed anyway:**
-```bash
-# 1. Rotate the credential in Sourcegraph/Anthropic console
-# 2. Document in security log (internal)
-# 3. Use git-filter-repo to purge from history (if needed)
-git filter-repo --invert-paths --path vsc-001-evaluation.json
-```
+**Target:** ~500 lines max. Move detailed docs to `docs/` directory.
 
 ---
 
-## Critical: Model Configuration
+## CRITICAL: Secret Management
 
-**⚠️ ALWAYS USE: `anthropic/claude-haiku-4-5-20251001`**
+**IF YOU COMMIT A SECRET, ROTATE IT IMMEDIATELY**
 
-Do NOT use claude-3-5-sonnet, claude-opus, or any other model. Harbor is configured to use Haiku for all benchmarks.
+Pre-commit hook blocks: `sgp_`, `SOURCEGRAPH_ACCESS_TOKEN`, `ANTHROPIC_API_KEY`, `.env`, `.env.local`, `.mcp.json`
 
-Example:
+If a secret gets committed:
+1. Rotate the credential immediately
+2. Use `git filter-repo` to purge from history if needed
+
+---
+
+## CRITICAL: Model Configuration
+
+**ALWAYS USE:** `anthropic/claude-haiku-4-5-20251001`
+
 ```bash
 harbor run --model anthropic/claude-haiku-4-5-20251001 ...
 ```
 
 ---
 
-## ⚠️ CRITICAL: Running Harbor Commands (ALL Phases)
+## CRITICAL: Running Harbor Commands
 
 **YOU MUST export credentials or harbor will fail:**
 
@@ -60,921 +41,245 @@ export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
 
 # Step 3: Now run harbor commands
 harbor run --path benchmarks/big_code_mcp/big-code-vsc-001 --agent claude-code -n 1
-bash scripts/run_big_code_comparison.sh
 ```
 
-**Why?** Sourcing makes variables available to THIS shell. Harbor spawns subprocesses (Claude Code) that won't see sourced variables. You MUST export them.
-
-```bash
-# ❌ WRONG - subprocess won't see vars:
-source .env.local
-harbor run ...
-
-# ✅ RIGHT - subprocess inherits vars:
-source .env.local
-export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
-harbor run ...
-```
+**Why?** Harbor spawns subprocesses that won't see sourced variables. You MUST export them.
 
 ---
 
 ## Docker Disk Space Management
 
-**CRITICAL:** Harbor task containers accumulate disk space quickly. Run cleanup before/after benchmark sessions.
+Harbor task containers accumulate disk space quickly.
 
-### Pre-Benchmark Cleanup (Safe)
-
+**Pre-Benchmark Cleanup (Safe):**
 ```bash
 bash scripts/docker-cleanup.sh
 ```
 
-This removes:
-- ✅ Stopped containers older than 24h
-- ✅ Dangling image layers (unreferenced)
-- ✅ Unused networks
-- ⚠️ Does NOT affect running tasks
-
-### Full Cleanup (Stops All Running Tasks)
-
-**Only use if disk is critical and no benchmarks running:**
-
+**Full Cleanup (Stops All Running Tasks):**
 ```bash
 docker stop $(docker ps -q) && docker system prune -a -f
 ```
 
-**What it removes:**
-- ✅ All stopped containers
-- ✅ All unused images (even tagged ones)
-- ✅ All unused volumes/networks
-- ⚠️ **STOPS ALL RUNNING HARBOR TASKS** - only use during maintenance
-
-### Monitoring Disk Usage
-
+**Monitor:**
 ```bash
 docker system df              # Current usage
-docker image ls -a            # All images with sizes
 docker ps -a -s               # Container sizes
 ```
 
-Typical state: ~25GB images + active container scratch space.
-
 ---
-
-## Current Status (Phase 3: Benchmark Adapter Integration)
-
-**Benchmark Adapters (IN PROGRESS - Dec 20 2025):**
-
-⚠️ **CRITICAL: Adapter code is in `~/harbor/adapters/` NOT in CodeContextBench git repo**
-
-Harbor adapters are installed separately in the Harbor package. Work done on adapters will not appear in git history unless explicitly copied back to `CodeContextBench/` repository.
-
-**DI-Bench Adapter** ✅ COMPLETE
-- **Location:** `~/harbor/adapters/dibench/`
-- **Status:** Production-ready (Dec 20, 2025)
-- **Files:** `adapter.py`, `validators.py` (Python-based validators for Python, Rust, JS, C#), `run_adapter.py`, templates
-- **Tests:** `tests/test_validators.py` (24 unit tests), `tests/test_integration.py` (9 integration tests) - All 33 passing
-- **Key Achievement:** Replaced Docker-in-Docker with lightweight Python validators (no `act` or GitHub Actions runner needed)
-- **Docs:** `VALIDATORS.md`, `QUICKSTART.md`, `USAGE.md`, `INTEGRATION.md`
-
-**DependEval Adapter** 🔄 IN PROGRESS (separate thread)
-- **Location:** `~/harbor/adapters/dependeval/`
-- **Status:** Being developed in parallel
-- **Structure:** Follows DI-Bench patterns (adapter.py, run_adapter.py, templates)
-- **Task Types:** Dependency Recognition, Repository Construction, Multi-file Editing
-
-**RepoQA Adapter** ✅ COMPLETE + VALIDATED
-- **Location:** `~/harbor/adapters/repoqa/`
-- **Status:** Production-ready (Dec 20, 2025) - Commit validation added
-- **Task Types:** Three variants for semantic code navigation
-  - SR-QA: Semantic Retrieval (find function by description)
-  - MD-QA: Multi-Hop Dependency (find call path through code)
-  - NR-QA: Negative/Disambiguation (pick correct function among similar ones)
-- **Files:** `adapter.py`, `run_adapter.py`, `ground_truth_extractor.py`, `verifiers.py`, `commit_validator.py`, templates
-- **Tests:** 23 comprehensive unit and integration tests - All passing
-- **Key Achievement:** Transformed RepoQA from long-context memorization test to tool-sensitive semantic navigation benchmark
-- **Validation:** Added `commit_validator.py` to validate commit hashes before task generation
-- **Docs:** `DESIGN.md` (architecture), `README.md` (overview), `QUICKSTART.md` (usage)
-
-**Phase 3 Completed (Dec 20 2025):**
-- ✅ Built big code MCP comparison infrastructure (`scripts/run_mcp_comparison.sh`)
-- ✅ Created validation script for result integrity (`scripts/validate_comparison_results.py`)
-- ✅ Verified comparison pipeline works on sgt-001 (github_mined task)
-- ✅ Documented critical credential handling (must export, not just source)
-
-**Critical Credential Requirement (for all Harbor runs):**
-```bash
-# WRONG (just sourcing):
-source .env.local
-
-# CORRECT (must export):
-source .env.local
-export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
-# Now pass to harbor with --ek "KEY=$KEY" flags
-```
-
-**Key Learnings:** 
-1. Deep Search MCP times out on >2GB codebases. Use full Sourcegraph endpoint: `https://sourcegraph.sourcegraph.com/.api/mcp/v1`
-2. Harbor requires credentials EXPORTED in current shell, not just sourced
-3. Adapter code lives in `~/harbor/adapters/` (Harbor package directory), not in CodeContextBench git repo
-4. When adapter work is complete, relevant pieces should be documented/integrated into CodeContextBench
-
-## DI-Bench Adapter with Python Validators
-
-**Problem Solved (Dec 20 2025):**
-- DI-Bench Dockerfile required Docker-in-Docker for `act` (GitHub Actions runner)
-- Incompatible with Podman setup (no Sysbox runtime available)
-
-**Solution: Python-based validators (CodeContextBench-0ji)**
-- Replaced `act` with language-specific syntax validators in `validators.py`
-- Supports Python, Rust, JavaScript, C#
-- Validates: build file syntax, dependency declarations, format errors
-- No Docker-in-Docker or act required
-- All 33 tests passing (24 unit + 9 integration tests)
-
-**Files Created:**
-- `harbor/adapters/dibench/validators.py` - Main validator module (4 language classes)
-- `harbor/adapters/dibench/templates/environment/Dockerfile.simplified` - No Docker-in-Docker
-- `harbor/adapters/dibench/templates/tests/test_python.sh` - Validator invocation
-- `harbor/adapters/dibench/VALIDATORS.md` - Comprehensive documentation
-- `harbor/adapters/dibench/tests/test_validators.py` - 24 unit tests
-- `harbor/adapters/dibench/tests/test_integration.py` - 9 integration tests
-
-**What Validators Check:**
-- ✅ Build files exist and are accessible
-- ✅ Syntax errors (malformed JSON, mismatched brackets, invalid format)
-- ✅ Required sections present ([package] for Cargo, [dependencies], etc.)
-- ✅ At least some dependencies declared
-- ❌ Does NOT: Run full CI/CD, check registry validity, build/compile projects
-
-**Integration:**
-- Adapter can generate tasks using simplified Dockerfile + Python validators
-- Compatible with existing Podman setup (no special requirements)
-- Ready for MCP benchmarking without Docker infrastructure changes
 
 ## Project Overview
 
-CodeContextBench is a benchmark evaluation framework for assessing how improved codebase understanding through Sourcegraph tools improves coding agent output. It supports multiple agent implementations (Claude Code, Claude+MCP, etc.) running against standardized benchmark task sets.
+CodeContextBench evaluates how Sourcegraph code intelligence tools improve coding agent output. It supports multiple agent implementations running against standardized benchmark task sets.
 
-**See detailed architecture:** `docs/ARCHITECTURE.md`
+**See:** `docs/ARCHITECTURE.md` for detailed architecture.
 
-## Design Principles (Mandatory for all code changes)
+---
 
-These principles apply to ALL code changes in CodeContextBench. Agents MUST follow these when implementing features or fixes.
+## Design Principles (Mandatory)
 
 ### 1. Minimal, Focused Changes
+- Each commit = one feature or fix
+- No speculative features
+- As small as possible
 
-- **Each commit = one feature or fix.** Don't bundle multiple features in a single commit.
-- **Code changes should be as small as possible.** Implement only what's needed to satisfy the bead requirement.
-- **No speculative features.** Don't add code "just in case" it might be useful later.
-- **Rationale:** Smaller changes are easier to review, test, and debug. They reduce risk of unexpected side effects.
-
-### 2. Adversarial Review (Mandatory for Complex/Large Changes)
-
-Before closing a bead with complex or large code changes:
-
-- **Ask yourself:** "What could break with this change?"
-- **Test the failure cases:** What happens if inputs are wrong? What edge cases aren't covered?
-- **Look for side effects:** Does this change affect other modules? Unintended consequences?
-- **Code review the change yourself:** Would you approve this if another agent wrote it?
-- If you can't confidently answer all of these, **keep the bead open** and leave notes for the next agent.
+### 2. Adversarial Review
+Before closing a bead with complex changes:
+- What could break?
+- Test failure cases
+- Look for side effects
+- Would you approve this if another agent wrote it?
 
 ### 3. Automated Tests Per Commit
-
-- **Every commit must have associated automated tests** that validate the functionality works as designed.
-- **Tests must run in CI/locally:** `python -m pytest tests/ -q`
-- **Tests must be specific to the change:** Generic test suites don't count.
-- **Tests must use real code, not mocks** (unless bead explicitly requires mocking).
-- **If you can't write a test for your change, your design is wrong.** Refactor until testable.
+- Every commit must have tests
+- Tests must be specific to the change
+- Use real code, not mocks
+- If you can't test it, redesign it
 
 ### 4. Clear, Descriptive Naming
-
-Names are for the next agent or developer reading your code months later.
-
-- **Functions:** Use full words, describe what it does: `validate_task_completion()` not `check()`
-- **Classes:** Use clear types: `TaskValidator` not `Helper`
-- **Files:** Name after the primary responsibility: `task_validator.py` not `utils.py`
-- **Variables:** Use meaningful names: `max_retries` not `mr`
-- **Comments:** Explain WHY, not WHAT. Code shows what, comments explain why decisions were made.
-
-**Bad example:** `src/utils.py` with a `process()` function
-**Good example:** `src/task_validators/timeout_validator.py` with `validate_task_timeout()` function
+- Functions: `validate_task_completion()` not `check()`
+- Classes: `TaskValidator` not `Helper`
+- Files: `task_validator.py` not `utils.py`
 
 ### 5. Modular, Independently Testable Design
-
-- **Single responsibility:** Each class/module should have one job.
-- **Dependencies explicit:** Pass dependencies in, don't create them inside the function.
-- **Independently testable:** You should be able to test one module without starting up the whole system.
-- **Loose coupling:** Changes to one module shouldn't ripple through the codebase.
-
-**Bad example:** `HarborRunner` class that creates its own agents, loads configs, runs tests, and aggregates results all in one class
-**Good example:** `HarborRunner` accepts injected `AgentFactory`, `ConfigLoader`, `TestRunner`, `ResultAggregator` as dependencies
+- Single responsibility per module
+- Dependencies explicit (inject, don't create)
+- Loose coupling
 
 ### 6. Root Directory is Sacred
 
-**CRITICAL RULE:** Do NOT create random markdown files, scripts, or config files in the root directory.
-
-**This is not a suggestion—it's a hard rule enforced every "land the plane" session.**
-
-The repository root is visible to EVERY user and tool that views the repository. Cluttering it with ephemeral files degrades the user experience and makes finding actual project structure harder.
-
 **What belongs in root (ONLY):**
-- `README.md` (project overview)
-- `AGENTS.md` (agent workflow guide)
-- `LICENSE`, `.gitignore`, `.gitattributes`
-- `setup.py`, `pyproject.toml`, `poetry.lock` (project config)
+- `README.md`, `AGENTS.md`, `LICENSE`, `.gitignore`, `.gitattributes`
+- `setup.py`, `pyproject.toml`
 - Essential directories: `src/`, `tests/`, `docs/`, `agents/`, `runners/`, `benchmarks/`, `scripts/`, `infrastructure/`, `.beads/`, `configs/`
 
 **What NEVER goes in root:**
+- Status files (STATUS.md, PROGRESS.md) → `history/`
+- Planning docs (PLAN.md, DESIGN.md) → `history/`
+- JSON outputs → `artifacts/` or `jobs/`
+- Temporary scripts → `scripts/` or `runners/`
 
-| File Type | Where to Put | Rationale |
-|-----------|-------------|-----------|
-| `*.md` status files (STATUS.md, PROGRESS.md, MIGRATION_STATUS.md, PHASE3_*.md) | `history/` | Ephemeral—becomes stale and duplicates bead tracking |
-| Planning/design docs (PLAN.md, IMPLEMENTATION.md, DESIGN.md, ARCHITECTURE_NOTES.md) | `history/` | AI-generated planning, not permanent docs |
-| Session notes, evaluation results, test reports | `history/` | Temporary artifacts |
-| `.mcp.json`, `.env.*` config files | `configs/` or `.claude/` | Credentials/secrets (never commit anyway) |
-| Temporary scripts, test runners | `scripts/` or `runners/` | Code belongs in modules |
-| JSON test/benchmark outputs | `artifacts/` or `jobs/` | Results, not source files |
-| `*.py` test/helper scripts | `tests/` or `runners/` | Code organization |
-
-**Examples of files that got cluttered in root (DO NOT REPEAT):**
-- `PHASE3_SUMMARY.txt`, `PHASE3_EVALUATION_UPDATE.md`, `PHASE3_FINAL_EVALUATION.md` (all in `history/` or `.beads/`)
-- `PHASE3_RERUN_GUIDE.md`, `PHASE3_RERUN_SESSION_SUMMARY.md` (temporary planning)
-- `ANALYSIS_SCRIPTS_GUIDE.md` (should be in `docs/`)
-- `llm_judge_results.json` (should be in `artifacts/`)
-- `vsc-001-evaluation.json` (should be in `artifacts/` or `jobs/`)
-- `check_status.sh`, `dependeval_repos_for_indexing.txt` (scripts/configs)
-
-**How to prevent root clutter:**
-
-1. **Before creating a file in root**, ask: "Is this permanent project documentation?" If no, it goes elsewhere.
-2. **During development**, put planning/notes in `history/` with clear timestamps (e.g., `history/session-20251220-planning.md`)
-3. **After finishing work**, ALWAYS verify no stray files remain in root during "land the plane"
-4. **During code review**, flag any new root-level files that aren't in the "What belongs" list
-
-**Clean root directory check (do this every session):**
-
+**Check before every session:**
 ```bash
-# List all files in root (excluding directories and dotfiles)
-ls -la / | grep -E "\.md$|\.json$|\.py$|\.sh$|\.txt$" | grep -v "setup.py\|pyproject.toml"
-
-# This should return nothing. If it doesn't, files need to move.
+ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyproject|LICENSE|\.)"
+# Should return nothing
 ```
 
 ---
 
-## Comparison Results Best Practices
+## Sourcegraph MCP Agent
 
-### Naming Conventions
+**File:** `agents/claude_sourcegraph_mcp_agent.py`
 
-Use **timestamped directory names** to prevent confusion with retries:
+Extends Harbor's `ClaudeCode` agent with Sourcegraph MCP integration:
+1. Lazy imports (no Harbor at module load)
+2. Reads `SOURCEGRAPH_INSTANCE` and `SOURCEGRAPH_ACCESS_TOKEN` from env
+3. Generates `.mcp.json` with HTTP server config
+4. Uploads to task container at `/app/.mcp.json`
 
-```
-jobs/comparison-YYYYMMDD-HHMM/
-  ├── baseline/     (baseline agent results)
-  └── mcp/          (MCP agent results)
-```
-
-**DO NOT use fixed names** like `comparison-20251219-clean` without explaining what "clean" means. This caused confusion when re-runs with API key failures were labeled "clean" while the actually-valid original runs had different names.
-
-### Validation Checklist
-
-Before analyzing any comparison results, ALWAYS:
-
-1. **Run validation script**: `python scripts/validate_comparison_results.py baseline/ mcp/`
-2. **Check for API key errors**: Look for "Invalid API key" in trajectory messages
-3. **Verify token counts**: Should be >0 for all valid runs (0 tokens + 6 steps = likely API failure)
-4. **Confirm task completeness**: All 10 tasks should have trajectories
-5. **Cross-reference timestamps**: Baseline and MCP runs should be from same session (prevents env var loss)
-
-### Data Integrity
-
-The `comparison-20251219-clean/` directory is corrupted and should NOT be used. It was a re-run attempt that failed due to lost API credentials. The real data is in:
-- `baseline-10task-20251219/` (10/10 tasks, 34.8M tokens)
-- `mcp-10task-20251219/` (9/10 tasks, 40.5M tokens, sgt-003 missing)
-
-## RepoQA Benchmark Execution
-
-### Architecture: Separate Agent and Verifier Containers
-
-**Critical insight (Dec 20, 2025):** Agent and verifier run in SEPARATE Docker containers with separate filesystems. Agent writes must go to `/app/` (mounted in both containers), NOT `/logs/verifier/` (container-specific).
-
-### Using Validated Dataset
-
-A pre-validated dataset with 5 instances from the requests repository is available:
-
+**Usage:**
 ```bash
-benchmarks/repoqa_instances_validated.jsonl
-```
-
-All commit hashes in this dataset have been verified to exist in their respective repositories.
-
-### Generating Tasks
-
-```bash
-cd ~/harbor/adapters/repoqa
-
-# Generate with commit validation (recommended)
-python run_adapter.py \
-  --dataset_path /path/to/CodeContextBench/benchmarks/repoqa_instances_validated.jsonl \
-  --output_dir /path/to/output/repoqa_tasks \
-  --variants sr-qa \
-  --limit 5
-
-# Skip validation for speed (only if dataset is pre-validated)
-python run_adapter.py \
-  --dataset_path repoqa-instances.jsonl \
-  --output_dir repoqa_tasks \
-  --variants sr-qa \
-  --skip-validation
-```
-
-### Validating Commit Hashes
-
-Before using a dataset, validate all commit hashes:
-
-```bash
-cd ~/harbor/adapters/repoqa
-python commit_validator.py repoqa-instances.jsonl
-```
-
-Output shows:
-- ✅ VALID COMMITS: Commits found in repositories
-- ❌ INVALID COMMITS: Commits not found (with error details)
-- Summary: X/Y instances valid
-
-**Commit validation checks:**
-- Full SHA-1 format (40 characters)
-- Commit exists in target repository
-- Repository is accessible
-
-### Running Baseline vs MCP Comparison
-
-After generating tasks:
-
-```bash
-cd /path/to/CodeContextBench
-
-# Setup environment
-source .env.local
-export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
-
-# Run comparison
-bash scripts/run_mcp_comparison.sh repoqa_benchmark requests-001-sr-qa
-
-# Validate results
-python scripts/validate_comparison_results.py \
-  jobs/comparison-YYYYMMDD-HHMM/baseline \
-  jobs/comparison-YYYYMMDD-HHMM/mcp
-```
-
-### Verifier Output Files
-
-The RepoQA verifier:
-1. Expects agent output at `/app/solution.json` (shared mount between agent & verifier containers)
-2. Expects ground truth at `/tests/ground_truth.json` (uploaded by Harbor)
-3. Writes verification results to `/logs/verifier/reward.json` (downloaded by Harbor after verifier completes)
-
-**Key fix (Dec 20, 2025):** Instructions updated to use `/app/solution.json`, not `/logs/verifier/solution.json`, because agent container's `/logs/` is not visible to verifier container.
-
-## Big Code Task Template & Experimental Design
-
-### Equal File Access Requirement
-
-When evaluating baseline vs MCP agents on big code tasks:
-
-**CRITICAL:** Both agents must have identical file access for valid comparison.
-
-```
-VALID SETUP:
-  ✅ Both agents: Pre-cloned repos in task container
-  ✅ Baseline: Local grep/find/rg on pre-cloned files
-  ✅ MCP: Sourcegraph semantic search on pre-cloned files
-  → Measures search strategy difference, not file visibility
-
-INVALID SETUP (Original Phase 3):
-  ❌ Baseline: Task container with empty directory stubs
-  ❌ MCP: Task container with empty stubs + Sourcegraph access (can clone)
-  → Measures file access capability, not search strategy
-```
-
-### Big Code Task Dockerfile Pattern
-
-All big code task containers should pre-clone their target repositories:
-
-```dockerfile
-FROM [appropriate language image]
-
-WORKDIR /workspace
-
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    git curl build-essential [language-specific deps]
-
-# Install Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code
-
-# ✅ PRE-CLONE the actual repository (CRITICAL for equal file access)
-RUN git clone --depth 1 https://github.com/[owner]/[repo].git . && \
-    git config user.email "agent@example.com" && \
-    git config user.name "Agent"
-
-# Install language dependencies (optional, for testing)
-RUN [language-specific setup: npm install, go build, cargo build, etc.]
-```
-
-**Key points:**
-- Use `--depth 1` for shallow clone (faster, less disk)
-- Clone into `.` (current directory = /workspace)
-- Initialize git config (agents need to make commits)
-- Language dependencies optional (testing may fail, that's ok)
-
-### Big Code Task Instruction Template
-
-For all big code tasks, include explicit critical requirements:
-
-```markdown
-## CRITICAL REQUIREMENTS
-
-YOU MUST MAKE ACTUAL CODE CHANGES. Do not plan or analyze. You must:
-
-1. Understand the distributed architecture using Sourcegraph MCP
-   - Issue deepsearch questions about system architecture
-   - Find all locations where your changes need to be made
-   
-2. Make code changes to the real codebase
-   - Real files, real git commits
-   - Follow existing patterns and conventions
-   
-3. Attempt to run the test suite
-   - Run tests: [command]
-   - If tests fail due to environment (missing deps, build failure):
-     - Document the specific error
-     - Provide comprehensive alternative validation
-     - Show architectural correctness through code review
-   
-4. Commit all changes
-   - Proper git commit messages
-   - Each commit should be atomic (one feature/fix per commit)
-
-## What Counts ✅
-
-- Real code changes in real files
-- Proper git commits with sensible messages
-- Test execution attempt with documented failures
-- Integration with existing patterns
-
-## What Doesn't Count ❌
-
-- Mock implementations separate from real codebase
-- Test documentation without execution attempt
-- Architectural analysis without code changes
-- Skipping the test attempt entirely
-```
-
----
-
-## Sourcegraph MCP Agent Implementation
-
-### ClaudeCodeSourcegraphMCPAgent Pattern
-
-**File**: `agents/claude_sourcegraph_mcp_agent.py`
-**Import**: `agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent`
-
-The agent follows the practical approach of extending Harbor's built-in `ClaudeCode` agent without modifying the installed package:
-
-1. **Lazy Imports**: `agents/__init__.py` avoids importing Harbor at module load time
-2. **Credential Management**: Reads `SOURCEGRAPH_INSTANCE` and `SOURCEGRAPH_ACCESS_TOKEN` from environment
-3. **Configuration**: Generates `.mcp.json` with HTTP server configuration pointing to Sourcegraph
-4. **File Upload**: Uploads config to task container at `/app/.mcp.json`
-5. **Graceful Degradation**: Logs warning if credentials missing but agent continues
-
-**Usage**:
-
-```bash
-# Set credentials
 export SOURCEGRAPH_INSTANCE="sourcegraph.com"
 export SOURCEGRAPH_ACCESS_TOKEN="your-token"
 
-# Run with agent
 harbor run \
   --path benchmarks/github_mined \
   --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  --model anthropic/claude-3-5-sonnet-20241022 \
   -n 1
 ```
 
-See `docs/MCP_SETUP.md` for full setup and troubleshooting guide.
+**See:** `docs/MCP_SETUP.md` for full setup guide.
 
 ---
 
 ## Development & Operations
 
-**See development guide:** `docs/DEVELOPMENT.md`
+**Guides:**
+- `docs/DEVELOPMENT.md` - Setup, commands, agent implementation
+- `docs/TROUBLESHOOTING.md` - Common issues
+- `docs/BENCHMARK_EXECUTION.md` - RepoQA, Big Code task execution
 
-- Setting up new agent implementations
-- Running benchmarks and comparing performance
-- Debugging agent execution
-- Development commands and code quality standards
+**Documentation Maintenance:**
+- Update `docs/ARCHITECTURE.md` when structure changes
+- Update `docs/DEVELOPMENT.md` when workflows change
+- Update `docs/TROUBLESHOOTING.md` when you fix issues
 
-**See troubleshooting guide:** `docs/TROUBLESHOOTING.md` for agent initialization, benchmark execution, container, and infrastructure issues
+---
 
-### Documentation Maintenance
+## Issue Tracking with bd (beads)
 
-When working on CodeContextBench, keep these docs in sync with your changes:
+**This project uses bd for ALL issue tracking.** No markdown TODOs.
 
-- **docs/ARCHITECTURE.md** - Update when directory structure, file organization, or agent architecture changes
-- **docs/DEVELOPMENT.md** - Update when adding new development workflows, commands, or setup procedures
-- **docs/TROUBLESHOOTING.md** - Update whenever you encounter and fix an issue not already documented
-- **AGENTS.md** - Keep at ~500 lines max; move extensive documentation to `docs/`
+### Quick Start
 
-**Workflow:**
+```bash
+bd ready                                    # Find unblocked work
+bd update <id> --status in_progress         # Claim task
+bd close <id> --reason "Completed: ..."     # Complete work
+bd create "Title" -t task -p 2              # Create new issue
+```
 
-1. Complete your work and commit code changes
-2. Update corresponding docs in `docs/` to reflect what you did
-3. Commit documentation updates together with code
+### Issue Types & Priorities
 
-Documentation is part of the deliverable, not an afterthought.
+**Types:** `bug`, `feature`, `task`, `epic`, `chore`
+
+**Priorities:**
+- P0: Critical (security, data loss)
+- P1: High (major features)
+- P2: Medium (default)
+- P3: Low (polish)
+- P4: Backlog
+
+### Workflow
+
+1. `bd ready` - find work
+2. `bd update <id> --status in_progress` - claim it
+3. Read requirement carefully
+4. Write test that proves requirement works
+5. Implement to make test pass
+6. Verify: `python -m pytest tests/ -q`
+7. Commit with bead ID
+8. Close only when tests PROVE completion
+
+### Key Principles
+
+- Create specific tests for bead requirements
+- Use real implementations, not mocks
+- Only close when tests prove it works
+- Keep in `in_progress` if work remains
+- Link discovered work: `bd create "Bug" -p 1 --deps discovered-from:<id>`
+
+---
+
+## Landing the Plane
+
+When ending a session:
+
+### 1. Review In-Progress Beads
+```bash
+bd list --json | jq '.[] | select(.status == "in_progress") | {id, title}'
+```
+
+For each bead, verify:
+- Specific test exists and passes
+- No regressions (`python -m pytest tests/ -q`)
+- All changes committed
+
+Close only if ALL criteria met. Leave open otherwise.
+
+### 2. File Remaining Work
+```bash
+bd create "Remaining task" -t task -p 2
+```
+
+### 3. Run Tests
+```bash
+python -m pytest tests/ -q
+```
+
+### 4. Commit & Sync
+```bash
+git add .
+git commit -m "Session close: <summary>"
+git pull --rebase
+bd sync
+```
+
+### 5. Clean Root Directory
+```bash
+ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyproject|LICENSE|\.)"
+# Move any files found to appropriate directories
+```
+
+### 6. Clean Git State
+```bash
+git stash clear
+git remote prune origin
+git status
+```
+
+### 7. Report to User
+- Closed beads
+- Open beads (and why)
+- New issues filed
+- Recommended next session prompt
+
+**Key insight:** Closing beads too early creates false confidence. When in doubt, leave it open.
 
 ---
 
 ## Deep Search CLI (ds)
 
-The `ds` CLI tool provides programmatic access to Sourcegraph Deep Search for AI-powered codebase analysis.
+External tool for programmatic Sourcegraph Deep Search access.
 
-### Setup
+**Requires:** `SRC_ACCESS_TOKEN` environment variable
 
-Requires `SRC_ACCESS_TOKEN` environment variable. Optional: `SOURCEGRAPH_URL` (defaults to https://sourcegraph.sourcegraph.com)
-
-### Common Usage Patterns
-
-**Start a new conversation:**
-
+**Basic usage:**
 ```bash
-ds start --question "Does the repo have authentication middleware?" | jq -r '.id'
+ds start --question "Question about codebase" | jq -r '.id'
+ds ask --id <id> --question "Follow-up question"
+ds list --first 5
 ```
 
-**Continue existing conversation (using UUID from web UI):**
-
-```bash
-ds ask --id fb1f21bb-07e5-48ff-a4cf-77bd2502c8a8 --question "How does it handle JWT tokens?"
-```
-
-**Get conversation by ID or UUID:**
-
-```bash
-ds get --id 332  # numeric ID
-ds get --id fb1f21bb-07e5-48ff-a4cf-77bd2502c8a8  # UUID from share_url
-```
-
-**List recent conversations:**
-
-```bash
-ds list --first 5 --sort -created_at
-```
-
-**Async mode for long-running queries:**
-
-```bash
-ds start --question "Complex question" --async | jq -r '.id'
-# Poll for results
-ds get --id <id>
-```
-
-### Best Practices
-
-- Use `--async` for complex questions that search large codebases
-- Parse JSON output with `jq` for extracting specific fields
-- Save conversation IDs to continue multi-turn conversations
-- UUIDs from web UI share URLs work directly with all commands
-
-## Issue Tracking with bd (beads)
-
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
-
-### Why bd?
-
-- Dependency-aware: Track blockers and relationships between issues
-- Git-friendly: Auto-syncs to JSONL for version control
-- Agent-optimized: JSON output, ready work detection, discovered-from links
-- Prevents duplicate tracking systems and confusion
-
-### Quick Start
-
-**Check for ready work:**
-
-```bash
-bd ready --json
-```
-
-**Create new issues:**
-
-```bash
-bd create "Issue title" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" -p 1 --deps discovered-from:bd-123 --json
-```
-
-**Claim and update:**
-
-```bash
-bd update bd-42 --status in_progress --json
-bd update bd-42 --priority 1 --json
-```
-
-**Complete work:**
-
-```bash
-bd close bd-42 --reason "Completed" --json
-```
-
-### Issue Types
-
-- `bug` - Something broken
-- `feature` - New functionality
-- `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks
-- `chore` - Maintenance (dependencies, tooling)
-
-### Priorities
-
-- `0` - Critical (security, data loss, broken builds)
-- `1` - High (major features, important bugs)
-- `2` - Medium (default, nice-to-have)
-- `3` - Low (polish, optimization)
-- `4` - Backlog (future ideas)
-
-### Workflow for AI Agents
-
-**Standard workflow:**
-
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task**: `bd update <id> --status in_progress`
-3. **Understand the requirement**: Read the bead description carefully - what EXACT behavior must be demonstrated?
-4. **Test-first approach** (strongly recommended):
-   - Write a test that proves the bead requirement works
-   - Test should use REAL implementations, not mocks (unless bead says to mock)
-   - This test should fail initially (red state)
-5. **Implement**: Write code to make the test pass
-6. **Unit tests**: Add unit tests for any new code to prevent regressions
-7. **Verify tests pass**:
-   ```bash
-   python -m pytest tests/test_<bead_feature>.py -v  # Bead-specific test
-   python -m pytest tests/ -q                         # All tests (no regressions)
-   ```
-   - If tests don't directly validate the bead requirement, work isn't done
-8. **Document**: Update docs/code comments if API or functionality changed
-9. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" -p 1 --deps discovered-from:<parent-id>`
-10. **Commit your changes**:
-    ```bash
-    git add .
-    git commit -m "<bead-id>: [description]. Tests: tests/test_<name>.py::<test_func>"
-    ```
-11. **Only if work is 100% complete and tests prove it**: Close the bead
-    ```bash
-    bd close <id> --reason "Completed: [detailed summary]. Validated by: tests/test_<name>.py::<test_func>"
-    ```
-
-**Key principles:**
-
-- ✅ Create a **specific test for the bead requirement** (not generic tests)
-- ✅ Use real implementations unless bead explicitly says to mock
-- ✅ Write unit tests for new code to prevent regressions
-- ✅ Only close when tests PROVE the requirement is met
-- ✅ Keep beads in `in_progress` if more work remains
-- ❌ Don't assume generic test passing = bead complete
-- ❌ Don't close a bead to "finish" it if work is incomplete
-
-### Auto-Sync
-
-bd automatically syncs with git:
-
-- Exports to `.beads/issues.jsonl` after changes (5s debounce)
-- Imports from JSONL when newer (e.g., after `git pull`)
-- No manual export/import needed!
-
-### Best Practices
-
-- **One agent per module at a time.** Cross-module changes split into separate beads.
-- Close beads as soon as work is complete (don't batch).
-- Use `bd ready` to find unblocked work.
-- Always update status to `in_progress` when starting work.
-- Always use `--json` flag for programmatic use.
-- Link discovered work with `discovered-from` dependencies.
-- Check `bd ready` before asking "what should I work on?"
-
-### Managing Status & Progress Documents
-
-**CRITICAL RULE: No status/progress documents in repository root. EVER.**
-
-Root-level markdown files like STATUS.md, PROGRESS.md, MIGRATION_STATUS.md, SMOKE_TEST_RESULTS.md have NO BUSINESS being in the root directory. All issue status, testing status, and project progress must be tracked in beads.
-
-**The Single Source of Truth:**
-
-- **Issue status** → tracked in `.beads/issues.jsonl` via `bd` CLI
-- **Test results** → captured in bead description/comments (e.g., "Smoke test: 49/49 passing")
-- **Migration progress** → each bead represents a migration step; closed beads = completed work
-- **Execution traces** → stored in bead metadata
-
-**Why this matters:**
-
-- Repository root should only contain permanent, high-level documentation (README.md, AGENTS.md, setup docs)
-- Status documents are ephemeral—they become stale and create duplicate tracking systems
-- Beads are the actual source of truth for task state; markdown files create confusion
-- Clean root directory improves navigation and reduces noise
-
-### AI-Generated Planning Documents
-
-AI assistants often create temporary planning documents during development:
-
-- PLAN.md, IMPLEMENTATION.md, ARCHITECTURE.md
-- DESIGN.md, CODEBASE_SUMMARY.md, INTEGRATION_PLAN.md
-- TESTING_GUIDE.md, TECHNICAL_DESIGN.md, and similar files
-
-**Required approach:**
-
-- Store ALL AI-generated planning/design docs in `history/` directory (never root)
-- Keep the repository root clean and focused on permanent project files
-- Only access `history/` when explicitly asked to review past planning
-
-**Rationale:**
-
-- Clean repository root (no clutter)
-- Clear separation between ephemeral and permanent documentation
-- Beads are the source of truth, not ephemeral docs
-- Preserves planning history for archeological research (in history/ dir)
-- Reduces noise when browsing the project
-
-### Important Rules
-
-- Use bd for ALL task tracking and status
-- Always use `--json` flag for programmatic use
-- Link discovered work with `discovered-from` dependencies
-- Check `bd ready` before asking "what should I work on?"
-- Store AI planning/design docs in `history/` directory only
-- Do NOT create markdown TODO lists in root
-- Do NOT create status/progress markdown files in root
-- Do NOT use external issue trackers
-- Do NOT duplicate tracking systems
-- Do NOT clutter repo root with planning, status, or progress documents
-
-### Landing the Plane
-
-**When the user says "let's land the plane"**, follow this clean session-ending protocol:
-
-1. **Review each bead you worked on** - Only close beads where work is COMPLETELY finished
-
-   ```bash
-   bd list --json | jq '.[] | select(.status == "in_progress") | {id, title}'
-   ```
-
-   For each bead, verify:
-
-   - **Specific test exists**: Is there a test that directly validates the bead's exact requirement?
-   - **Test uses real code**: Does the test call actual implementations (not mocks)?
-   - **Tests pass**: Does `python -m pytest tests/<bead_test>.py -v` pass?
-   - **No regressions**: Does `python -m pytest tests/ -q` pass (all tests)?
-   - **Code committed**: Are all changes committed to git?
-   - **No remaining issues**: Are there open TODOs or known bugs?
-
-   If ALL YES: Close it. If ANY NO: Leave it open.
-
-   ```bash
-   bd close <bead-id> --reason "Completed: [detailed summary]. Verified by: tests/test_<name>.py::<test_func>"
-   ```
-
-2. **File beads issues for remaining work** that needs follow-up
-
-   ```bash
-   bd create "Remaining task" -t task -p 2
-   ```
-
-3. **Ensure all quality gates pass** (if code changes were made) - run tests/builds (file P0 issues if broken)
-
-   ```bash
-   python -m pytest tests/ -q
-   ```
-
-4. **Commit everything**:
-
-   ```bash
-   git add .
-   git commit -m "Session close: <summary>"
-   ```
-
-5. **Sync the issue tracker carefully** - Work methodically to ensure both local and remote issues merge safely. This may require pulling, handling conflicts (sometimes accepting remote changes and re-importing), syncing the database, and verifying consistency. Be creative and patient - the goal is clean reconciliation where no issues are lost.
-
-   ```bash
-   git pull --rebase
-   bd sync
-   ```
-
-6. **Clean up root directory** - This is MANDATORY, not optional. Every "land the plane" must have a completely clean root:
-
-    ```bash
-    # STEP 1: Identify all files in root that don't belong
-    ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyproject|LICENSE|\.)"
-    
-    # STEP 2: For each file found, move it to the appropriate directory:
-    #   - *.md (not README/AGENTS) → history/ or docs/
-    #   - *.json (config/data) → artifacts/, jobs/, configs/, or .claude/
-    #   - *.py (scripts) → scripts/, runners/, or tests/
-    #   - *.sh (shell scripts) → scripts/ or infrastructure/
-    #   - *.txt (data) → artifacts/, history/, or configs/
-    #
-    # Examples of moves that MUST happen:
-    #   mv STATUS.md history/
-    #   mv PHASE3_*.md history/
-    #   mv PROGRESS.md history/
-    #   mv PLAN.md history/
-    #   mv llm_judge_results.json artifacts/
-    #   mv check_status.sh scripts/
-    #   mv dependeval_repos_for_indexing.txt artifacts/
-    
-    # STEP 3: Verify no stray files
-    ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyproject|LICENSE|\.)"
-    # Should return NOTHING if root is clean
-    
-    # STEP 4: Stage and commit cleanup
-    git add .
-    git commit -m "Session cleanup: Move ephemeral files out of root directory"
-    ```
-    
-    **⚠️ DO NOT commit files to root that belong elsewhere. This is enforced by code review.**
-
-7. **Clean up git state** - Clear old stashes and prune dead remote branches:
-
-   ```bash
-   git stash clear                    # Remove old stashes
-   git remote prune origin            # Clean up deleted remote branches
-   ```
-
-8. **Verify clean state** - Ensure all changes are committed and pushed, no untracked files remain:
-
-   ```bash
-   git status
-   git log --oneline -5
-   ```
-
-9. **Choose a follow-up issue for next session**
-   - Provide a prompt for the user to give to you in the next session
-   - Format: "Continue work on bd-X: [issue title]. [Brief context about what's been done and what's next]"
-
-**Example "land the plane" session:**
-
-```bash
-# 1. Check what's in progress
-bd list --json | jq '.[] | select(.status == "in_progress") | {id, title}'
-
-# 2. For EACH bead - verify ALL criteria are met before closing
-echo "=== Checking bd-42: Implemented feature X ==="
-python -m pytest tests/test_feature_x.py -v  # Bead-specific test
-python -m pytest tests/ -q                   # All tests (check for regressions)
-grep -r "TODO\|FIXME" src/feature_x/        # Check for open issues
-# Result: Specific test passes, no regressions, no TODOs → CLOSE IT
-
-echo "=== Checking bd-43: Fixed bug Y ==="
-python -m pytest tests/test_bug_y.py -v     # Does test prove bug is fixed?
-# Result: Test doesn't exist or fails → LEAVE IT OPEN
-
-# Close only the ones that are truly complete
-bd close bd-42 --reason "Completed: Implemented feature X. Verified by: tests/test_feature_x.py::test_feature_x_works"
-# bd-43 stays open (needs test or bug still present)
-
-# 3. File remaining work
-bd create "Complete feature Y implementation and write test" -t task -p 1 --deps discovered-from:bd-43
-
-# 4. Commit everything
-git add .
-git commit -m "Session: Closed bd-42 (feature X working, tested)"
-
-# 5. Sync carefully
-git pull --rebase
-bd sync
-
-# 6. Clean up root directory
-ls -la *.json *.py 2>/dev/null | grep -v setup.py  # Check for stray files
-# Remove any temporary configs/scripts if they exist
-git status  # Verify no untracked root files
-
-# 7. Clean git state
-git stash clear
-git remote prune origin
-
-# 8. Verify
-git status
-bd ready  # See what's ready to work on
-
-# 9. Report back to user
-# - Closed beads: bd-42 (feature X implemented and tested)
-# - Open beads: bd-43 (still needs test coverage and bug fix verification)
-# - New issues: follow-up work filed
-```
-
-**Key insight:** Closing beads too early creates false confidence. The next agent thinks work is done when it's not. A test that doesn't validate the bead requirement is useless. Be conservative. When in doubt, leave it open.
-
-Then provide the user with:
-
-- Summary of what was completed this session
-- What issues were filed for follow-up
-- Status of quality gates (all passing / issues filed)
-- Recommended prompt for next session
+Use `--async` for complex questions on large codebases.
