@@ -59,38 +59,30 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Execution Phases
+## Project Milestones
 
-### Phase 1: Setup ( Completed)
+### Setup (Completed)
 - Installed Harbor framework (harborai v0.1.25)
 - Created isolated `.venv-harbor` environment
-- All 25 github_mined tasks converted to Harbor format
+- All benchmark tasks converted to Harbor format
 
-### Phase 2: Docker Reproducibility ( Completed)
-- Fixed critical issue: Dockerfiles weren't cloning PyTorch repo
-- Updated all 25 Dockerfiles to include:
-  - `git clone https://github.com/pytorch/pytorch.git /workspace`
-  - `git checkout <commit>` (task-specific SHA or `main`)
-  - `git submodule update --init --recursive`
-- Single test validated: repo clones, Claude Code executes successfully
+### Benchmark Infrastructure (Completed)
+- Fixed Dockerfiles to properly clone repositories
+- Validated repo cloning and agent execution
+- Created 4 agent variants for A/B testing
 
-### Phase 3: Real Benchmarks ( In Progress)
-- **Baseline Pilot** (10 tasks, claude-code agent)
-  - Status: RUNNING
-  - Model: claude-haiku-4-5 (faster testing)
-  - Expected: 30-40% success rate
-  - ETA: 1.5-2 hours (15 min/task × 10)
-  
-- **MCP Pilot** (next, 10 tasks with Sourcegraph)
-  - Model: claude-haiku-4-5 with --mcp-config
-  - Expected: 70-90% success rate
-  - Hypothesis: +40-50% improvement from code search
+### Available Benchmarks (Current)
+- **big_code_mcp**: 4 tasks on large codebases (VS Code, Kubernetes, Servo, TensorRT)
+- **github_mined**: 25 real PyTorch pull request tasks
+- **dependeval_benchmark**: 9 multi-file/cross-repo tasks
+- **10figure**: 4 legacy codebase challenges
+- **dibench**: Dependency inference (adapter-generated)
+- **repoqa**: Tool-sensitive code understanding (adapter-generated)
 
-### Phase 4: Analysis & Publication
-- Extract metrics from Harbor job outputs
-- Compare baseline vs MCP results
-- Generate reproducibility documentation
-- Validate improvement hypothesis
+### Next Steps
+- Run baseline vs MCP comparison with enterprise metrics
+- Analyze benchmark results and generate comparative report
+- Validate MCP improvement hypothesis
 
 ## Directory Structure
 

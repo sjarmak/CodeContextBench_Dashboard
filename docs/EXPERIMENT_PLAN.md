@@ -42,7 +42,7 @@ Create 20-30 tasks reflecting enterprise patterns:
 #### CodeContextBench-eaf: Analyze Existing Results with Enterprise Lens
 **Status:** Open | **Priority:** P1
 
-Re-analyze Phase 3 results (50 tasks) for:
+Re-analyze existing benchmark results (50 tasks) for:
 - Code search patterns
 - Navigation efficiency
 - Comprehension indicators
@@ -256,7 +256,7 @@ Retrospective Analysis (eaf) ← Existing Data
 
 ### Immediate (This Week)
 1. **Start CodeContextBench-zez**: Begin metrics infrastructure
-2. **Start CodeContextBench-eaf**: Analyze existing Phase 3 data
+2. **Start CodeContextBench-eaf**: Analyze existing benchmark data
 3. **Start CodeContextBench-qg9**: Select 20-30 enterprise-pattern tasks from SWE-Bench
 
 ### Short Term (This Month)
