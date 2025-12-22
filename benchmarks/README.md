@@ -135,6 +135,33 @@ See [README.md](repoqa/README.md) for design and [IMPLEMENTATION_SUMMARY.md](rep
 
 ---
 
+### 7. [dacomp/](dacomp/) - Data Intelligence Benchmark
+**Status**: Adapter available  
+**Task Count**: Variable (generate with adapter)  
+**Types**: DA (analysis), DE-Impl, DE-Evol, DE-Arch  
+**Focus**: Data analysis and data engineering pipelines  
+**Suitable For**: Comparing agent performance on data-centric tasks  
+**Task Format**: Harbor (via adapter)
+
+**Generate Tasks**:
+```bash
+cd benchmarks/dacomp
+python run_adapter.py --subset da \
+  --dataset_path /path/to/dacomp-da/tasks/dacomp-da.jsonl \
+  --tasks_root /path/to/dacomp-da/tasks \
+  --output_dir ./tasks
+```
+
+**Run**:
+```bash
+harbor run --path benchmarks/dacomp/tasks/dacomp-001 \
+  --agent-import-path agents.mcp_variants:FullToolkitAgent
+```
+
+See [README.md](dacomp/README.md) for setup details.
+
+---
+
 ## Benchmark Comparison Matrix
 
 | Benchmark | MCP Value | Task Count | Repos | Setup Time | Best For |
@@ -145,6 +172,7 @@ See [README.md](repoqa/README.md) for design and [IMPLEMENTATION_SUMMARY.md](rep
 | 10figure | ⭐⭐⭐⭐ (high) | 4 | 23 | 20min | Large codebase understanding |
 | dibench | ⭐⭐⭐ (medium) | Variable | Custom | 15min | Dependency inference |
 | repoqa | ⭐⭐⭐⭐ (high) | Variable | Custom | 10min | Tool-sensitive MCP eval |
+| dacomp | ⭐⭐⭐ (medium) | Variable | Custom | 15min | Data analysis + engineering |
 
 ---
 
@@ -215,6 +243,8 @@ pip install -e .
 **dibench**: Download dataset from [DI-Bench releases](https://github.com/microsoft/DI-Bench/releases) and extract to `.cache/repo-data`
 
 **repoqa**: Download RepoQA dataset and point adapter to it
+
+**dacomp**: Download DAComp datasets from HuggingFace and point the adapter to the extracted task directories
 
 ---
 

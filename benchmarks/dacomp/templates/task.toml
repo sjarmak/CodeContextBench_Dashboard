@@ -1,0 +1,23 @@
+version = "1.0"
+
+[metadata]
+author_name = "DAComp Adapter"
+author_email = "unknown"
+difficulty = "hard"
+category = "data-intelligence"
+tags = ["dacomp"]
+subset = "unknown"
+instance_id = "unknown"
+task_type = "unknown"
+
+[verifier]
+timeout_sec = 1800.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 1800.0
+cpus = 2
+memory_mb = 8192
+storage_mb = 30720
