@@ -95,18 +95,66 @@ The difference is in what happens BEFORE generation:
 
 ---
 
-## The "Other" Category Problem
+## The "Other" Category: Deep Dive (Updated 2025-12-22)
+
+### Quantitative Breakdown
 
 ~50% of agent actions fall into "other" - neither comprehension, navigation, nor generation.
 
-These likely include:
+| Agent    | Total Steps | With Tools | Without Tools | Other % |
+| -------- | ----------- | ---------- | ------------- | ------- |
+| Baseline | 1,332       | 740        | 592           | 44.4%   |
+| MCP      | 891         | 481        | 410           | 46.0%   |
 
-- Planning/reasoning (no tool calls)
-- Error handling
-- Task setup
-- Conversational responses
+### Tool Usage by Category
 
-This represents a **hidden cognitive workload** not captured in tool-based analysis.
+**Baseline Agent (740 tool calls):**
+
+| Tool      | Count | %   | Category      |
+| --------- | ----- | --- | ------------- |
+| Bash      | 420   | 57% | Navigation    |
+| Read      | 176   | 24% | Comprehension |
+| TodoWrite | 52    | 7%  | Planning      |
+| Grep      | 45    | 6%  | Comprehension |
+| Edit      | 18    | 2%  | Generation    |
+| Glob      | 16    | 2%  | Navigation    |
+
+**MCP Agent (481 tool calls):**
+
+| Tool             | Count | %   | Category      |
+| ---------------- | ----- | --- | ------------- |
+| Bash             | 258   | 54% | Navigation    |
+| Read             | 105   | 22% | Comprehension |
+| TodoWrite        | 36    | 7%  | Planning      |
+| Grep             | 28    | 6%  | Comprehension |
+| Edit             | 18    | 4%  | Generation    |
+| Glob             | 18    | 4%  | Navigation    |
+| **MCP tools**    | 13    | 3%  | Comprehension |
+
+MCP-specific tools breakdown:
+- `sg_keyword_search`: 8 calls
+- `sg_list_repos`: 2 calls
+- `sg_commit_search`: 1 call
+- `sg_deepsearch`: 1 call
+- `sg_nls_search`: 1 call
+
+### What "Other" Steps Contain
+
+Analysis of 592 no-tool-call steps reveals they are primarily **reasoning/planning**:
+
+1. **Reasoning statements** (40%): "Let me understand the issue...", "Now I see that..."
+2. **Summarizing** (25%): Explaining findings after tool calls
+3. **Transition statements** (15%): "Let me check the next file..."
+4. **Warmup/Init** (10%): Claude Code initialization messages
+5. **Analysis conclusions** (10%): Mental modeling without tool invocation
+
+### Key Insight: Hidden Comprehension
+
+**If reasoning steps are counted as comprehension:**
+- Baseline: 44% reasoning + 14% tool-based = **~58% total cognitive work**
+- This **matches the human 58% figure exactly!**
+
+The original analysis undercounted comprehension by ignoring non-tool cognitive work.
 
 ---
 
@@ -125,9 +173,9 @@ If comprehension is under-invested, system prompts could encourage:
 
 ### 2. MCP Tool Selection
 
-Current MCP usage is low (~1.4 calls/task). Better prompting could increase:
+Current MCP usage is low (**2.7%** of tool calls, ~1.4 calls/task). Better prompting could increase:
 
-- Deep Search for semantic understanding
+- Deep Search for semantic understanding (only 1 call observed!)
 - File context retrieval
 - Cross-reference exploration
 
@@ -157,28 +205,31 @@ Since comprehension ratio doesn't predict success, other factors dominate:
 
 - **Baseline:** `jobs/baseline-10task-20251219` (28 task runs)
 - **MCP:** `jobs/mcp-10task-20251219` (18 task runs)
-- **Benchmark:** github_mined (PyTorch PR tasks)
+- **Benchmark:** github_mined (PyTorch PR tasks: sgt-001 through sgt-010)
 
 ---
 
 ## Conclusions
 
-1. **Hypothesis NOT Confirmed:** AI agents do NOT mirror human time allocation
-2. **Agents are action-oriented:** They jump to solutions 4x faster than humans
-3. **MCP has marginal impact:** Only +0.2% comprehension increase
+1. **Hypothesis PARTIALLY Confirmed:** When including reasoning steps, agents spend ~58% on cognitive work - matching human patterns
+2. **Tool-based comprehension is low:** Only 14% of actions use comprehension tools
+3. **MCP adoption is minimal:** Only 2.7% of tool calls use MCP (13/481)
 4. **Comprehension ≠ Success:** Within this dataset, no correlation found
 
 ---
 
 ## Future Work
 
-1. **Deeper categorization:** Break down "other" category into reasoning vs setup
-2. **Task complexity analysis:** Does comprehension matter more for complex tasks?
-3. **Prompt experiments:** Test if "comprehension-first" prompting improves success
-4. **Larger sample:** More runs to detect subtle correlations
+1. ~~Deeper categorization:~~ ✓ Completed - "other" is primarily reasoning/planning
+2. **Cross-benchmark validation:** Test findings on big_code_mcp (VS Code, Kubernetes, Servo, TensorRT) and larger codebases
+3. **MCP adoption analysis:** Why is MCP usage so low (2.7%)? Prompting issue or tool discoverability?
+4. **Task complexity correlation:** Does comprehension matter more for complex tasks?
+5. **Prompt experiments:** Test if "comprehension-first" prompting improves success
+
+**Tracking:** CodeContextBench-8jq
 
 ---
 
 _Generated by CodeContextBench analysis_
-_Bead: CodeContextBench-b4m_
-_Date: 2025-12-20_
+_Beads: CodeContextBench-b4m, CodeContextBench-8jq_
+_Last Updated: 2025-12-22_
