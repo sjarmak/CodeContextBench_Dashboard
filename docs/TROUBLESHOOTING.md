@@ -62,6 +62,47 @@
 - Check image exists: `podman images` or `docker images | grep harbor-10figure`
 - Verify mounts: `podman inspect <container> | grep Mounts`
 
+### Harbor task start fails with "no such file or directory"
+This typically means a required directory is missing from the task structure.
+
+**Common missing directories:**
+- `solution/` - Harbor expects a solution directory with at least `solve.sh`
+- `tests/` - Must contain `test.sh`
+
+**Fix:**
+```bash
+# Create solution directory with placeholder
+mkdir -p benchmarks/<benchmark>/<task>/solution
+echo '#!/bin/bash' > benchmarks/<benchmark>/<task>/solution/solve.sh
+echo '# Solution placeholder' >> benchmarks/<benchmark>/<task>/solution/solve.sh
+```
+
+### RewardFileNotFoundError during Harbor runs
+The test.sh script must write a reward file at `/logs/verifier/reward.txt`.
+
+**Fix test.sh:**
+```bash
+#!/bin/bash
+set -e
+mkdir -p /logs/verifier
+
+# ... run tests ...
+
+# Write reward (0.0 to 1.0)
+echo "1.0" > /logs/verifier/reward.txt
+```
+
+### Cached Docker images causing stale workspace
+If workspace content doesn't match what's in Dockerfile's `git clone`:
+```bash
+# Force rebuild
+harbor run --path <task-path> --force-build
+
+# Or clear cache manually
+docker system prune -a
+podman system prune -a
+```
+
 ### Job directory permissions
 - Check jobs directory writable: `ls -la jobs/`
 - Verify Harbor can write: `touch jobs/test.txt`

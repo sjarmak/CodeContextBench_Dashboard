@@ -9,9 +9,50 @@ set -e
 
 cd /workspace
 
-echo "Running Kubernetes tests for taint effects..."
-make test-unit WHAT=./pkg/kubelet/... 2>&1 | head -50 || true
-make test-unit WHAT=./pkg/scheduler/... 2>&1 | head -50 || true
+# Create log directories
+mkdir -p /logs/verifier
 
+echo "Running Kubernetes tests for taint effects..."
+
+# Check if NoScheduleNoTraffic taint effect was added
+if grep -r "NoScheduleNoTraffic" pkg/ 2>/dev/null | head -3; then
+    echo "✓ NoScheduleNoTraffic taint effect found"
+    TAINT_ADDED=1
+else
+    echo "⚠ NoScheduleNoTraffic taint effect not found"
+    TAINT_ADDED=0
+fi
+
+# Check for relevant code changes
+if git diff --name-only 2>/dev/null | grep -E "(taint|scheduler|kubelet)" | head -5; then
+    echo "✓ Taint-related files modified"
+    CHANGES_MADE=1
+else
+    echo "⚠ No taint-related changes detected"
+    CHANGES_MADE=0
+fi
+
+# Check for test additions
+if grep -r "NoScheduleNoTraffic" test/ 2>/dev/null | head -2; then
+    echo "✓ Tests for new taint effect found"
+    TESTS_ADDED=1
+else
+    echo "⚠ No tests for new taint effect"
+    TESTS_ADDED=0
+fi
+
+# Calculate reward based on implementation
+SCORE=0
+if [ "$TAINT_ADDED" -eq 1 ]; then
+    SCORE=$(echo "$SCORE + 0.4" | bc)
+fi
+if [ "$CHANGES_MADE" -eq 1 ]; then
+    SCORE=$(echo "$SCORE + 0.3" | bc)
+fi
+if [ "$TESTS_ADDED" -eq 1 ]; then
+    SCORE=$(echo "$SCORE + 0.3" | bc)
+fi
+
+echo "$SCORE" > /logs/verifier/reward.txt
 echo ""
-echo "✓ Tests completed"
+echo "✓ Tests completed - Score: $SCORE"
