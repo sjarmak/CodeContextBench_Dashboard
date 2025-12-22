@@ -1,11 +1,13 @@
 """MCP Agent Variants for A/B testing tool combinations.
 
-Three variants to isolate the value of different tool combinations:
-1. DeepSearchFocusedAgent - Heavily emphasizes Deep Search tool usage
-2. MCPNonDeepSearchAgent - MCP tools (keyword, NLS) but NOT Deep Search
-3. FullToolkitAgent - All tools available, neutral prompting
+Four variants to isolate the value of different tool combinations:
+1. DeepSearchFocusedAgent - Heavily emphasizes Deep Search tool usage (aggressive)
+2. StrategicDeepSearchAgent - Uses Deep Search strategically for context-gathering
+3. MCPNonDeepSearchAgent - MCP tools (keyword, NLS) but NOT Deep Search
+4. FullToolkitAgent - All tools available, neutral prompting
 
 Reference: CodeContextBench-1md - Optimize MCP agent with three variants
+Reference: CodeContextBench-6pl - MCP prompt experiment: strategic vs aggressive
 """
 
 import json
@@ -17,6 +19,203 @@ from harbor.agents.installed.claude_code import ClaudeCode
 from harbor.agents.installed.base import ExecInput
 from harbor.environments.base import BaseEnvironment
 from harbor.models.trial.paths import EnvironmentPaths
+
+
+class StrategicDeepSearchAgent(ClaudeCode):
+    """MCP agent that uses Deep Search STRATEGICALLY for context-gathering.
+
+    Philosophy: Deep Search is for gathering context at key moments, not
+    for every micro-question. One good Deep Search call should inform
+    many subsequent decisions.
+
+    WHEN to use Deep Search:
+    - At task start: understand architecture and relevant subsystems
+    - When hitting information gaps: new subsystem, unclear dependencies
+    - Before major implementation decisions
+
+    WHEN NOT to use Deep Search:
+    - For every small question (leverage already-gathered context)
+    - When you already have the file open
+    - For simple lookups after initial context gathering
+
+    Reference: CodeContextBench-6pl
+    """
+
+    STRATEGIC_SYSTEM_PROMPT = """You MUST complete this coding task by making actual code changes.
+
+## Sourcegraph Deep Search - Use Strategically
+
+You have access to **Sourcegraph Deep Search** (`sg_deepsearch`) via MCP. This is a powerful context-gathering tool - use it wisely.
+
+### WHEN to use Deep Search (Strategic Moments)
+
+1. **At Task Start**: Before any code changes, use Deep Search to understand:
+   - The architecture of the relevant subsystem
+   - How components interact
+   - Existing patterns and conventions
+
+2. **When You Hit an Information Gap**: Use Deep Search when you encounter:
+   - An unfamiliar subsystem or module
+   - Unclear dependencies between components
+   - Need to understand cross-file relationships
+
+3. **Before Major Decisions**: Before implementing a significant change, verify your understanding.
+
+### WHEN NOT to use Deep Search
+
+❌ For every small question - leverage the context you already gathered
+❌ When you already have the relevant file open
+❌ For simple string lookups (use `sg_keyword_search` instead)
+❌ After you already understand the architecture
+
+### The Deep Search Workflow
+
+1. **Gather Context First**: One comprehensive Deep Search query at task start
+2. **Work with That Context**: Make multiple decisions based on gathered knowledge
+3. **Deep Search Again Only When Blocked**: If you hit a wall, new subsystem, or unexpected complexity
+
+### Example: Good vs Bad Usage
+
+**GOOD**: 
+- "Before I start, let me understand the diagnostics pipeline architecture" → sg_deepsearch
+- (Make 10 edits based on that understanding)
+- "I need to modify error handling but don't understand this new subsystem" → sg_deepsearch
+
+**BAD**:
+- Use Deep Search → understand one function → Deep Search again for next function → etc.
+- Using Deep Search when you already have the file open and can just read it
+
+## Implementation Requirements
+
+1. Use Deep Search at the start to understand the problem space
+2. Make targeted code changes based on that understanding
+3. Only use Deep Search again when you hit a genuine information gap
+4. MAKE ACTUAL CODE CHANGES - this is not a planning task
+"""
+
+    STRATEGIC_CLAUDE_MD = """# Sourcegraph Deep Search - Strategic Usage
+
+## Philosophy
+
+Deep Search is for **context-gathering at key moments**, not micro-questions.
+
+One good Deep Search call should inform **many subsequent decisions**.
+
+## When to Use Deep Search
+
+✅ **Task Start**: Understand the architecture before making any changes
+✅ **Information Gap**: When you encounter an unfamiliar subsystem
+✅ **Before Major Decisions**: Verify understanding before big changes
+
+## When NOT to Use Deep Search
+
+❌ For every small question (you already have context)
+❌ When the file is already open
+❌ After you understand the architecture
+
+## Workflow
+
+```
+1. sg_deepsearch("understand [task domain] architecture")
+2. Read specific files identified
+3. Make multiple edits (5-15) based on understanding
+4. IF blocked: sg_deepsearch("understand [new subsystem]")
+5. Continue implementation
+```
+
+## Other Tools
+
+- `sg_keyword_search` - For exact string matches (fast, simple)
+- `sg_nls_search` - For natural language queries
+- Local Read/Grep - For files you already identified
+
+## Anti-Patterns
+
+❌ Deep Search → one edit → Deep Search → one edit (too granular)
+❌ Using Deep Search for things you already understand
+❌ Skipping initial context gathering and diving into edits
+"""
+
+    def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
+        """Override to enable implementation mode with strategic Deep Search."""
+        parent_commands = super().create_run_agent_commands(instruction)
+        allowed_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+
+        result = []
+        for cmd in parent_commands:
+            if cmd.command and "claude " in cmd.command:
+                modified_command = cmd.command.replace(
+                    "claude ",
+                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} "
+                )
+                env = cmd.env or {}
+                env_with_autonomous = {
+                    **env,
+                    'FORCE_AUTO_BACKGROUND_TASKS': '1',
+                    'ENABLE_BACKGROUND_TASKS': '1'
+                }
+                self.logger.info("StrategicDeepSearchAgent: Implementation mode with strategic Deep Search")
+                result.append(ExecInput(command=modified_command, env=env_with_autonomous))
+            else:
+                result.append(cmd)
+        return result
+
+    async def setup(self, environment: BaseEnvironment) -> None:
+        """Setup with strategic Deep Search prompts."""
+        sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
+        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
+
+        if sg_url and sg_token:
+            if not sg_url.startswith(('http://', 'https://')):
+                sg_url = f"https://{sg_url}"
+            sg_url = sg_url.rstrip('/')
+
+            # Full MCP config with all Sourcegraph tools
+            mcp_config = {
+                "mcpServers": {
+                    "sourcegraph": {
+                        "type": "http",
+                        "url": f"{sg_url}/.api/mcp/v1",
+                        "headers": {"Authorization": f"token {sg_token}"}
+                    }
+                }
+            }
+
+            mcp_config_path = self.logs_dir / ".mcp.json"
+            with open(mcp_config_path, "w") as f:
+                json.dump(mcp_config, f, indent=2)
+
+            await environment.upload_file(
+                source_path=mcp_config_path,
+                target_path="/workspace/.mcp.json"
+            )
+            self.logger.info("✓ StrategicDeepSearchAgent: MCP config uploaded")
+
+            # Upload strategic system prompt
+            system_prompt_path = self.logs_dir / "system_prompt.txt"
+            with open(system_prompt_path, "w") as f:
+                f.write(self.STRATEGIC_SYSTEM_PROMPT)
+
+            await environment.upload_file(
+                source_path=system_prompt_path,
+                target_path="/workspace/system_prompt.txt"
+            )
+            self.logger.info("✓ StrategicDeepSearchAgent: Strategic system prompt uploaded")
+
+            # Upload strategic CLAUDE.md
+            claude_md_path = self.logs_dir / "CLAUDE.md"
+            with open(claude_md_path, "w") as f:
+                f.write(self.STRATEGIC_CLAUDE_MD)
+
+            await environment.upload_file(
+                source_path=claude_md_path,
+                target_path="/workspace/CLAUDE.md"
+            )
+            self.logger.info("✓ StrategicDeepSearchAgent: Strategic CLAUDE.md uploaded")
+        else:
+            self.logger.warning("⚠ StrategicDeepSearchAgent: Sourcegraph credentials not configured")
+
+        await super().setup(environment)
 
 
 class DeepSearchFocusedAgent(ClaudeCode):

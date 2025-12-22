@@ -2,6 +2,7 @@
 
 Production agents:
 - BaselineClaudeCodeAgent: Control agent without MCP
+- StrategicDeepSearchAgent: MCP with strategic Deep Search (RECOMMENDED)
 - DeepSearchFocusedAgent: MCP with aggressive Deep Search prompting
 - MCPNonDeepSearchAgent: MCP with keyword/NLS search only
 - FullToolkitAgent: MCP with all tools available (neutral prompting)
@@ -15,6 +16,9 @@ def __getattr__(name):
     if name == "BaselineClaudeCodeAgent":
         from agents.claude_baseline_agent import BaselineClaudeCodeAgent
         return BaselineClaudeCodeAgent
+    elif name == "StrategicDeepSearchAgent":
+        from agents.mcp_variants import StrategicDeepSearchAgent
+        return StrategicDeepSearchAgent
     elif name == "DeepSearchFocusedAgent":
         from agents.mcp_variants import DeepSearchFocusedAgent
         return DeepSearchFocusedAgent

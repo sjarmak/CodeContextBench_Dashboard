@@ -7,6 +7,7 @@ This directory contains Harbor-compatible agent implementations for evaluating c
 | Agent | Class | File | Purpose |
 |-------|-------|------|---------|
 | **Baseline** | `BaselineClaudeCodeAgent` | `claude_baseline_agent.py` | Claude Code in autonomous mode, NO MCP |
+| **Strategic Deep Search** | `StrategicDeepSearchAgent` | `mcp_variants.py` | MCP + strategic Deep Search (context-gathering) |
 | **Deep Search Focused** | `DeepSearchFocusedAgent` | `mcp_variants.py` | MCP + aggressive Deep Search prompting |
 | **MCP No Deep Search** | `MCPNonDeepSearchAgent` | `mcp_variants.py` | MCP with keyword/NLS search only |
 | **Full Toolkit** | `FullToolkitAgent` | `mcp_variants.py` | MCP with all tools, neutral prompting |
@@ -18,7 +19,11 @@ This directory contains Harbor-compatible agent implementations for evaluating c
 harbor run --task <path> \
   --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent
 
-# Deep Search focused
+# Strategic Deep Search (RECOMMENDED)
+harbor run --task <path> \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent
+
+# Deep Search focused (aggressive)
 harbor run --task <path> \
   --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent
 
@@ -36,7 +41,7 @@ harbor run --task <path> \
 ```
 agents/
 ├── claude_baseline_agent.py        # Baseline agent (NO MCP)
-├── mcp_variants.py                 # 3 MCP variant agents
+├── mcp_variants.py                 # 4 MCP variant agents
 ├── claude_sourcegraph_mcp_agent.py # DEPRECATED: Compatibility shim (→ DeepSearchFocusedAgent)
 ├── __init__.py                     # Module exports
 └── README.md                       # This file
@@ -62,19 +67,39 @@ Claude Code with autonomous implementation mode enabled but **without Sourcegrap
 
 **File:** `mcp_variants.py`
 
-Three variant agents to isolate the value of different MCP tool combinations:
+Four variant agents to isolate the value of different MCP tool combinations:
 
-#### 1. DeepSearchFocusedAgent
+#### 1. StrategicDeepSearchAgent (RECOMMENDED)
 
-Heavily emphasizes Deep Search tool usage via prompts.
+Uses Deep Search **strategically** for context-gathering at key moments.
 
-- System prompt prioritizes `sg_deepsearch` for all code understanding
+**Philosophy:** One good Deep Search call should inform many subsequent decisions.
+
+**When to use Deep Search:**
+- At task start: understand architecture and relevant subsystems
+- When hitting information gaps: new subsystem, unclear dependencies
+- Before major implementation decisions
+
+**When NOT to use Deep Search:**
+- For every small question (leverage already-gathered context)
+- When the file is already open
+- After you understand the architecture
+
+**Use for:** Testing if strategic prompting improves MCP effectiveness
+
+**Reference:** CodeContextBench-6pl
+
+#### 2. DeepSearchFocusedAgent
+
+Heavily emphasizes Deep Search tool usage via prompts (aggressive approach).
+
+- System prompt prioritizes `sg_deepsearch` for ALL code understanding
 - CLAUDE.md contains aggressive guidance to use Deep Search first
-- Measures: Does Deep Search prompting improve outcomes?
+- Measures: Does aggressive Deep Search prompting improve outcomes?
 
-**Use for:** Testing if Deep Search is worth recommending to agents
+**Use for:** Testing if more Deep Search calls = better outcomes (likely not)
 
-#### 2. MCPNonDeepSearchAgent
+#### 3. MCPNonDeepSearchAgent
 
 MCP tools (keyword/NLS search) but explicitly avoids Deep Search.
 
