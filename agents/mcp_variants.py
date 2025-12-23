@@ -76,7 +76,7 @@ You have access to **Sourcegraph Deep Search** (`sg_deepsearch`) via MCP. This i
 
 ### Example: Good vs Bad Usage
 
-**GOOD**: 
+**GOOD**:
 - "Before I start, let me understand the diagnostics pipeline architecture" → sg_deepsearch
 - (Make 10 edits based on that understanding)
 - "I need to modify error handling but don't understand this new subsystem" → sg_deepsearch
@@ -146,29 +146,39 @@ One good Deep Search call should inform **many subsequent decisions**.
             if cmd.command and "claude " in cmd.command:
                 modified_command = cmd.command.replace(
                     "claude ",
-                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} "
+                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} ",
                 )
                 env = cmd.env or {}
                 env_with_autonomous = {
                     **env,
-                    'FORCE_AUTO_BACKGROUND_TASKS': '1',
-                    'ENABLE_BACKGROUND_TASKS': '1'
+                    "FORCE_AUTO_BACKGROUND_TASKS": "1",
+                    "ENABLE_BACKGROUND_TASKS": "1",
                 }
-                self.logger.info("StrategicDeepSearchAgent: Implementation mode with strategic Deep Search")
-                result.append(ExecInput(command=modified_command, env=env_with_autonomous))
+                self.logger.info(
+                    "StrategicDeepSearchAgent: Implementation mode with strategic Deep Search"
+                )
+                result.append(
+                    ExecInput(command=modified_command, env=env_with_autonomous)
+                )
             else:
                 result.append(cmd)
         return result
 
     async def setup(self, environment: BaseEnvironment) -> None:
         """Setup with strategic Deep Search prompts."""
-        sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
-        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
+        sg_url = (
+            os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
+        )
+        sg_token = (
+            os.environ.get("SOURCEGRAPH_ACCESS_TOKEN")
+            or os.environ.get("SRC_ACCESS_TOKEN")
+            or ""
+        )
 
         if sg_url and sg_token:
-            if not sg_url.startswith(('http://', 'https://')):
+            if not sg_url.startswith(("http://", "https://")):
                 sg_url = f"https://{sg_url}"
-            sg_url = sg_url.rstrip('/')
+            sg_url = sg_url.rstrip("/")
 
             # Full MCP config with all Sourcegraph tools
             mcp_config = {
@@ -176,7 +186,7 @@ One good Deep Search call should inform **many subsequent decisions**.
                     "sourcegraph": {
                         "type": "http",
                         "url": f"{sg_url}/.api/mcp/v1",
-                        "headers": {"Authorization": f"token {sg_token}"}
+                        "headers": {"Authorization": f"token {sg_token}"},
                     }
                 }
             }
@@ -186,8 +196,7 @@ One good Deep Search call should inform **many subsequent decisions**.
                 json.dump(mcp_config, f, indent=2)
 
             await environment.upload_file(
-                source_path=mcp_config_path,
-                target_path="/workspace/.mcp.json"
+                source_path=mcp_config_path, target_path="/workspace/.mcp.json"
             )
             self.logger.info("✓ StrategicDeepSearchAgent: MCP config uploaded")
 
@@ -198,9 +207,11 @@ One good Deep Search call should inform **many subsequent decisions**.
 
             await environment.upload_file(
                 source_path=system_prompt_path,
-                target_path="/workspace/system_prompt.txt"
+                target_path="/workspace/system_prompt.txt",
             )
-            self.logger.info("✓ StrategicDeepSearchAgent: Strategic system prompt uploaded")
+            self.logger.info(
+                "✓ StrategicDeepSearchAgent: Strategic system prompt uploaded"
+            )
 
             # Upload strategic CLAUDE.md
             claude_md_path = self.logs_dir / "CLAUDE.md"
@@ -208,12 +219,13 @@ One good Deep Search call should inform **many subsequent decisions**.
                 f.write(self.STRATEGIC_CLAUDE_MD)
 
             await environment.upload_file(
-                source_path=claude_md_path,
-                target_path="/workspace/CLAUDE.md"
+                source_path=claude_md_path, target_path="/workspace/CLAUDE.md"
             )
             self.logger.info("✓ StrategicDeepSearchAgent: Strategic CLAUDE.md uploaded")
         else:
-            self.logger.warning("⚠ StrategicDeepSearchAgent: Sourcegraph credentials not configured")
+            self.logger.warning(
+                "⚠ StrategicDeepSearchAgent: Sourcegraph credentials not configured"
+            )
 
         await super().setup(environment)
 
@@ -317,29 +329,39 @@ Remember: Deep Search saves tokens by finding the right code faster.
             if cmd.command and "claude " in cmd.command:
                 modified_command = cmd.command.replace(
                     "claude ",
-                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} "
+                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} ",
                 )
                 env = cmd.env or {}
                 env_with_autonomous = {
                     **env,
-                    'FORCE_AUTO_BACKGROUND_TASKS': '1',
-                    'ENABLE_BACKGROUND_TASKS': '1'
+                    "FORCE_AUTO_BACKGROUND_TASKS": "1",
+                    "ENABLE_BACKGROUND_TASKS": "1",
                 }
-                self.logger.info("DeepSearchFocusedAgent: Implementation mode with Deep Search emphasis")
-                result.append(ExecInput(command=modified_command, env=env_with_autonomous))
+                self.logger.info(
+                    "DeepSearchFocusedAgent: Implementation mode with Deep Search emphasis"
+                )
+                result.append(
+                    ExecInput(command=modified_command, env=env_with_autonomous)
+                )
             else:
                 result.append(cmd)
         return result
 
     async def setup(self, environment: BaseEnvironment) -> None:
         """Setup with Deep Search focused prompts."""
-        sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
-        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
+        sg_url = (
+            os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
+        )
+        sg_token = (
+            os.environ.get("SOURCEGRAPH_ACCESS_TOKEN")
+            or os.environ.get("SRC_ACCESS_TOKEN")
+            or ""
+        )
 
         if sg_url and sg_token:
-            if not sg_url.startswith(('http://', 'https://')):
+            if not sg_url.startswith(("http://", "https://")):
                 sg_url = f"https://{sg_url}"
-            sg_url = sg_url.rstrip('/')
+            sg_url = sg_url.rstrip("/")
 
             # Full MCP config with all Sourcegraph tools
             mcp_config = {
@@ -347,7 +369,7 @@ Remember: Deep Search saves tokens by finding the right code faster.
                     "sourcegraph": {
                         "type": "http",
                         "url": f"{sg_url}/.api/mcp/v1",
-                        "headers": {"Authorization": f"token {sg_token}"}
+                        "headers": {"Authorization": f"token {sg_token}"},
                     }
                 }
             }
@@ -357,8 +379,7 @@ Remember: Deep Search saves tokens by finding the right code faster.
                 json.dump(mcp_config, f, indent=2)
 
             await environment.upload_file(
-                source_path=mcp_config_path,
-                target_path="/workspace/.mcp.json"
+                source_path=mcp_config_path, target_path="/workspace/.mcp.json"
             )
             self.logger.info("✓ DeepSearchFocusedAgent: MCP config uploaded")
 
@@ -369,9 +390,11 @@ Remember: Deep Search saves tokens by finding the right code faster.
 
             await environment.upload_file(
                 source_path=system_prompt_path,
-                target_path="/workspace/system_prompt.txt"
+                target_path="/workspace/system_prompt.txt",
             )
-            self.logger.info("✓ DeepSearchFocusedAgent: System prompt with Deep Search emphasis uploaded")
+            self.logger.info(
+                "✓ DeepSearchFocusedAgent: System prompt with Deep Search emphasis uploaded"
+            )
 
             # Upload aggressive CLAUDE.md
             claude_md_path = self.logs_dir / "CLAUDE.md"
@@ -379,12 +402,15 @@ Remember: Deep Search saves tokens by finding the right code faster.
                 f.write(self.DEEP_SEARCH_CLAUDE_MD)
 
             await environment.upload_file(
-                source_path=claude_md_path,
-                target_path="/workspace/CLAUDE.md"
+                source_path=claude_md_path, target_path="/workspace/CLAUDE.md"
             )
-            self.logger.info("✓ DeepSearchFocusedAgent: CLAUDE.md with Deep Search guidance uploaded")
+            self.logger.info(
+                "✓ DeepSearchFocusedAgent: CLAUDE.md with Deep Search guidance uploaded"
+            )
         else:
-            self.logger.warning("⚠ DeepSearchFocusedAgent: Sourcegraph credentials not configured")
+            self.logger.warning(
+                "⚠ DeepSearchFocusedAgent: Sourcegraph credentials not configured"
+            )
 
         await super().setup(environment)
 
@@ -478,29 +504,39 @@ Use NLS search for:
             if cmd.command and "claude " in cmd.command:
                 modified_command = cmd.command.replace(
                     "claude ",
-                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} "
+                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} ",
                 )
                 env = cmd.env or {}
                 env_with_autonomous = {
                     **env,
-                    'FORCE_AUTO_BACKGROUND_TASKS': '1',
-                    'ENABLE_BACKGROUND_TASKS': '1'
+                    "FORCE_AUTO_BACKGROUND_TASKS": "1",
+                    "ENABLE_BACKGROUND_TASKS": "1",
                 }
-                self.logger.info("MCPNonDeepSearchAgent: Implementation mode without Deep Search")
-                result.append(ExecInput(command=modified_command, env=env_with_autonomous))
+                self.logger.info(
+                    "MCPNonDeepSearchAgent: Implementation mode without Deep Search"
+                )
+                result.append(
+                    ExecInput(command=modified_command, env=env_with_autonomous)
+                )
             else:
                 result.append(cmd)
         return result
 
     async def setup(self, environment: BaseEnvironment) -> None:
         """Setup with non-Deep Search MCP config."""
-        sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
-        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
+        sg_url = (
+            os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
+        )
+        sg_token = (
+            os.environ.get("SOURCEGRAPH_ACCESS_TOKEN")
+            or os.environ.get("SRC_ACCESS_TOKEN")
+            or ""
+        )
 
         if sg_url and sg_token:
-            if not sg_url.startswith(('http://', 'https://')):
+            if not sg_url.startswith(("http://", "https://")):
                 sg_url = f"https://{sg_url}"
-            sg_url = sg_url.rstrip('/')
+            sg_url = sg_url.rstrip("/")
 
             # MCP config - same endpoint, but prompts guide away from deep search
             # Note: We can't actually disable tools at MCP level, so we use prompting
@@ -509,7 +545,7 @@ Use NLS search for:
                     "sourcegraph": {
                         "type": "http",
                         "url": f"{sg_url}/.api/mcp/v1",
-                        "headers": {"Authorization": f"token {sg_token}"}
+                        "headers": {"Authorization": f"token {sg_token}"},
                     }
                 }
             }
@@ -519,8 +555,7 @@ Use NLS search for:
                 json.dump(mcp_config, f, indent=2)
 
             await environment.upload_file(
-                source_path=mcp_config_path,
-                target_path="/workspace/.mcp.json"
+                source_path=mcp_config_path, target_path="/workspace/.mcp.json"
             )
             self.logger.info("✓ MCPNonDeepSearchAgent: MCP config uploaded")
 
@@ -531,7 +566,7 @@ Use NLS search for:
 
             await environment.upload_file(
                 source_path=system_prompt_path,
-                target_path="/workspace/system_prompt.txt"
+                target_path="/workspace/system_prompt.txt",
             )
             self.logger.info("✓ MCPNonDeepSearchAgent: System prompt uploaded")
 
@@ -541,12 +576,13 @@ Use NLS search for:
                 f.write(self.NON_DEEPSEARCH_CLAUDE_MD)
 
             await environment.upload_file(
-                source_path=claude_md_path,
-                target_path="/workspace/CLAUDE.md"
+                source_path=claude_md_path, target_path="/workspace/CLAUDE.md"
             )
             self.logger.info("✓ MCPNonDeepSearchAgent: CLAUDE.md uploaded")
         else:
-            self.logger.warning("⚠ MCPNonDeepSearchAgent: Sourcegraph credentials not configured")
+            self.logger.warning(
+                "⚠ MCPNonDeepSearchAgent: Sourcegraph credentials not configured"
+            )
 
         await super().setup(environment)
 
@@ -625,29 +661,39 @@ Choose the best tool for your task. All tools are available and equally valid ch
             if cmd.command and "claude " in cmd.command:
                 modified_command = cmd.command.replace(
                     "claude ",
-                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} "
+                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} ",
                 )
                 env = cmd.env or {}
                 env_with_autonomous = {
                     **env,
-                    'FORCE_AUTO_BACKGROUND_TASKS': '1',
-                    'ENABLE_BACKGROUND_TASKS': '1'
+                    "FORCE_AUTO_BACKGROUND_TASKS": "1",
+                    "ENABLE_BACKGROUND_TASKS": "1",
                 }
-                self.logger.info("FullToolkitAgent: Implementation mode with all tools, neutral prompting")
-                result.append(ExecInput(command=modified_command, env=env_with_autonomous))
+                self.logger.info(
+                    "FullToolkitAgent: Implementation mode with all tools, neutral prompting"
+                )
+                result.append(
+                    ExecInput(command=modified_command, env=env_with_autonomous)
+                )
             else:
                 result.append(cmd)
         return result
 
     async def setup(self, environment: BaseEnvironment) -> None:
         """Setup with full toolkit, neutral prompts."""
-        sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
-        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
+        sg_url = (
+            os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
+        )
+        sg_token = (
+            os.environ.get("SOURCEGRAPH_ACCESS_TOKEN")
+            or os.environ.get("SRC_ACCESS_TOKEN")
+            or ""
+        )
 
         if sg_url and sg_token:
-            if not sg_url.startswith(('http://', 'https://')):
+            if not sg_url.startswith(("http://", "https://")):
                 sg_url = f"https://{sg_url}"
-            sg_url = sg_url.rstrip('/')
+            sg_url = sg_url.rstrip("/")
 
             # Full MCP config
             mcp_config = {
@@ -655,7 +701,7 @@ Choose the best tool for your task. All tools are available and equally valid ch
                     "sourcegraph": {
                         "type": "http",
                         "url": f"{sg_url}/.api/mcp/v1",
-                        "headers": {"Authorization": f"token {sg_token}"}
+                        "headers": {"Authorization": f"token {sg_token}"},
                     }
                 }
             }
@@ -665,8 +711,7 @@ Choose the best tool for your task. All tools are available and equally valid ch
                 json.dump(mcp_config, f, indent=2)
 
             await environment.upload_file(
-                source_path=mcp_config_path,
-                target_path="/workspace/.mcp.json"
+                source_path=mcp_config_path, target_path="/workspace/.mcp.json"
             )
             self.logger.info("✓ FullToolkitAgent: MCP config uploaded")
 
@@ -677,7 +722,7 @@ Choose the best tool for your task. All tools are available and equally valid ch
 
             await environment.upload_file(
                 source_path=system_prompt_path,
-                target_path="/workspace/system_prompt.txt"
+                target_path="/workspace/system_prompt.txt",
             )
             self.logger.info("✓ FullToolkitAgent: Neutral system prompt uploaded")
 
@@ -687,11 +732,12 @@ Choose the best tool for your task. All tools are available and equally valid ch
                 f.write(self.NEUTRAL_CLAUDE_MD)
 
             await environment.upload_file(
-                source_path=claude_md_path,
-                target_path="/workspace/CLAUDE.md"
+                source_path=claude_md_path, target_path="/workspace/CLAUDE.md"
             )
             self.logger.info("✓ FullToolkitAgent: Neutral CLAUDE.md uploaded")
         else:
-            self.logger.warning("⚠ FullToolkitAgent: Sourcegraph credentials not configured")
+            self.logger.warning(
+                "⚠ FullToolkitAgent: Sourcegraph credentials not configured"
+            )
 
         await super().setup(environment)

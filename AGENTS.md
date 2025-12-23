@@ -197,17 +197,84 @@ harbor run \
 
 ---
 
+## Experiment Management
+
+**CRITICAL: Every experiment MUST have a MANIFEST.md file.**
+
+See `docs/EXPERIMENT_MANAGEMENT.md` for complete guide.
+
+### Experiment Naming Convention
+
+```
+<experiment-type>-<focus>-<YYYYMMDD>[-<variant>]
+```
+
+**Good names:**
+```
+mcp-prompt-experiment-20251222          # Prompt strategy comparison
+bigcode-comparison-20251220             # Big code benchmark comparison
+agent-ablation-deepsearch-20251223      # Deep Search ablation study
+```
+
+**Bad names (avoid):**
+```
+test-run-20251220                       # What was tested?
+2025-12-20__08-43-21                    # Raw timestamp only
+single-task-correct                     # Not dated, unclear purpose
+```
+
+### Required Experiment Structure
+
+```
+jobs/my-experiment-20251223/
+├── MANIFEST.md                         # REQUIRED: Hypothesis, config, results
+├── config.json                         # Experiment configuration
+├── REPORT.md                           # Results summary
+├── baseline/                           # Per-agent results
+├── aggressive/
+└── strategic/
+```
+
+### MANIFEST.md Required Fields
+
+Every experiment manifest must include:
+1. **Hypothesis** - What you're testing
+2. **Configuration** - Model, benchmark, tasks, agents
+3. **Results Summary** - Success rates, key metrics
+4. **Key Findings** - What was learned
+
+### After Running Experiments
+
+1. Move raw harbor output to experiment directory
+2. Run analysis: `python3 scripts/analyze_mcp_experiment.py jobs/<experiment>/`
+3. Update MANIFEST.md with results
+4. Clean up orphaned timestamp directories
+
+### Agent Short Names
+
+| Short Name | Agent Class |
+|------------|-------------|
+| `baseline` | `BaselineClaudeCodeAgent` |
+| `aggressive` | `DeepSearchFocusedAgent` |
+| `strategic` | `StrategicDeepSearchAgent` |
+| `nodeep` | `MCPNonDeepSearchAgent` |
+| `full-toolkit` | `FullToolkitAgent` |
+
+---
+
 ## Development & Operations
 
 **Guides:**
 - `docs/DEVELOPMENT.md` - Setup, commands, agent implementation, testing
+- `docs/EXPERIMENT_MANAGEMENT.md` - Experiment naming, structure, analysis
 - `docs/OBSERVABILITY.md` - Observability, metrics collection, enterprise metrics
 - `docs/TROUBLESHOOTING.md` - Common issues
-- `benchmarks/README.md` - Benchmark guide (replaces archived BENCHMARK_EXECUTION.md)
+- `benchmarks/README.md` - Benchmark guide
 
 **Documentation Maintenance:**
 - Update `docs/ARCHITECTURE.md` when structure changes
 - Update `docs/DEVELOPMENT.md` when workflows change
+- Update `docs/EXPERIMENT_MANAGEMENT.md` when experiment patterns change
 - Update `docs/OBSERVABILITY.md` when observability/metrics features change
 - Update `docs/TROUBLESHOOTING.md` when you fix issues
 

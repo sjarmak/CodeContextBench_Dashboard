@@ -41,17 +41,20 @@ else
     CHANGES_MADE=0
 fi
 
-# Calculate reward
-SCORE=0
+# Calculate reward (using bash arithmetic, avoiding bc)
+SCORE_NUMERATOR=0
 if [ "$MODE_FOUND" -eq 1 ]; then
-    SCORE=$(echo "$SCORE + 0.5" | bc)
+    SCORE_NUMERATOR=$((SCORE_NUMERATOR + 5))  # 0.5 * 10
 fi
 if [ "$MXFP4_FOUND" -eq 1 ]; then
-    SCORE=$(echo "$SCORE + 0.2" | bc)
+    SCORE_NUMERATOR=$((SCORE_NUMERATOR + 2))  # 0.2 * 10
 fi
 if [ "$CHANGES_MADE" -eq 1 ]; then
-    SCORE=$(echo "$SCORE + 0.3" | bc)
+    SCORE_NUMERATOR=$((SCORE_NUMERATOR + 3))  # 0.3 * 10
 fi
+
+# Convert back to decimal (using awk for portable floating point)
+SCORE=$(awk "BEGIN {printf \"%.1f\", $SCORE_NUMERATOR / 10}")
 
 echo "$SCORE" > /logs/verifier/reward.txt
 echo ""

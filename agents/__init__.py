@@ -11,27 +11,35 @@ Deprecated:
 - ClaudeCodeSourcegraphMCPAgent: Use DeepSearchFocusedAgent instead
 """
 
+
 def __getattr__(name):
     """Lazy imports to avoid Harbor dependency at module load time."""
     if name == "BaselineClaudeCodeAgent":
         from agents.claude_baseline_agent import BaselineClaudeCodeAgent
+
         return BaselineClaudeCodeAgent
     elif name == "StrategicDeepSearchAgent":
         from agents.mcp_variants import StrategicDeepSearchAgent
+
         return StrategicDeepSearchAgent
     elif name == "DeepSearchFocusedAgent":
         from agents.mcp_variants import DeepSearchFocusedAgent
+
         return DeepSearchFocusedAgent
     elif name == "MCPNonDeepSearchAgent":
         from agents.mcp_variants import MCPNonDeepSearchAgent
+
         return MCPNonDeepSearchAgent
     elif name == "FullToolkitAgent":
         from agents.mcp_variants import FullToolkitAgent
+
         return FullToolkitAgent
     elif name == "ClaudeCodeSourcegraphMCPAgent":
         from agents.mcp_variants import DeepSearchFocusedAgent
+
         return DeepSearchFocusedAgent
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "BaselineClaudeCodeAgent",

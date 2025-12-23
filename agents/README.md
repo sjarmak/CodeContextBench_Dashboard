@@ -4,13 +4,13 @@ This directory contains Harbor-compatible agent implementations for evaluating c
 
 ## Quick Reference
 
-| Agent | Class | File | Purpose |
-|-------|-------|------|---------|
-| **Baseline** | `BaselineClaudeCodeAgent` | `claude_baseline_agent.py` | Claude Code in autonomous mode, NO MCP |
-| **Strategic Deep Search** | `StrategicDeepSearchAgent` | `mcp_variants.py` | MCP + strategic Deep Search (context-gathering) |
-| **Deep Search Focused** | `DeepSearchFocusedAgent` | `mcp_variants.py` | MCP + aggressive Deep Search prompting |
-| **MCP No Deep Search** | `MCPNonDeepSearchAgent` | `mcp_variants.py` | MCP with keyword/NLS search only |
-| **Full Toolkit** | `FullToolkitAgent` | `mcp_variants.py` | MCP with all tools, neutral prompting |
+| Agent                     | Class                      | File                       | Purpose                                         |
+| ------------------------- | -------------------------- | -------------------------- | ----------------------------------------------- |
+| **Baseline**              | `BaselineClaudeCodeAgent`  | `claude_baseline_agent.py` | Claude Code in autonomous mode, NO MCP          |
+| **Strategic Deep Search** | `StrategicDeepSearchAgent` | `mcp_variants.py`          | MCP + strategic Deep Search (context-gathering) |
+| **Deep Search Focused**   | `DeepSearchFocusedAgent`   | `mcp_variants.py`          | MCP + aggressive Deep Search prompting          |
+| **MCP No Deep Search**    | `MCPNonDeepSearchAgent`    | `mcp_variants.py`          | MCP with keyword/NLS search only                |
+| **Full Toolkit**          | `FullToolkitAgent`         | `mcp_variants.py`          | MCP with all tools, neutral prompting           |
 
 ## Usage
 
@@ -56,6 +56,7 @@ agents/
 Claude Code with autonomous implementation mode enabled but **without Sourcegraph MCP**.
 
 **Key Features:**
+
 - Extends Harbor's built-in `ClaudeCode` agent
 - Enables autonomous operation via `FORCE_AUTO_BACKGROUND_TASKS=1` and `ENABLE_BACKGROUND_TASKS=1`
 - Full tool access: Bash, Read, Edit, Write, Grep, Glob
@@ -76,11 +77,13 @@ Uses Deep Search **strategically** for context-gathering at key moments.
 **Philosophy:** One good Deep Search call should inform many subsequent decisions.
 
 **When to use Deep Search:**
+
 - At task start: understand architecture and relevant subsystems
 - When hitting information gaps: new subsystem, unclear dependencies
 - Before major implementation decisions
 
 **When NOT to use Deep Search:**
+
 - For every small question (leverage already-gathered context)
 - When the file is already open
 - After you understand the architecture
@@ -124,11 +127,13 @@ All tools available with neutral prompting - no preference for any approach.
 ### Environment Variables
 
 All agents require:
+
 ```bash
 export ANTHROPIC_API_KEY="your-claude-key"
 ```
 
 MCP agents additionally require:
+
 ```bash
 export SOURCEGRAPH_URL="https://sourcegraph.sourcegraph.com"
 export SOURCEGRAPH_ACCESS_TOKEN="your-sourcegraph-token"
@@ -139,14 +144,17 @@ export SOURCEGRAPH_ACCESS_TOKEN="your-sourcegraph-token"
 Each variant agent can be customized by modifying the system prompts:
 
 **Deep Search Focused:**
+
 - `DEEP_SEARCH_SYSTEM_PROMPT` - Controls the mandatory Deep Search guidance
 - `DEEP_SEARCH_CLAUDE_MD` - Guidance file emphasizing Deep Search
 
 **No Deep Search:**
+
 - `NON_DEEPSEARCH_SYSTEM_PROMPT` - Recommends keyword/NLS only
 - `NON_DEEPSEARCH_CLAUDE_MD` - Warns against Deep Search
 
 **Full Toolkit:**
+
 - `NEUTRAL_SYSTEM_PROMPT` - Lists all tools equally
 - `NEUTRAL_CLAUDE_MD` - Describes available tools neutrally
 
@@ -172,6 +180,7 @@ pytest tests/test_mcp_agent_setup.py -v
 This is now an alias to `DeepSearchFocusedAgent`. Old code using it will still work but should migrate to the new variant system.
 
 **Migration:**
+
 ```bash
 # OLD (still works, but deprecated)
 --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent

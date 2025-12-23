@@ -121,17 +121,18 @@ The difference is in what happens BEFORE generation:
 
 **MCP Agent (481 tool calls):**
 
-| Tool             | Count | %   | Category      |
-| ---------------- | ----- | --- | ------------- |
-| Bash             | 258   | 54% | Navigation    |
-| Read             | 105   | 22% | Comprehension |
-| TodoWrite        | 36    | 7%  | Planning      |
-| Grep             | 28    | 6%  | Comprehension |
-| Edit             | 18    | 4%  | Generation    |
-| Glob             | 18    | 4%  | Navigation    |
-| **MCP tools**    | 13    | 3%  | Comprehension |
+| Tool          | Count | %   | Category      |
+| ------------- | ----- | --- | ------------- |
+| Bash          | 258   | 54% | Navigation    |
+| Read          | 105   | 22% | Comprehension |
+| TodoWrite     | 36    | 7%  | Planning      |
+| Grep          | 28    | 6%  | Comprehension |
+| Edit          | 18    | 4%  | Generation    |
+| Glob          | 18    | 4%  | Navigation    |
+| **MCP tools** | 13    | 3%  | Comprehension |
 
 MCP-specific tools breakdown:
+
 - `sg_keyword_search`: 8 calls
 - `sg_list_repos`: 2 calls
 - `sg_commit_search`: 1 call
@@ -151,6 +152,7 @@ Analysis of 592 no-tool-call steps reveals they are primarily **reasoning/planni
 ### Key Insight: Hidden Comprehension
 
 **If reasoning steps are counted as comprehension:**
+
 - Baseline: 44% reasoning + 14% tool-based = **~58% total cognitive work**
 - This **matches the human 58% figure exactly!**
 

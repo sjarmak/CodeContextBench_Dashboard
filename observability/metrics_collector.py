@@ -70,9 +70,10 @@ class MetricsCollector:
         for manifest in manifests:
             execution = manifest.get('execution', {})
             result = manifest.get('result', {})
-            
+            task_id = self._normalize_task_id(result.get('task_id', 'unknown'))
+
             m = ExecutionMetrics(
-                task_id=result.get('task_id', 'unknown'),
+                task_id=task_id,
                 agent=execution.get('agent', 'unknown'),
                 benchmark=execution.get('benchmark', 'unknown'),
                 success=result.get('success', False),
@@ -85,6 +86,20 @@ class MetricsCollector:
             metrics.append(m)
         
         return metrics
+
+    @staticmethod
+    def _normalize_task_id(task_id: Any) -> str:
+        if isinstance(task_id, dict):
+            for key in ('task_id', 'id', 'path', 'name'):
+                if key in task_id:
+                    value = task_id[key]
+                    return value if isinstance(value, str) else json.dumps(value, sort_keys=True)
+            return json.dumps(task_id, sort_keys=True)
+        if isinstance(task_id, list):
+            return json.dumps(task_id, sort_keys=True)
+        if task_id is None:
+            return 'unknown'
+        return str(task_id)
     
     def compute_summary_stats(self, metrics: List[ExecutionMetrics]) -> Dict[str, Any]:
         """Compute summary statistics across metrics.

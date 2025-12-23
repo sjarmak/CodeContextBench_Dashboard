@@ -137,6 +137,25 @@ class TestManifestWriter:
             assert summary['reward'] == 0.0
             assert summary['error_type'] == 'TimeoutError'
             assert 'timeout' in summary['error_message'].lower()
+
+    def test_build_result_summary_duration_fallback(self):
+        """Test duration fallback from timestamp fields."""
+        with TemporaryDirectory() as tmpdir:
+            writer = ManifestWriter(Path(tmpdir))
+            result = {
+                'task_name': 'duration-test',
+                'task_id': 'duration-test',
+                'verifier_result': {'rewards': {'reward': 1.0}},
+                'agent_execution': {
+                    'started_at': '2025-12-22T17:50:34.000000',
+                    'finished_at': '2025-12-22T17:50:44.500000'
+                },
+                'patch_info': {'size_bytes': 0, 'files_changed': 0},
+                'exception_info': None
+            }
+            summary = writer.build_result_summary(result)
+
+            assert summary['duration_sec'] == pytest.approx(10.5)
     
     def test_build_retrieval_metrics(self):
         """Test building retrieval metrics from tool profile."""
@@ -172,6 +191,162 @@ class TestManifestWriter:
             
             assert profile.total_tool_invocations == 0
             assert profile.total_unique_tools == 0
+
+    def test_extract_tool_usage_from_sessions(self, sample_result):
+        """Test tool usage extraction from agent session JSONL logs."""
+        with TemporaryDirectory() as tmpdir:
+            job_dir = Path(tmpdir)
+            session_dir = job_dir / 'agent' / 'sessions' / 'projects' / '-app'
+            session_dir.mkdir(parents=True)
+            session_log = session_dir / 'agent-test.jsonl'
+
+            events = [
+                {
+                    'type': 'assistant',
+                    'message': {
+                        'content': [
+                            {
+                                'type': 'tool_use',
+                                'id': 'toolu_1',
+                                'name': 'Grep',
+                                'input': {'pattern': 'foo', 'path': '/app'}
+                            }
+                        ]
+                    }
+                },
+                {
+                    'type': 'user',
+                    'message': {
+                        'content': [
+                            {
+                                'type': 'tool_result',
+                                'tool_use_id': 'toolu_1',
+                                'content': '',
+                                'is_error': False
+                            }
+                        ]
+                    },
+                    'toolUseResult': {
+                        'numLines': 0,
+                        'numFiles': 0,
+                        'content': ''
+                    }
+                },
+                {
+                    'type': 'assistant',
+                    'message': {
+                        'content': [
+                            {
+                                'type': 'tool_use',
+                                'id': 'toolu_2',
+                                'name': 'Read',
+                                'input': {'file_path': '/app/file.py'}
+                            }
+                        ]
+                    }
+                },
+                {
+                    'type': 'user',
+                    'message': {
+                        'content': [
+                            {
+                                'type': 'tool_result',
+                                'tool_use_id': 'toolu_2',
+                                'content': 'data',
+                                'is_error': False
+                            }
+                        ]
+                    },
+                    'toolUseResult': {
+                        'file': {'filePath': '/app/file.py', 'content': 'data'}
+                    }
+                },
+                {
+                    'type': 'assistant',
+                    'message': {
+                        'content': [
+                            {
+                                'type': 'tool_use',
+                                'id': 'toolu_3',
+                                'name': 'Bash',
+                                'input': {'command': 'rg foo /app'}
+                            }
+                        ]
+                    }
+                },
+                {
+                    'type': 'user',
+                    'message': {
+                        'content': [
+                            {
+                                'type': 'tool_result',
+                                'tool_use_id': 'toolu_3',
+                                'content': 'match',
+                                'is_error': False
+                            }
+                        ]
+                    },
+                    'toolUseResult': {'stdout': 'match\n', 'stderr': ''}
+                },
+                {
+                    'type': 'assistant',
+                    'message': {
+                        'content': [
+                            {
+                                'type': 'tool_use',
+                                'id': 'toolu_4',
+                                'name': 'Glob',
+                                'input': {'pattern': '**/*.py'}
+                            }
+                        ]
+                    }
+                },
+                {
+                    'type': 'user',
+                    'message': {
+                        'content': [
+                            {
+                                'type': 'tool_result',
+                                'tool_use_id': 'toolu_4',
+                                'content': '',
+                                'is_error': False
+                            }
+                        ]
+                    },
+                    'toolUseResult': {
+                        'filenames': ['/app/a.py', '/app/b.py'],
+                        'numFiles': 2
+                    }
+                }
+            ]
+
+            session_log.write_text('\n'.join(json.dumps(e) for e in events))
+
+            writer = ManifestWriter(job_dir)
+            profile = writer.extract_tool_usage()
+
+            assert profile.total_tool_invocations == 4
+            assert profile.search_queries_count == 3
+            assert profile.file_operations_count == 1
+
+            manifest_path = writer.write_manifest(
+                harness_name='harbor-v1',
+                agent_name='claude-baseline',
+                benchmark_name='10figure',
+                override_result=sample_result
+            )
+
+            with open(manifest_path) as f:
+                manifest = json.load(f)
+
+            retrieval = manifest['retrieval_metrics']
+            assert retrieval['total_searches'] == 3
+            assert retrieval['search_success_count'] == 2
+            assert retrieval['search_empty_count'] == 1
+            assert retrieval['search_result_count'] == 3
+            assert retrieval['file_read_count'] == 1
+            assert retrieval['unique_files_read'] == 1
+            assert '/app/file.py' in retrieval['file_read_samples']
     
     def test_write_manifest_complete(self, sample_result):
         """Test writing complete run manifest."""
@@ -199,6 +374,28 @@ class TestManifestWriter:
             assert manifest['result']['success'] is True
             assert 'tool_profile' in manifest
             assert 'retrieval_metrics' in manifest
+
+    def test_write_manifest_uses_agent_result_tokens(self, sample_result):
+        """Test token fallback from agent_result when tokens are missing."""
+        with TemporaryDirectory() as tmpdir:
+            job_dir = Path(tmpdir)
+            writer = ManifestWriter(job_dir)
+            result = dict(sample_result)
+            result['agent_result'] = {'n_input_tokens': 10, 'n_output_tokens': 5}
+
+            manifest_path = writer.write_manifest(
+                harness_name='harbor-v1',
+                agent_name='claude-baseline',
+                benchmark_name='10figure',
+                override_result=result
+            )
+
+            with open(manifest_path) as f:
+                manifest = json.load(f)
+
+            tokens = manifest['result']['tokens']
+            assert tokens['input_tokens'] == 10
+            assert tokens['output_tokens'] == 5
     
     def test_aggregate_manifests_empty(self):
         """Test aggregating empty manifest list."""
@@ -333,6 +530,28 @@ class TestMetricsCollector:
             assert metrics[0].task_id == 'task-001'
             assert metrics[1].task_id == 'task-002'
             assert all(m.success for m in metrics)
+
+    def test_extract_metrics_normalizes_task_id(self):
+        """Test extracting metrics with non-string task IDs."""
+        with TemporaryDirectory() as tmpdir:
+            collector = MetricsCollector(Path(tmpdir))
+            manifests = [
+                {
+                    'execution': {'agent': 'claude-mcp', 'benchmark': '10figure'},
+                    'result': {
+                        'task_id': {'path': 'benchmarks/big_code_mcp/big-code-vsc-001'},
+                        'success': True,
+                        'reward': 1.0,
+                        'duration_sec': 1.0,
+                        'patch_size_bytes': 0,
+                        'files_changed': 0,
+                        'error_type': None
+                    }
+                }
+            ]
+            metrics = collector.extract_metrics(manifests)
+
+            assert metrics[0].task_id == 'benchmarks/big_code_mcp/big-code-vsc-001'
     
     def test_compute_summary_stats_empty(self):
         """Test summary stats on empty metrics."""

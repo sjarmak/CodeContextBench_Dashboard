@@ -41,17 +41,20 @@ else
     TESTS_ADDED=0
 fi
 
-# Calculate reward based on implementation
-SCORE=0
+# Calculate reward based on implementation (using bash arithmetic, avoiding bc)
+SCORE_NUMERATOR=0
 if [ "$TAINT_ADDED" -eq 1 ]; then
-    SCORE=$(echo "$SCORE + 0.4" | bc)
+    SCORE_NUMERATOR=$((SCORE_NUMERATOR + 4))  # 0.4 * 10
 fi
 if [ "$CHANGES_MADE" -eq 1 ]; then
-    SCORE=$(echo "$SCORE + 0.3" | bc)
+    SCORE_NUMERATOR=$((SCORE_NUMERATOR + 3))  # 0.3 * 10
 fi
 if [ "$TESTS_ADDED" -eq 1 ]; then
-    SCORE=$(echo "$SCORE + 0.3" | bc)
+    SCORE_NUMERATOR=$((SCORE_NUMERATOR + 3))  # 0.3 * 10
 fi
+
+# Convert back to decimal (using awk for portable floating point)
+SCORE=$(awk "BEGIN {printf \"%.1f\", $SCORE_NUMERATOR / 10}")
 
 echo "$SCORE" > /logs/verifier/reward.txt
 echo ""
