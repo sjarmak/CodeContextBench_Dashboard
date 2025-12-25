@@ -71,7 +71,7 @@ def render_experiment_selector(jobs_dir: Path) -> Optional[Path]:
 
 def render_summary_metrics(report: Dict[str, Any]):
     """Render summary metrics from evaluation report."""
-    st.subheader("📊 Summary Metrics")
+    st.subheader("Summary Metrics")
 
     summary = report.get("summary", {})
     agents = summary.get("agents", {})
@@ -106,7 +106,7 @@ def render_summary_metrics(report: Dict[str, Any]):
 
 def render_agent_runs(report: Dict[str, Any]):
     """Render individual agent run details."""
-    st.subheader("🔍 Agent Runs")
+    st.subheader("Agent Runs")
 
     agent_runs = report.get("agent_runs", [])
 
@@ -173,7 +173,7 @@ def render_agent_runs(report: Dict[str, Any]):
         st.metric("Tool Calls", total_tool_calls)
 
     # Judge assessments
-    st.markdown("### 🎯 Judge Assessments")
+    st.markdown("### Judge Assessments")
 
     assessments = selected_run.get("judge_assessments", [])
 
@@ -193,12 +193,12 @@ def render_agent_runs(report: Dict[str, Any]):
                 if strengths:
                     st.markdown("**Strengths:**")
                     for s in strengths:
-                        st.markdown(f"- ✅ {s}")
+                        st.markdown(f"- {s}")
 
                 if weaknesses:
                     st.markdown("**Weaknesses:**")
                     for w in weaknesses:
-                        st.markdown(f"- ❌ {w}")
+                        st.markdown(f"- {w}")
 
     # Tool usage details
     st.markdown("### 🔧 Tool Usage")
@@ -260,7 +260,7 @@ def render_report_md(exp_dir: Path):
 
 def show_results_browser():
     """Main results browser page."""
-    st.title("📊 Experiment Results")
+    st.title("Experiment Results")
     st.markdown("Explore Harbor execution results and LLM judge assessments.")
 
     # Get project root
@@ -287,7 +287,7 @@ def show_results_browser():
     st.markdown("---")
 
     # Experiment overview
-    st.subheader("📋 Experiment Overview")
+    st.subheader("Experiment Overview")
 
     col1, col2 = st.columns(2)
 

@@ -260,7 +260,7 @@ def create_cost_comparison(report: Dict[str, Any]) -> go.Figure:
 
 def show_comparison_view():
     """Main comparison view page."""
-    st.title("🔍 Agent Comparison")
+    st.title("Agent Comparison")
     st.markdown("Side-by-side comparison of agent performance across metrics.")
 
     # Get project root
@@ -303,7 +303,7 @@ def show_comparison_view():
     st.markdown("---")
 
     # Summary table
-    st.subheader("📊 Summary Table")
+    st.subheader("Summary Table")
 
     summary = report.get("summary", {})
     agents = summary.get("agents", {})

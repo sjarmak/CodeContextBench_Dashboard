@@ -56,7 +56,7 @@ def render_manifest_selector(benchmarks_dir: Path) -> Optional[Path]:
 
 def render_manifest_overview(manifest: Dict[str, Any]):
     """Render manifest overview section."""
-    st.subheader("📋 Manifest Overview")
+    st.subheader("Manifest Overview")
 
     col1, col2, col3 = st.columns(3)
 
@@ -84,7 +84,7 @@ def render_manifest_overview(manifest: Dict[str, Any]):
 
 def render_datasets(manifest: Dict[str, Any]):
     """Render datasets section."""
-    st.subheader("💾 Datasets")
+    st.subheader("Datasets")
 
     datasets = manifest.get("datasets", [])
 
@@ -101,7 +101,7 @@ def render_datasets(manifest: Dict[str, Any]):
 
 def render_artifacts(manifest: Dict[str, Any]):
     """Render artifacts section."""
-    st.subheader("📦 Artifacts")
+    st.subheader("Artifacts")
 
     artifacts = manifest.get("artifacts", [])
 
@@ -118,7 +118,7 @@ def render_artifacts(manifest: Dict[str, Any]):
 
 def render_creation_steps(manifest: Dict[str, Any]):
     """Render creation steps section."""
-    st.subheader("🔨 Creation Steps")
+    st.subheader("Creation Steps")
 
     creation = manifest.get("creation", {})
     steps = creation.get("steps", [])
@@ -129,9 +129,8 @@ def render_creation_steps(manifest: Dict[str, Any]):
 
     for i, step in enumerate(steps):
         status = step.get("status", "unknown")
-        status_emoji = "✅" if status == "success" else "❌"
 
-        with st.expander(f"{status_emoji} Step {i+1}: {step.get('name', 'Unnamed')}"):
+        with st.expander(f"Step {i+1}: {step.get('name', 'Unnamed')} ({status})"):
             st.markdown(f"**Status:** {status}")
             st.markdown(f"**Exit Code:** {step.get('exit_code', 'N/A')}")
 
@@ -150,7 +149,7 @@ def render_creation_steps(manifest: Dict[str, Any]):
 
 def render_validation_steps(manifest: Dict[str, Any]):
     """Render validation steps section."""
-    st.subheader("✅ Validation Steps")
+    st.subheader("Validation Steps")
 
     validation = manifest.get("validation", {})
     steps = validation.get("steps", [])
@@ -161,9 +160,8 @@ def render_validation_steps(manifest: Dict[str, Any]):
 
     for i, step in enumerate(steps):
         status = step.get("status", "unknown")
-        status_emoji = "✅" if status == "success" else "❌"
 
-        with st.expander(f"{status_emoji} Step {i+1}: {step.get('name', 'Unnamed')}"):
+        with st.expander(f"Step {i+1}: {step.get('name', 'Unnamed')} ({status})"):
             st.markdown(f"**Status:** {status}")
 
             command = step.get("command", "")
@@ -181,7 +179,7 @@ def render_validation_steps(manifest: Dict[str, Any]):
 
 def render_environment(manifest: Dict[str, Any]):
     """Render environment section."""
-    st.subheader("🌍 Environment")
+    st.subheader("Environment")
 
     env = manifest.get("environment", {})
 
@@ -197,21 +195,21 @@ def render_environment(manifest: Dict[str, Any]):
     if variables:
         st.markdown("**Variables:**")
         for var in variables:
-            is_set = "✅" if var.get("set", False) else "❌"
-            st.markdown(f"- {is_set} `{var.get('name', 'unknown')}`: `{var.get('sha256', 'N/A')[:16]}...`")
+            is_set = "SET" if var.get("set", False) else "NOT SET"
+            st.markdown(f"- [{is_set}] `{var.get('name', 'unknown')}`: `{var.get('sha256', 'N/A')[:16]}...`")
 
     # Env files
     env_files = env.get("env_files", [])
     if env_files:
         st.markdown("**Environment Files:**")
         for ef in env_files:
-            exists = "✅" if ef.get("exists", False) else "❌"
-            st.markdown(f"- {exists} `{ef.get('path', 'unknown')}`: `{ef.get('sha256', 'N/A')[:16]}...`")
+            exists = "EXISTS" if ef.get("exists", False) else "MISSING"
+            st.markdown(f"- [{exists}] `{ef.get('path', 'unknown')}`: `{ef.get('sha256', 'N/A')[:16]}...`")
 
 
 def show_manifest_viewer():
     """Main manifest viewer page."""
-    st.title("📋 Benchmark Manifests")
+    st.title("Benchmark Manifests")
     st.markdown("Browse benchmark configurations, datasets, and validation logs.")
 
     # Get project root

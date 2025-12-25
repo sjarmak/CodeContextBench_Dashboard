@@ -128,96 +128,98 @@ def main():
 
 
 def show_home():
-    """Home page with overview and quick stats."""
+    """Home page with quick summary of agents, benchmarks, and run status."""
     st.title("CodeContextBench Evaluation Platform")
 
-    st.markdown(
-        """
-    **Full-featured benchmark management and evaluation platform**
-
-    ### Benchmark Management
-    - Manage 7 registered benchmarks (Kubernetes, GitHub, Big Code, DIBench, DependEval, RepoQA, Synthetic)
-    - Oracle validation for task sanity checking
-    - Task selection and profiles
-    - Add new benchmarks dynamically
-
-    ### Agent Configuration
-    - Manage agent versions with model, prompt, and tool configurations
-    - Track agent modifications for reproducibility
-    - Version control for experimental changes
-
-    ### Evaluation Execution
-    - Run evaluations with configurable agents and task selection
-    - Live progress monitoring with pause/resume capability
-    - Background execution with real-time updates
-    - Concurrent task execution
-
-    ### Analysis & Reporting
-    - Comprehensive comparison tables with tokens, costs, pass rates
-    - Deep Search analytics and query patterns
-    - LLM-as-judge evaluation integration
-    - Export results for further analysis
-    """
-    )
-
+    st.markdown("**Full-featured benchmark management and evaluation platform**")
     st.markdown("---")
 
-    # Quick stats
-    st.subheader("📈 Quick Stats")
+    # Available Benchmarks
+    st.subheader("Available Benchmarks")
 
-    col1, col2, col3, col4 = st.columns(4)
+    from src.benchmark.database import BenchmarkRegistry
+    benchmarks = BenchmarkRegistry.list_all()
 
-    # Count benchmarks
-    benchmarks_dir = PROJECT_ROOT / "benchmarks"
-    benchmark_count = len([d for d in benchmarks_dir.iterdir() if d.is_dir() and not d.name.startswith(".")])
-
-    # Count experiments
-    jobs_dir = PROJECT_ROOT / "jobs"
-    experiment_count = len([d for d in jobs_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]) if jobs_dir.exists() else 0
-
-    # Count agents
-    agents_dir = PROJECT_ROOT / "agents"
-    agent_files = list(agents_dir.glob("*.py")) if agents_dir.exists() else []
-    agent_count = len([f for f in agent_files if f.name not in ["__init__.py", "__pycache__"]])
-
-    # Count manifests
-    manifest_count = len(list(benchmarks_dir.rglob("MANIFEST.json"))) if benchmarks_dir.exists() else 0
-
-    with col1:
-        st.metric("Benchmarks", benchmark_count)
-
-    with col2:
-        st.metric("Experiments", experiment_count)
-
-    with col3:
-        st.metric("Agents", agent_count)
-
-    with col4:
-        st.metric("Manifests", manifest_count)
-
-    st.markdown("---")
-
-    # Recent activity
-    st.subheader("🕒 Recent Activity")
-
-    if jobs_dir.exists():
-        recent_dirs = sorted(
-            [d for d in jobs_dir.iterdir() if d.is_dir() and not d.name.startswith(".")],
-            key=lambda x: x.stat().st_mtime,
-            reverse=True,
-        )[:5]
-
-        if recent_dirs:
-            for exp_dir in recent_dirs:
-                # Check for result files
-                result_files = list(exp_dir.rglob("result.json"))
-                st.markdown(
-                    f"- **{exp_dir.name}** - {len(result_files)} runs - {exp_dir.stat().st_mtime}"
-                )
-        else:
-            st.info("No recent experiments found.")
+    if benchmarks:
+        benchmark_data = []
+        for bm in benchmarks:
+            benchmark_data.append({
+                "Name": bm["name"],
+                "Tasks": bm["task_count"],
+                "Type": bm["adapter_type"],
+                "Validation": bm.get("validation_status", "Not run"),
+            })
+        st.dataframe(benchmark_data, use_container_width=True, hide_index=True)
     else:
-        st.info("No experiments directory found.")
+        st.info("No benchmarks registered. Use 'Add Benchmark' to register benchmarks.")
+
+    st.markdown("---")
+
+    # Available Agents
+    st.subheader("Available Agents")
+
+    agents_dir = PROJECT_ROOT / "agents"
+    if agents_dir.exists():
+        agent_files = [f for f in agents_dir.glob("*.py") if f.name not in ["__init__.py", "README.md"]]
+
+        if agent_files:
+            agent_data = []
+            for agent_file in agent_files:
+                agent_name = agent_file.stem
+                # Try to extract docstring or first comment
+                try:
+                    with open(agent_file) as f:
+                        lines = f.readlines()
+                        description = "No description"
+                        for line in lines[:20]:
+                            if '"""' in line or "'''" in line:
+                                description = line.strip().strip('"""').strip("'''")
+                                break
+                except:
+                    description = "No description"
+
+                agent_data.append({
+                    "Agent": agent_name,
+                    "File": agent_file.name,
+                    "Description": description[:60] + "..." if len(description) > 60 else description,
+                })
+            st.dataframe(agent_data, use_container_width=True, hide_index=True)
+        else:
+            st.info("No agent files found in agents/ directory.")
+    else:
+        st.info("Agents directory not found.")
+
+    st.markdown("---")
+
+    # Current Evaluation Run Status
+    st.subheader("Current Evaluation Run Status")
+
+    from src.benchmark.database import RunManager
+    runs = RunManager.list_all()
+
+    if runs:
+        # Get most recent runs
+        recent_runs = sorted(runs, key=lambda x: x.get("created_at", ""), reverse=True)[:10]
+
+        run_data = []
+        for run in recent_runs:
+            status = run.get("status", "unknown")
+            run_data.append({
+                "Run ID": run["run_id"][:12] + "...",
+                "Benchmark": run.get("benchmark_name", "Unknown"),
+                "Status": status,
+                "Tasks": f"{run.get('completed_tasks', 0)}/{run.get('total_tasks', 0)}",
+                "Agents": ", ".join(run.get("agents", [])) if isinstance(run.get("agents"), list) else str(run.get("agents", "")),
+            })
+
+        st.dataframe(run_data, use_container_width=True, hide_index=True)
+
+        # Show any running evaluations
+        running_runs = [r for r in runs if r.get("status") == "running"]
+        if running_runs:
+            st.warning(f"{len(running_runs)} evaluation(s) currently running. Check 'Evaluation Runner' for details.")
+    else:
+        st.info("No evaluation runs found. Use 'Evaluation Runner' to start a new evaluation.")
 
 
 def show_benchmark_manager():

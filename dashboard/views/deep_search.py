@@ -255,7 +255,7 @@ def show_deep_search_analytics():
     st.markdown("---")
 
     # Summary metrics
-    st.subheader("📊 Summary Metrics")
+    st.subheader("Summary Metrics")
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -296,7 +296,7 @@ def show_deep_search_analytics():
     st.markdown("---")
 
     # Query analysis
-    st.subheader("🔍 Query Analysis")
+    st.subheader("Query Analysis")
 
     all_queries = []
     for analysis in all_analyses:
@@ -336,7 +336,7 @@ def show_deep_search_analytics():
     st.markdown("---")
 
     # Per-agent breakdown
-    st.subheader("📈 Per-Agent Breakdown")
+    st.subheader("Per-Agent Breakdown")
 
     for agent_name, analyses in sorted(agent_analyses.items()):
         with st.expander(f"{agent_name} ({len(analyses)} runs)"):

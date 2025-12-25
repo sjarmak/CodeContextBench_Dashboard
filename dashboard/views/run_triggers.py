@@ -39,7 +39,7 @@ def run_command(command: str, cwd: Optional[Path] = None) -> tuple[int, str, str
 
 def show_benchmark_lifecycle_trigger():
     """UI for triggering benchmark lifecycle pipeline."""
-    st.subheader("🔨 Benchmark Lifecycle Pipeline")
+    st.subheader("Benchmark Lifecycle Pipeline")
 
     st.markdown(
         """
@@ -90,9 +90,9 @@ def show_benchmark_lifecycle_trigger():
             exit_code, stdout, stderr = run_command(command, cwd=project_root)
 
         if exit_code == 0:
-            st.success("✅ Pipeline completed successfully!")
+            st.success("Pipeline completed successfully!")
         else:
-            st.error(f"❌ Pipeline failed with exit code {exit_code}")
+            st.error(f"Pipeline failed with exit code {exit_code}")
 
         if stdout:
             st.text_area("Output", stdout, height=300)
@@ -103,7 +103,7 @@ def show_benchmark_lifecycle_trigger():
 
 def show_profile_runner_trigger():
     """UI for triggering profile runs."""
-    st.subheader("📊 Profile Runner")
+    st.subheader("Profile Runner")
 
     st.markdown(
         """
@@ -148,9 +148,9 @@ def show_profile_runner_trigger():
             exit_code, stdout, stderr = run_command(command, cwd=project_root)
 
         if exit_code == 0:
-            st.success("✅ Profile run completed!")
+            st.success("Profile run completed!")
         else:
-            st.error(f"❌ Profile run failed with exit code {exit_code}")
+            st.error(f"Profile run failed with exit code {exit_code}")
 
         if stdout:
             st.text_area("Output", stdout, height=300, key="profile_stdout")
@@ -161,7 +161,7 @@ def show_profile_runner_trigger():
 
 def show_postprocess_trigger():
     """UI for triggering postprocess evaluation."""
-    st.subheader("🤖 Post-Process Evaluation")
+    st.subheader("Post-Process Evaluation")
 
     st.markdown(
         """
@@ -239,20 +239,20 @@ def show_postprocess_trigger():
             exit_code, stdout, stderr = run_command(command, cwd=project_root)
 
         if exit_code == 0:
-            st.success("✅ Post-processing completed!")
+            st.success("Post-processing completed!")
 
             # Check for outputs
             report_json = exp_path / "evaluation_report.json"
             report_md = exp_path / "REPORT.md"
 
             if report_json.exists():
-                st.success(f"📄 Generated: {report_json}")
+                st.success(f"Generated: {report_json}")
 
             if report_md.exists():
-                st.success(f"📄 Generated: {report_md}")
+                st.success(f"Generated: {report_md}")
 
         else:
-            st.error(f"❌ Post-processing failed with exit code {exit_code}")
+            st.error(f"Post-processing failed with exit code {exit_code}")
 
         if stdout:
             st.text_area("Output", stdout, height=300, key="postprocess_stdout")
@@ -263,11 +263,11 @@ def show_postprocess_trigger():
 
 def show_run_triggers():
     """Main run triggers page."""
-    st.title("▶️ Run Benchmarks")
+    st.title("Run Benchmarks")
     st.markdown("Launch benchmark lifecycle, profile runs, or evaluation pipelines.")
 
     st.warning(
-        "⚠️ These operations can take significant time and resources. "
+        "These operations can take significant time and resources. "
         "Use dry-run mode first to preview commands."
     )
 
