@@ -1,0 +1,50 @@
+id: api-doc-001
+name: "Server-Side Apply Documentation"
+category: api-documentation
+difficulty: hard
+repository: kubernetes/kubernetes
+target_path: staging/src/k8s.io/apimachinery/pkg/util/managedfields
+
+description: |
+  Create comprehensive documentation for Server-Side Apply (SSA), explaining
+  the field management system, merge semantics, and conflict resolution.
+
+  Evaluation is performed by comparing the generated README.md against the
+  original ground truth (KEP-555) using an LLM judge.
+
+task_prompt: |
+  You are documenting the Server-Side Apply (SSA) implementation in Kubernetes,
+  specifically the `managedfields` utility in `staging/src/k8s.io/apimachinery/pkg/util/managedfields`.
+  The existing documentation has been removed, and you need to recreate it based
+  on the source code.
+
+  Your task is to create a comprehensive `README.md` in `staging/src/k8s.io/apimachinery/pkg/util/managedfields/` that:
+  1. Provides an overview of Server-Side Apply concepts
+  2. Explains field ownership and managers
+  3. Documents merge semantics (atomic, granular, map, set)
+  4. Explains conflict detection and resolution
+  5. Discusses migration from client-side apply
+
+  The documentation should follow standard Markdown format and be suitable
+  for inclusion in the official Kubernetes documentation.
+
+expected_output:
+  type: file
+  filename: README.md
+  location: staging/src/k8s.io/apimachinery/pkg/util/managedfields/README.md
+
+ground_truth:
+  primary_file: ground_truth/kep-555.md
+
+verifier:
+  type: script
+  script: test.sh
+
+mcp_expected_value: high
+mcp_rationale: |
+  Server-Side Apply is a complex feature with novel concepts and merge semantics.
+  With Sourcegraph Deep Search searching the kubernetes-stripped index, an agent can:
+  - Find KEP-555 with detailed design rationale
+  - Discover related API server handling code
+  - Understand OpenAPI schema integration
+  - Find migration documentation from client-side apply

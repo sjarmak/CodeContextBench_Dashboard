@@ -1,0 +1,50 @@
+id: ctrl-doc-001
+name: "Garbage Collector Controller Documentation"
+category: controller-documentation
+difficulty: hard
+repository: kubernetes/kubernetes
+target_path: pkg/controller/garbagecollector
+
+description: |
+  Create comprehensive package documentation for the Kubernetes Garbage Collector
+  controller that handles cascading deletion of dependent objects.
+
+  Evaluation is performed by comparing the generated doc.go against the
+  original ground truth using an LLM judge.
+
+task_prompt: |
+  You are documenting the `pkg/controller/garbagecollector` package in Kubernetes.
+  The existing documentation has been removed, and you need to recreate it based
+  on the source code.
+
+  Your task is to create a `doc.go` file in `pkg/controller/garbagecollector/` that:
+  1. Provides a package-level documentation comment
+  2. Describes the garbage collection algorithm
+  3. Explains orphan/foreground/background deletion modes
+  4. Documents the dependency graph construction
+  5. Explains finalizer handling
+
+  The documentation should follow Go documentation conventions and be suitable
+  for inclusion in the official Kubernetes codebase.
+
+expected_output:
+  type: file
+  filename: doc.go
+  location: pkg/controller/garbagecollector/doc.go
+
+ground_truth:
+  primary_file: ground_truth/doc.go
+
+verifier:
+  type: script
+  script: test.sh
+
+mcp_expected_value: high
+mcp_rationale: |
+  Garbage collection involves complex graph algorithms and interaction patterns
+  that are distributed across the codebase. With Sourcegraph Deep Search
+  searching the kubernetes-stripped index, an agent can:
+  - Find related KEPs explaining the design decisions
+  - Discover API documentation for OwnerReference and finalizers
+  - Understand usage patterns from controllers that depend on GC
+  - Find historical context from design documents

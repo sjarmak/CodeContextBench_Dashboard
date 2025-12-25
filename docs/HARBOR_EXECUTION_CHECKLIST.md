@@ -30,28 +30,31 @@ export ANTHROPIC_API_KEY=$(grep "ANTHROPIC_API_KEY=" .env.local | cut -d'=' -f2 
 harbor run ...  # ✅ ANTHROPIC_API_KEY available
 ```
 
-### 2. SRC_ACCESS_TOKEN (REQUIRED FOR MCP AGENT ONLY)
+### 2. SOURCEGRAPH_ACCESS_TOKEN (REQUIRED FOR MCP AGENT ONLY)
 
-For baseline agent: NOT required
+For baseline agent: NOT required  
 For MCP agent with Sourcegraph: REQUIRED
 
 ```bash
-export SRC_ACCESS_TOKEN=$(grep "SRC_ACCESS_TOKEN=" .env.local | cut -d'=' -f2 | tr -d '"')
+export SOURCEGRAPH_ACCESS_TOKEN=$(grep "SOURCEGRAPH_ACCESS_TOKEN=" .env.local | cut -d'=' -f2 | tr -d '"')
+export SOURCEGRAPH_URL=$(grep "SOURCEGRAPH_URL=" .env.local | cut -d'=' -f2 | tr -d '"')
 ```
+
+**Note**: Agents keep backward compatibility with `SRC_ACCESS_TOKEN`, but new automation should prefer `SOURCEGRAPH_ACCESS_TOKEN` + `SOURCEGRAPH_URL`.
 
 ## Model Selection
 
-### Use claude-haiku-4-5 (NOT claude-3-5-sonnet)
+### Use anthropic/claude-haiku-4-5-20251001 (NOT claude-3-5-sonnet)
 
 ```bash
 # WRONG - Too expensive and slow
 --model anthropic/claude-3-5-sonnet-20241022
 
 # RIGHT - Fast and cheap for testing
---model anthropic/claude-haiku-4-5
+--model anthropic/claude-haiku-4-5-20251001
 ```
 
-**Note**: The correct model name is `claude-haiku-4-5`, NOT `claude-3-5-haiku`
+**Note**: The correct model name is `anthropic/claude-haiku-4-5-20251001`, NOT `claude-3-5-haiku`
 
 **Why haiku?**
 - 5x faster than sonnet
@@ -67,8 +70,8 @@ Complete working example:
 export ANTHROPIC_API_KEY=$(grep "ANTHROPIC_API_KEY=" .env.local | cut -d'=' -f2 | tr -d '"') && \
 harbor run \
   --path benchmarks/github_mined_pilot \
-  --agent claude-code \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/baseline-test \
   --task-name sgt-010
@@ -76,7 +79,7 @@ harbor run \
 
 **What this does:**
 1. Exports ANTHROPIC_API_KEY in same command (fixes env var persistence issue)
-2. Uses built-in `claude-code` agent (baseline, no MCP)
+2. Uses `agents.claude_baseline_agent:BaselineClaudeCodeAgent` (Claude Code in autonomous mode, no MCP)
 3. Uses haiku for speed/cost
 4. Runs 1 task (`-n 1`)
 5. Saves output to `jobs/baseline-test`
@@ -107,7 +110,7 @@ env = {
 Before running `harbor run`:
 
 - [ ] ANTHROPIC_API_KEY exported (in same command as harbor run)
-- [ ] Using claude-3-5-haiku model (not sonnet)
+- [ ] Using `anthropic/claude-haiku-4-5-20251001` model (not sonnet)
 - [ ] Task directory exists (e.g., `benchmarks/github_mined_pilot/sgt-010`)
 - [ ] Jobs directory will be created (e.g., `jobs/baseline-test`)
 - [ ] Docker daemon running (for task environment)

@@ -4,11 +4,11 @@ Benchmark framework for evaluating how improved codebase understanding through S
 
 ## Quick Overview
 
-- **Goal**: Measure ROI of Sourcegraph code search (via MCP) for coding agents
-- **Primary Agent**: Claude Code (via Harbor CLI integration)
-- **Task Corpus**: github_mined (25 real-world PyTorch tasks)
-- **Framework**: Harbor (container orchestration) + Claude Code CLI
-- **Evaluation**: Agent executes task → git diff captured → tests validate → reward score
+- **Goal**: Measure the ROI of Sourcegraph-assisted code understanding for coding agents
+- **Agents**: Baseline Claude Code + four MCP variants (strategic/aggressive Deep Search, keyword-only, full toolkit)
+- **Benchmarks**: `big_code_mcp`, `github_mined`, `dependeval_benchmark`, `10figure`, `dibench`, `repoqa`, `kubernetes_docs`
+- **Execution**: Harbor CLI (`harbor run --path <task> --agent-import-path <agent> --model anthropic/claude-haiku-4-5-20251001`)
+- **Evaluation**: Agent executes task → git diff captured → benchmark tests validate → reward score recorded in `jobs/`
 
 ## Directory Structure
 
@@ -32,23 +32,42 @@ history/             # Temporary planning documents (git-ignored)
 
 ### Agent Implementations
 
-#### BaselineClaudeCodeAgent (agents/claude_baseline_agent.py)
-Claude Code baseline with autonomous implementation mode:
-- Extends Harbor's built-in ClaudeCode agent
-- Injects `FORCE_AUTO_BACKGROUND_TASKS=1` and `ENABLE_BACKGROUND_TASKS=1` (critical for autonomous operation)
-- Enables tool access: Bash, Read, Edit, Write, Grep, Glob
-- Requires: `ANTHROPIC_API_KEY`
-- No Sourcegraph integration
-- Fair baseline for MCP comparison
+#### BaselineClaudeCodeAgent (`agents/claude_baseline_agent.py`)
+Claude Code baseline with autonomous implementation mode enabled:
+- Extends Harbor's `ClaudeCode` agent and injects `FORCE_AUTO_BACKGROUND_TASKS=1`/`ENABLE_BACKGROUND_TASKS=1`
+- Provides tool access (Bash, Read, Edit, Write, Grep, Glob) without MCP integrations
+- Requires only `ANTHROPIC_API_KEY`
+- Recommended command:
+  ```bash
+  harbor run \
+    --path benchmarks/github_mined \
+    --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+    --model anthropic/claude-haiku-4-5-20251001 \
+    -n 1
+  ```
 
-#### ClaudeCodeSourcegraphMCPAgent (agents/claude_sourcegraph_mcp_agent.py)
-Claude Code with Sourcegraph MCP integration:
-- Same autonomous env var injection as baseline
-- Adds Sourcegraph Deep Search via MCP (Model Context Protocol)
-- Creates `.mcp.json` configuration for Sourcegraph HTTP server
-- Requires: `ANTHROPIC_API_KEY` + `SOURCEGRAPH_ACCESS_TOKEN` + `SOURCEGRAPH_URL`
-- Provides intelligent codebase exploration vs manual grep
-- Measures ROI of code intelligence on agent success rate
+#### MCP Variants (`agents/mcp_variants.py`)
+
+- **StrategicDeepSearchAgent** *(recommended)* – Uses Sourcegraph Deep Search at critical checkpoints for context gathering.
+- **DeepSearchFocusedAgent** – Uses a dedicated deep-search-only MCP endpoint and aggressively prompts the agent to use Deep Search for every question.
+- **MCPNonDeepSearchAgent** – Enables Sourcegraph keyword/NLS search but keeps Deep Search disabled.
+- **FullToolkitAgent** – Neutral MCP prompting; all Sourcegraph tools enabled with no guidance bias.
+
+All MCP variants:
+- Require `ANTHROPIC_API_KEY`, `SOURCEGRAPH_ACCESS_TOKEN`, and `SOURCEGRAPH_URL`
+- Write `.mcp.json` configs that Harbor uploads into task containers
+- Share the same autonomous command-generation logic as the baseline agent
+
+Example (Strategic Deep Search):
+```bash
+harbor run \
+  --path benchmarks/big_code_mcp/big-code-vsc-001 \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
+```
+
+> **Compatibility**: `agents/claude_sourcegraph_mcp_agent.py` remains as an alias to `DeepSearchFocusedAgent` for older automation that still references `ClaudeCodeSourcegraphMCPAgent`.
 
 ## Benchmarks
 
@@ -60,6 +79,7 @@ All benchmarks are self-contained in `benchmarks/` directory:
 - **10figure**: 4 legacy codebase challenges (requires `~/10Figure-Codebases/` corpus)
 - **dibench**: Multi-language dependency inference (Harbor adapter, variable task count)
 - **repoqa**: Tool-sensitive code understanding tasks (Harbor adapter, newly completed)
+- **kubernetes_docs**: 5 documentation-generation tasks that strip in-tree docs and compare baseline vs MCP retrieval
 
 See [benchmarks/README.md](benchmarks/README.md) for detailed benchmark descriptions and usage.
 

@@ -294,12 +294,10 @@ Use sg_deepsearch for:
 ✅ "What tests exist for this feature?"
 ```
 
-## Search Tool Hierarchy
+## Available Tools
 
-1. **sg_deepsearch** (ALWAYS TRY FIRST) - Semantic code understanding
-2. **sg_nls_search** - Natural language queries when deep search is too broad
-3. **sg_keyword_search** - Exact string matches only when needed
-4. Local Grep/Glob - ONLY for narrow, single-directory scopes after MCP search
+- **sg_deepsearch**: Your primary tool for all code understanding and exploration.
+- **Local tools (Grep, Glob, Read)**: Use these only for narrow, single-directory scopes after using Deep Search.
 
 ## Anti-patterns to AVOID
 
@@ -348,28 +346,39 @@ Remember: Deep Search saves tokens by finding the right code faster.
         return result
 
     async def setup(self, environment: BaseEnvironment) -> None:
-        """Setup with Deep Search focused prompts."""
-        sg_url = (
-            os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
-        )
-        sg_token = (
-            os.environ.get("SOURCEGRAPH_ACCESS_TOKEN")
-            or os.environ.get("SRC_ACCESS_TOKEN")
-            or ""
-        )
+        """Setup with Deep Search focused prompts using Deep Search MCP endpoint."""
+        # Check for dedicated Deep Search MCP endpoint first
+        deepsearch_url = os.environ.get("DEEPSEARCH_MCP_URL") or ""
+        deepsearch_token = os.environ.get("DEEPSEARCH_MCP_TOKEN") or ""
+        
+        # Fall back to Sourcegraph if no dedicated endpoint
+        if not deepsearch_url:
+            sg_url = (
+                os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
+            )
+            sg_token = (
+                os.environ.get("SOURCEGRAPH_ACCESS_TOKEN")
+                or os.environ.get("SRC_ACCESS_TOKEN")
+                or ""
+            )
+            if sg_url and sg_token:
+                if not sg_url.startswith(("http://", "https://")):
+                    sg_url = f"https://{sg_url}"
+                deepsearch_url = sg_url.rstrip("/") + "/.api/mcp/deepsearch"
+                deepsearch_token = sg_token
+        
+        if deepsearch_url and deepsearch_token:
+            if not deepsearch_url.startswith(("http://", "https://")):
+                deepsearch_url = f"https://{deepsearch_url}"
+            deepsearch_url = deepsearch_url.rstrip("/")
 
-        if sg_url and sg_token:
-            if not sg_url.startswith(("http://", "https://")):
-                sg_url = f"https://{sg_url}"
-            sg_url = sg_url.rstrip("/")
-
-            # Full MCP config with all Sourcegraph tools
+            # Deep Search MCP endpoint config
             mcp_config = {
                 "mcpServers": {
-                    "sourcegraph": {
+                    "deepsearch": {
                         "type": "http",
-                        "url": f"{sg_url}/.api/mcp/v1",
-                        "headers": {"Authorization": f"token {sg_token}"},
+                        "url": deepsearch_url,
+                        "headers": {"Authorization": f"token {deepsearch_token}"},
                     }
                 }
             }
@@ -381,7 +390,7 @@ Remember: Deep Search saves tokens by finding the right code faster.
             await environment.upload_file(
                 source_path=mcp_config_path, target_path="/workspace/.mcp.json"
             )
-            self.logger.info("✓ DeepSearchFocusedAgent: MCP config uploaded")
+            self.logger.info(f"✓ DeepSearchFocusedAgent: Deep Search MCP endpoint configured: {deepsearch_url}")
 
             # Upload Deep Search focused system prompt
             system_prompt_path = self.logs_dir / "system_prompt.txt"

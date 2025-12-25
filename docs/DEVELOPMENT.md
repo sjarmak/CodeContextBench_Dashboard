@@ -92,8 +92,8 @@ See **infrastructure/PODMAN.md** for complete Harbor + Daytona setup and trouble
 Optional environment variables:
 
 ```bash
-# SRC_ACCESS_TOKEN for Sourcegraph Deep Search
-export SRC_ACCESS_TOKEN=<your_token>
+# SOURCEGRAPH_ACCESS_TOKEN for Sourcegraph Deep Search
+export SOURCEGRAPH_ACCESS_TOKEN=<your_token>
 
 # ANTHROPIC_API_KEY for Claude
 export ANTHROPIC_API_KEY=<your_key>
@@ -210,7 +210,7 @@ pip install -e ~/NeMo-Agent-Toolkit/
 
 ## Setting Up a New Agent Implementation
 
-Agents extend Harbor's `ClaudeCode` class. See `agents/claude_sourcegraph_mcp_agent.py` for reference.
+Agents extend Harbor's `ClaudeCode` class. See `agents/mcp_variants.py` (e.g., `StrategicDeepSearchAgent`) for reference implementations.
 
 1. Create agent class in `agents/<agent_name>_agent.py`:
 
@@ -249,6 +249,7 @@ class MyAgent(ClaudeCode):
 harbor run \
   --path benchmarks/github_mined \
   --agent-import-path agents.<module>:<ClassName> \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1
 ```
 
@@ -270,6 +271,8 @@ bash runners/harbor_benchmark.sh --benchmark 10figure --agent claude-mcp --tasks
 # Generate comparison report
 python runners/compare_results.py jobs/claude-baseline-* jobs/claude-mcp-*
 ```
+
+`claude-mcp` maps to `agents.mcp_variants:StrategicDeepSearchAgent`, so ensure `SOURCEGRAPH_ACCESS_TOKEN` and `SOURCEGRAPH_URL` are exported before invoking it.
 
 ## Working with Benchmarks
 
@@ -321,5 +324,3 @@ python tests/test_task_schema.py -v
 - All results must include execution metadata (agent_name, task_id, execution_time, tool_usage)
 - Code must pass `black` formatting and `mypy` type checking
 - Test coverage should remain above 80%
-
-

@@ -9,7 +9,7 @@
 ## What's Running
 4 agent variants against 5 SWEBench tasks from django, matplotlib, and astropy:
 - **Baseline** (no MCP) - control group
-- **Deep Search Focused** (MCP + explicit Deep Search)
+- **Deep Search Focused** (MCP with deep-search-only endpoint)
 - **MCP No Deep Search** (MCP keyword/NLS only)
 - **Full Toolkit** (all MCP tools, neutral prompting)
 

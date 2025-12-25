@@ -33,14 +33,30 @@ harbor run --model anthropic/claude-haiku-4-5-20251001 ...
 **YOU MUST export credentials or harbor will fail:**
 
 ```bash
+# Optional: clear out lingering Harbor containers in Podman
+bash scripts/podman_cleanup.sh
+```
+This helper stops/removes any `hb__` containers so new evaluations start with a
+clean Podman workspace.
+
+```bash
 # Step 1: Source environment file
 source .env.local
 
 # Step 2: EXPORT variables to subprocesses (this is critical!)
 export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
 
-# Step 3: Now run harbor commands
-harbor run --path benchmarks/big_code_mcp/big-code-vsc-001 --agent claude-code -n 1
+# Step 3: Now run harbor commands (baseline example)
+harbor run --path benchmarks/big_code_mcp/big-code-vsc-001 \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
+# Recommended: always include explicit agent + model flags
+harbor run \
+  --path benchmarks/big_code_mcp/big-code-vsc-001 \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
 ```
 
 **Why?** Harbor spawns subprocesses that won't see sourced variables. You MUST export them.
@@ -132,7 +148,7 @@ ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyp
 
 **Production Agents:**
 - `agents/claude_baseline_agent.py` - BaselineClaudeCodeAgent
-- `agents/mcp_variants.py` - 3 MCP variants (Deep Search Focused, No Deep Search, Full Toolkit)
+- `agents/mcp_variants.py` - 4 MCP variants (Strategic Deep Search, Deep Search Focused, No Deep Search, Full Toolkit)
 
 **Compatibility/Deprecated:**
 - `agents/claude_sourcegraph_mcp_agent.py` - Deprecated alias to DeepSearchFocusedAgent (kept for backward compat)
@@ -141,18 +157,20 @@ ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyp
 
 ## Benchmark Agents
 
-Four agents for comparing MCP impact on coding task performance:
+Five agents for comparing MCP impact on coding task performance:
 
 | Agent | Class | File | Purpose |
 |-------|-------|------|---------|
 | Baseline Claude Code | `BaselineClaudeCodeAgent` | `agents/claude_baseline_agent.py` | Control: Claude Code with autonomous mode, NO MCP |
-| Deep Search Focused | `DeepSearchFocusedAgent` | `agents/mcp_variants.py` | MCP + aggressive Deep Search prompting |
+| Strategic Deep Search *(recommended)* | `StrategicDeepSearchAgent` | `agents/mcp_variants.py` | MCP + targeted Deep Search usage |
+| Deep Search Focused | `DeepSearchFocusedAgent` | `agents/mcp_variants.py` | MCP with a dedicated deep-search-only endpoint. |
 | MCP No Deep Search | `MCPNonDeepSearchAgent` | `agents/mcp_variants.py` | MCP with keyword/NLS search only (Deep Search disabled) |
 | Full Toolkit | `FullToolkitAgent` | `agents/mcp_variants.py` | MCP with all tools, neutral prompting (control) |
 
 **Design:**
 - **Baseline**: Tests Claude Code's autonomous capabilities without MCP
-- **Deep Search Focused**: Tests if Deep Search prompting improves task success
+- **Strategic Deep Search**: Measures MCP value when Deep Search is used only at key checkpoints
+- **Deep Search Focused**: Tests the value of a dedicated deep-search-only MCP endpoint.
 - **No Deep Search**: Tests if simpler MCP tools (keyword/NLS) are sufficient
 - **Full Toolkit**: Tests agent's natural tool choice with all options available
 
@@ -161,7 +179,7 @@ Four agents for comparing MCP impact on coding task performance:
 # Run single agent variant
 harbor run \
   --path benchmarks/big_code_mcp/big-code-vsc-001 \
-  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
   --model anthropic/claude-haiku-4-5-20251001 \
   -n 1
 
@@ -173,7 +191,7 @@ harbor run \
   -n 1
 
 # Run all variants comparison
-./scripts/run_mcp_variants_comparison.sh benchmarks/big_code_mcp/big-code-vsc-001
+./scripts/run_mcp_comparison.sh benchmarks/big_code_mcp/big-code-vsc-001
 ```
 
 **See:** [benchmarks/README.md](benchmarks/README.md) for complete benchmark listing and comparison matrix.
@@ -386,7 +404,7 @@ git status
 
 External tool for programmatic Sourcegraph Deep Search access.
 
-**Requires:** `SRC_ACCESS_TOKEN` environment variable
+**Requires:** `SOURCEGRAPH_ACCESS_TOKEN` environment variable (CLI also accepts legacy `SRC_ACCESS_TOKEN`)
 
 **Basic usage:**
 ```bash

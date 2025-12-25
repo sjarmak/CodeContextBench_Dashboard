@@ -1,0 +1,50 @@
+id: kubelet-doc-001
+name: "Topology Manager Documentation"
+category: kubelet-documentation
+difficulty: hard
+repository: kubernetes/kubernetes
+target_path: pkg/kubelet/cm/topologymanager
+
+description: |
+  Create comprehensive documentation for the Kubelet Topology Manager that
+  coordinates NUMA-aware resource allocation across CPU, memory, and device managers.
+
+  Evaluation is performed by comparing the generated README.md against the
+  original ground truth (KEP-693) using an LLM judge.
+
+task_prompt: |
+  You are documenting the `pkg/kubelet/cm/topologymanager` package in Kubernetes.
+  The existing documentation has been removed, and you need to recreate it based
+  on the source code.
+
+  Your task is to create a comprehensive `README.md` in `pkg/kubelet/cm/topologymanager/` that:
+  1. Provides an overview of Topology Manager purpose
+  2. Explains NUMA topology concepts
+  3. Documents all policy types (none, best-effort, restricted, single-numa-node)
+  4. Describes hint provider interface
+  5. Explains integration with CPU/Memory/Device managers
+
+  The documentation should follow standard Markdown format and be suitable
+  for inclusion in the official Kubernetes documentation.
+
+expected_output:
+  type: file
+  filename: README.md
+  location: pkg/kubelet/cm/topologymanager/README.md
+
+ground_truth:
+  primary_file: ground_truth/kep-693.md
+
+verifier:
+  type: script
+  script: test.sh
+
+mcp_expected_value: hard
+mcp_rationale: |
+  Topology Manager is highly technical with complex dependencies on NUMA
+  concepts and other resource managers. With Sourcegraph Deep Search
+  searching the kubernetes-stripped index, an agent can:
+  - Find KEP-693 with design rationale
+  - Discover related KEPs for CPU/Memory managers
+  - Understand node resource allocation patterns
+  - Grasp hardware topology concepts used in the implementation

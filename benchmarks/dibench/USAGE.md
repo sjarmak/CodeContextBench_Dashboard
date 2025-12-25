@@ -36,15 +36,15 @@ python run_adapter.py \
 **Option A: Run individual task**
 ```bash
 harbor run --path ./benchmarks/dibench/dibench_tasks/python-instance-001 \
-           --agent claude-code \
-           --model anthropic/claude-opus-4-1
+           --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+           --model anthropic/claude-haiku-4-5-20251001
 ```
 
 **Option B: Run all tasks in directory**
 ```bash
 harbor run --dataset ./benchmarks/dibench/dibench_tasks \
-           --agent claude-code \
-           --model anthropic/claude-opus-4-1 \
+           --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+           --model anthropic/claude-haiku-4-5-20251001 \
            --n-concurrent 4
 ```
 
@@ -58,8 +58,8 @@ python generate_registry.py \
 # 2. Use with Harbor
 harbor run --dataset dibench@1.0 \
            --registry ./dibench-registry.json \
-           --agent claude-code \
-           --model anthropic/claude-opus-4-1
+           --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+           --model anthropic/claude-haiku-4-5-20251001
 ```
 
 ## Advanced Usage
@@ -103,9 +103,9 @@ python run_adapter.py \
     --languages python
 
 # Run evaluation
-harbor run --task ./dibench_tasks_full \
-           --agent claude-code \
-           --model anthropic/claude-opus-4-1 \
+harbor run --path ./dibench_tasks_full \
+           --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+           --model anthropic/claude-haiku-4-5-20251001 \
            --n-concurrent 10 \
            --output-dir ./results
 ```
@@ -146,8 +146,8 @@ adapters/dibench/
 ```bash
 # Use relative paths from CodeContextBench root
 harbor run --path ./benchmarks/dibench/dibench_tasks/python-instance-001 \
-           --agent claude-code \
-           --model anthropic/claude-opus-4-1
+           --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+           --model anthropic/claude-haiku-4-5-20251001
 ```
 
 **Issue**: Docker build fails

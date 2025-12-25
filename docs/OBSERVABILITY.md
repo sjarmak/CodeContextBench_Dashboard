@@ -134,7 +134,7 @@ if trace:
     print(f"Failures by tool: {trace.failure_rate_by_tool}")
     
     # Write manifest with NeMo metrics
-    writer = ManifestWriter(job_dir, model='claude-haiku-4-5')
+    writer = ManifestWriter(job_dir, model='anthropic/claude-haiku-4-5-20251001')
     manifest_path = writer.write_manifest(
         harness_name='harbor-v1',
         agent_name='claude-baseline',
@@ -208,7 +208,7 @@ from observability import ManifestWriter, ClaudeOutputParser
 job_dir = Path('jobs/claude-baseline-10figure-20251217/task-001')
 
 # Initialize writer (specifies model for cost calculation)
-writer = ManifestWriter(job_dir, model='claude-haiku-4-5')
+writer = ManifestWriter(job_dir, model='anthropic/claude-haiku-4-5-20251001')
 
 # Automatically extract token counts from Claude output logs
 # Searches logs/agent/claude.txt and other standard log locations

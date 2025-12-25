@@ -1,0 +1,51 @@
+id: pkg-doc-001
+name: "Container Manager Package Documentation"
+category: package-documentation
+difficulty: medium
+repository: kubernetes/kubernetes
+target_path: pkg/kubelet/cm
+
+description: |
+  Generate comprehensive package documentation (doc.go) for the kubelet
+  container manager (cm) package. This package is responsible for managing
+  containers on Kubernetes nodes, including cgroup configuration, QoS
+  enforcement, and resource allocation.
+
+  Evaluation is performed by comparing the generated doc.go against the
+  original ground truth using an LLM judge.
+
+task_prompt: |
+  You are documenting the `pkg/kubelet/cm` package in Kubernetes. The existing
+  documentation has been removed, and you need to recreate it based on the
+  source code.
+
+  Your task is to create a `doc.go` file in `pkg/kubelet/cm/` that:
+  1. Explains what the container manager package does
+  2. Lists key responsibilities and capabilities
+  3. Describes major types and interfaces
+  4. Notes any platform-specific behavior (Linux, Windows)
+  5. References related packages if appropriate
+
+  The documentation should follow Go documentation conventions and be suitable
+  for inclusion in the official Kubernetes codebase.
+
+expected_output:
+  type: file
+  filename: doc.go
+  location: pkg/kubelet/cm/doc.go
+
+ground_truth:
+  primary_file: ground_truth/doc.go
+
+verifier:
+  type: script
+  script: test.sh
+
+mcp_expected_value: high
+mcp_rationale: |
+  With Sourcegraph tools searching the kubernetes-stripped index, an agent can:
+  - Search for related packages and their architectural patterns
+  - Find KEPs and design discussions (if not stripped from index)
+  - Discover how this package is used by other parts of the kubelet
+  - Understand the broader context of resource management in Kubernetes
+

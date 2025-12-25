@@ -15,10 +15,13 @@ import sys
 from pathlib import Path
 from datetime import datetime
 import time
+from typing import List
 
 # Configuration
-BENCHMARK_PATH = "benchmarks/big_code_mcp/big-code-vsc-001"
+DATASET = "swebench-verified@1.0"
 MODEL = "anthropic/claude-haiku-4-5-20251001"
+TASK_SELECTION_FILE = Path("benchmarks/swebench_mcp_selection/tasks.json")
+N_CONCURRENT = 1
 
 AGENTS = [
     {
@@ -43,26 +46,32 @@ AGENTS = [
     }
 ]
 
-TASKS = [
-    "django__django-11119",
-    "django__django-11532",
-    "django__django-12143",
-    "matplotlib__matplotlib-20859",
-    "astropy__astropy-12907"
-]
+def load_task_ids() -> List[str]:
+    """Load selected SWE-bench task IDs from tasks.json."""
+    if not TASK_SELECTION_FILE.exists():
+        raise FileNotFoundError(f"Missing task selection file: {TASK_SELECTION_FILE}")
 
-def run_harbor(agent_spec, task_name=None):
+    data = json.loads(TASK_SELECTION_FILE.read_text())
+    task_ids = [entry["instance_id"] for entry in data if "instance_id" in entry]
+    if not task_ids:
+        raise ValueError(f"No instance_id entries found in {TASK_SELECTION_FILE}")
+    return task_ids
+
+
+def run_harbor(agent_spec, task_ids: List[str]):
     """Run harbor with specified agent."""
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     
     cmd = [
         "harbor", "run",
-        "--path", BENCHMARK_PATH,
+        "-d", DATASET,
         "--agent-import-path", agent_spec["import_path"],
         "--model", MODEL,
-        "-n", "1",
+        "--n-concurrent", str(N_CONCURRENT),
         "--timeout-multiplier", "2.0"
     ]
+    for task_id in task_ids:
+        cmd.extend(["--task-name", task_id])
     
     print(f"\n{'='*60}")
     print(f"Running: {agent_spec['display']}")
@@ -100,11 +109,14 @@ def run_harbor(agent_spec, task_name=None):
 def main():
     results_dir = Path("results") / f"swebench_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     results_dir.mkdir(parents=True, exist_ok=True)
-    
+    task_ids = load_task_ids()
+
     print(f"\nStarting SWEBench MCP Comparison Experiment")
     print(f"Results directory: {results_dir}")
     print(f"Agents: {len(AGENTS)}")
-    print(f"Benchmark: {BENCHMARK_PATH}")
+    print(f"Dataset: {DATASET}")
+    print(f"Task count: {len(task_ids)}")
+    print(f"Concurrency: {N_CONCURRENT}")
     
     all_results = {}
     
@@ -112,7 +124,7 @@ def main():
         agent_name = agent["name"]
         print(f"\n[{datetime.now().isoformat()}] Starting {agent['display']}...")
         
-        result = run_harbor(agent)
+        result = run_harbor(agent, task_ids=task_ids)
         all_results[agent_name] = result
         
         # Save individual result
@@ -146,8 +158,9 @@ def main():
     summary = {
         "experiment": "swebench_mcp_comparison",
         "timestamp": datetime.now().isoformat(),
-        "benchmark": BENCHMARK_PATH,
+        "dataset": DATASET,
         "model": MODEL,
+        "tasks": task_ids,
         "agents": [
             {
                 "name": agent["name"],

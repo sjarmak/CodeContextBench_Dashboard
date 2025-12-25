@@ -106,6 +106,38 @@ Extracts and analyzes tool usage patterns from agent trajectories.
 
 ---
 
+## Benchmark Lifecycle Automation
+
+**Use:** `scripts/benchmark_lifecycle.py`
+
+```bash
+# Dry run the full lifecycle to inspect commands
+python scripts/benchmark_lifecycle.py --dry-run
+
+# Execute RepoQA + DIBench lifecycle with custom logs directory
+python scripts/benchmark_lifecycle.py --benchmarks repoqa dibench --logs-root artifacts/pipeline-runs
+```
+
+Chains adapter refresh commands, Harbor sanity checks, and manifest emission for every benchmark defined in `configs/benchmark_pipeline.yaml`. Produces structured logs plus per-suite `MANIFEST.json` files consumed by the benchmark profile runner and evaluation tooling.
+
+---
+
+## Benchmark Profile Runner
+
+**Use:** `scripts/benchmark_profile_runner.py`
+
+```bash
+# Dry run RepoQA + DIBench profiles
+python scripts/benchmark_profile_runner.py --profiles repoqa_smoke dibench_smoke --dry-run
+
+# Execute every profile defined in configs/benchmark_profiles.yaml
+python scripts/benchmark_profile_runner.py
+```
+
+Loads `configs/benchmark_profiles.yaml` (CodeContextBench-fft) and cross-references lifecycle manifests before launching Harbor job matrices. Writes `PROFILE_MANIFEST.json` in each profile's jobs directory so evaluation tooling (CodeContextBench-0za/mpg/jzv) can cite dataset hashes, environment fingerprints, and validation logs alongside Harbor outputs.
+
+---
+
 ## Consolidation Status
 
 | Category | Canonical Script | Deprecated/To Merge |

@@ -16,24 +16,29 @@ This directory contains Harbor-compatible agent implementations for evaluating c
 
 ```bash
 # Baseline (no MCP)
-harbor run --task <path> \
-  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 
 # Strategic Deep Search (RECOMMENDED)
-harbor run --task <path> \
-  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 
 # Deep Search focused (aggressive)
-harbor run --task <path> \
-  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 
 # No Deep Search (simpler MCP tools)
-harbor run --task <path> \
-  --agent-import-path agents.mcp_variants:MCPNonDeepSearchAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:MCPNonDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 
 # Full toolkit (neutral prompting)
-harbor run --task <path> \
-  --agent-import-path agents.mcp_variants:FullToolkitAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:FullToolkitAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 ```
 
 ## File Structure

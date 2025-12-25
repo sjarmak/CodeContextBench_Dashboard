@@ -218,7 +218,7 @@ Store credentials in `.env.local` (created from `.env.local.example`):
 - `ANTHROPIC_API_KEY`: Claude API key (get from https://console.anthropic.com/)
 
 **For Claude+MCP agent:**
-- `SRC_ACCESS_TOKEN`: Sourcegraph API token (get from https://sourcegraph.sourcegraph.com/user/settings/tokens)
+- `SOURCEGRAPH_ACCESS_TOKEN`: Sourcegraph API token (legacy scripts may reference `SRC_ACCESS_TOKEN`)
 
 **Optional (with defaults):**
 - `SOURCEGRAPH_URL`: Sourcegraph instance (default: https://sourcegraph.sourcegraph.com)

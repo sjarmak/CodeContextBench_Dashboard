@@ -37,21 +37,17 @@ def main():
         "Navigation",
         [
             "Home",
-            "---",
             "Benchmark Manager",
             "Add Benchmark",
             "Agent Versions",
-            "---",
             "Evaluation Runner",
+            "Comparison Table",
+            "Deep Search Analytics",
             "Raw Results",
             "Generate Report",
             "LLM Judge",
-            "---",
-            "Comparison Table",
-            "Deep Search Analytics",
-            "---",
-            "Legacy: Manifests",
-            "Legacy: Results Browser",
+            "Manifests (Legacy)",
+            "Results Browser (Legacy)",
         ],
     )
 
@@ -59,9 +55,7 @@ def main():
     st.sidebar.caption(f"Project: {PROJECT_ROOT.name}")
 
     # Route to appropriate page
-    if page == "---":
-        pass  # Separator
-    elif page == "Home":
+    if page == "Home":
         show_home()
     elif page == "Benchmark Manager":
         show_benchmark_manager()
@@ -81,9 +75,9 @@ def main():
         show_comparison_enhanced()
     elif page == "Deep Search Analytics":
         show_deep_search()
-    elif page == "Legacy: Manifests":
+    elif page == "Manifests (Legacy)":
         show_manifests()
-    elif page == "Legacy: Results Browser":
+    elif page == "Results Browser (Legacy)":
         show_results()
 
 
@@ -182,25 +176,25 @@ def show_home():
 
 def show_benchmark_manager():
     """Benchmark manager page."""
-    from pages.benchmark_manager import show_benchmark_manager as show_manager
+    from views.benchmark_manager import show_benchmark_manager as show_manager
     show_manager()
 
 
 def show_add_benchmark():
     """Add benchmark page."""
-    from pages.add_benchmark import show_add_benchmark as show_add
+    from views.add_benchmark import show_add_benchmark as show_add
     show_add()
 
 
 def show_agent_versions():
     """Agent versions page."""
-    from pages.agent_versions import show_agent_versions as show_versions
+    from views.agent_versions import show_agent_versions as show_versions
     show_versions()
 
 
 def show_evaluation_runner():
     """Evaluation runner page."""
-    from pages.evaluation_runner import show_evaluation_runner as show_runner
+    from views.evaluation_runner import show_evaluation_runner as show_runner
     show_runner()
 
 
@@ -227,25 +221,25 @@ def show_llm_judge():
 
 def show_comparison_enhanced():
     """Enhanced comparison table."""
-    from pages.comparison_enhanced import show_comparison_enhanced as show_enhanced
+    from views.comparison_enhanced import show_comparison_enhanced as show_enhanced
     show_enhanced()
 
 
 def show_manifests():
     """Browse benchmark manifests."""
-    from pages.manifests import show_manifest_viewer
+    from views.manifests import show_manifest_viewer
     show_manifest_viewer()
 
 
 def show_results():
     """Browse experiment results."""
-    from pages.results import show_results_browser
+    from views.results import show_results_browser
     show_results_browser()
 
 
 def show_deep_search():
     """Analyze Deep Search usage."""
-    from pages.deep_search import show_deep_search_analytics
+    from views.deep_search import show_deep_search_analytics
     show_deep_search_analytics()
 
 

@@ -20,6 +20,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+from src.benchmark.provenance import build_provenance_section, load_profile_metadata
 
 def count_tool_usage(trajectory_path: Path) -> dict:
     """Count tool usage from trajectory file."""
@@ -268,8 +269,13 @@ def load_judge_results(experiment_dir: Path) -> dict:
     return {}
 
 
-def generate_report(experiment_dir: Path, analysis: dict, judge_results: dict) -> str:
-    """Generate markdown report."""
+def generate_report(
+    experiment_dir: Path,
+    analysis: dict,
+    judge_results: dict,
+    profile_metadata: dict | None = None,
+) -> str:
+    """Generate markdown report including provenance details."""
     lines = [
         "# MCP Experiment Full Report",
         "",
@@ -424,6 +430,10 @@ def generate_report(experiment_dir: Path, analysis: dict, judge_results: dict) -
         lines.append("- **Use strategic Deep Search** for balanced performance")
         lines.append("- Fewer targeted searches may be more efficient")
 
+    provenance_lines = build_provenance_section(profile_metadata or {})
+    if provenance_lines:
+        lines.extend(provenance_lines)
+
     lines.extend(
         [
             "",
@@ -450,9 +460,12 @@ def main():
     # Run analysis
     analysis = analyze_experiment(experiment_dir)
     judge_results = load_judge_results(experiment_dir)
+    profile_metadata = load_profile_metadata(experiment_dir)
+    if profile_metadata:
+        analysis["profile_metadata"] = profile_metadata
 
     # Generate report
-    report = generate_report(experiment_dir, analysis, judge_results)
+    report = generate_report(experiment_dir, analysis, judge_results, profile_metadata)
 
     # Save report
     report_path = experiment_dir / "REPORT.md"

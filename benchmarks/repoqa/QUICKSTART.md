@@ -83,14 +83,14 @@ cat repoqa_tasks/tensorflow-001-sr-qa/instruction.md
 # Baseline (no MCP)
 harbor run \
   --path repoqa_tasks/tensorflow-001-sr-qa \
-  --agent claude-code \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
   --model anthropic/claude-haiku-4-5-20251001 \
   -n 1
 
 # With MCP
 harbor run \
   --path repoqa_tasks/tensorflow-001-sr-qa \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
   --model anthropic/claude-haiku-4-5-20251001 \
   -n 1
 ```

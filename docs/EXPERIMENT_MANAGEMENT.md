@@ -161,11 +161,17 @@ State what you're testing and what you expect to find.
 # Creates: jobs/full-mcp-experiment-<timestamp>/
 ```
 
+**Quick per-benchmark comparison:**
+```bash
+./scripts/run_mcp_comparison.sh benchmarks/big_code_mcp/big-code-vsc-001
+```
+Runs baseline + MCP variants with standardized logging under `results/` for faster iteration.
+
 **Single task smoke test:**
 ```bash
 harbor run \
   --path benchmarks/big_code_mcp/big-code-vsc-001 \
-  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
   --model anthropic/claude-haiku-4-5-20251001 \
   -n 1
 ```

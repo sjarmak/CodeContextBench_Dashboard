@@ -15,7 +15,9 @@ This directory contains all standardized benchmarks for evaluating coding agents
 **Run**:
 ```bash
 harbor run --path benchmarks/big_code_mcp/big-code-vsc-001 \
-  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
 ```
 
 ---
@@ -33,6 +35,7 @@ harbor run --path benchmarks/big_code_mcp/big-code-vsc-001 \
 ```bash
 harbor run --path benchmarks/github_mined \
   --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 5
 ```
 
@@ -51,8 +54,10 @@ harbor run --path benchmarks/github_mined \
 
 **Run**:
 ```bash
-harbor run --task benchmarks/dependeval_benchmark/DR_python/dependency_recognition-python-unknown \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent
+harbor run --path benchmarks/dependeval_benchmark/DR_python/dependency_recognition-python-unknown \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
 ```
 
 ---
@@ -73,7 +78,9 @@ harbor run --task benchmarks/dependeval_benchmark/DR_python/dependency_recogniti
 **Run**:
 ```bash
 harbor run --path benchmarks/10figure/api_upgrade_01 \
-  --agent-import-path agents.mcp_variants:FullToolkitAgent
+  --agent-import-path agents.mcp_variants:FullToolkitAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
 ```
 
 ---
@@ -128,10 +135,32 @@ python run_adapter.py \
 **Run**:
 ```bash
 harbor run --path benchmarks/repoqa/tasks/sr-qa-requests-001 \
-  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
 ```
 
 See [README.md](repoqa/README.md) for design and [IMPLEMENTATION_SUMMARY.md](repoqa/IMPLEMENTATION_SUMMARY.md) for details.
+
+---
+
+### 7. [kubernetes_docs/](kubernetes_docs/) - Kubernetes Documentation Generation
+**Status**: Pilot-ready  
+**Task Count**: 5 tasks (scheduler plugins, API packages, kubelet subsystems)  
+**Focus**: Reconstruct doc.go/README content for stripped Kubernetes packages  
+**Repositories**: `kubernetes/kubernetes`, `kubernetes/enhancements`  
+**Suitable For**: Measuring MCP retrieval value on long-form documentation tasks  
+**Task Format**: Harbor (task.yaml, TASK.md, stripped code context, ground truth docs)
+
+**Run**:
+```bash
+harbor run --path benchmarks/kubernetes_docs/pkg-doc-001 \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
+```
+
+See [README.md](kubernetes_docs/README.md) for setup requirements (doc stripping workflow, KEP ground truth extraction).
 
 ---
 
@@ -145,29 +174,39 @@ See [README.md](repoqa/README.md) for design and [IMPLEMENTATION_SUMMARY.md](rep
 | 10figure | ⭐⭐⭐⭐ (high) | 4 | 23 | 20min | Large codebase understanding |
 | dibench | ⭐⭐⭐ (medium) | Variable | Custom | 15min | Dependency inference |
 | repoqa | ⭐⭐⭐⭐ (high) | Variable | Custom | 10min | Tool-sensitive MCP eval |
+| kubernetes_docs | ⭐⭐⭐⭐ (high) | 5 | Kubernetes (code + KEPs) | 30min | Documentation & retrieval evaluation |
 
 ---
 
 ## Using With Benchmark Agents
 
-All benchmarks work with the 4 standardized agents:
+All benchmarks work with the 5 standardized agents:
 
 ```bash
 # Baseline (Claude Code, no MCP)
-harbor run --task <task_path> \
-  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001
+
+# Strategic Deep Search (targeted MCP usage)
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 
 # Deep Search Focused (MCP with aggressive Deep Search prompting)
-harbor run --task <task_path> \
-  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 
 # MCP No Deep Search (keyword/NLS only)
-harbor run --task <task_path> \
-  --agent-import-path agents.mcp_variants:MCPNonDeepSearchAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:MCPNonDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 
 # Full Toolkit (all tools, neutral prompting)
-harbor run --task <task_path> \
-  --agent-import-path agents.mcp_variants:FullToolkitAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:FullToolkitAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 ```
 
 See [AGENTS.md](../AGENTS.md#benchmark-agents) for agent details.

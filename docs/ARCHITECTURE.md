@@ -90,7 +90,7 @@ CodeContextBench is a comprehensive benchmark evaluation framework for assessing
 
 #### `agents/` - Agent Implementations
 
-Both agents extend Harbor's built-in `ClaudeCode` and inject autonomous environment variables:
+All agents extend Harbor's built-in `ClaudeCode` and inject autonomous environment variables:
 
 - **claude_baseline_agent.py** - Claude baseline (autonomous mode, no Sourcegraph)
   - Extends: `harbor.agents.installed.claude_code.ClaudeCode`
@@ -98,17 +98,19 @@ Both agents extend Harbor's built-in `ClaudeCode` and inject autonomous environm
   - Tools: Bash, Read, Edit, Write, Grep, Glob
   - Purpose: Fair baseline for MCP comparison
 
-- **claude_sourcegraph_mcp_agent.py** - Claude + Sourcegraph MCP (autonomous mode + Deep Search)
-  - Extends: `harbor.agents.installed.claude_code.ClaudeCode`
-  - Injects: Same autonomous env vars as baseline
-  - Adds: `.mcp.json` configuration for Sourcegraph HTTP server
-  - Tools: Same as baseline + Sourcegraph Deep Search
-  - Purpose: Measure ROI of code intelligence
+- **mcp_variants.py** - Strategic + experimental MCP agents (Sourcegraph Deep Search / keyword / neutral)
+  - Contains: `StrategicDeepSearchAgent`, `DeepSearchFocusedAgent`, `MCPNonDeepSearchAgent`, `FullToolkitAgent`
+  - Extends: `ClaudeCode` with identical autonomous command generation to the baseline
+  - Adds: `.mcp.json` config upload + variant-specific prompts/cloude-md
+  - Purpose: Measure MCP benefit across prompting strategies and tool combinations
+
+- **claude_sourcegraph_mcp_agent.py** - Compatibility alias to `DeepSearchFocusedAgent`
+  - Kept so older automation can still import `ClaudeCodeSourcegraphMCPAgent`
 
 **Key Design**: 
-- Both agents inject the same autonomous environment variables (critical for implementation mode)
-- Differentiation happens via environment/MCP setup, not core command logic
-- Allows fair A/B testing of Sourcegraph value
+- All agents inject the same autonomous environment variables (critical for implementation mode)
+- Differentiation happens via environment/MCP setup and prompts, not core command logic
+- Allows fair A/B testing of Sourcegraph value across multiple MCP prompting strategies
 
 #### `src/task_mining/` - GitHub Task Mining
 
@@ -141,6 +143,7 @@ Standardized benchmark task sets with consistent format:
 - **10figure/** - Legacy Codebase Challenges (4 tasks, large codebase understanding)
 - **dibench/** - Dependency Inference Benchmark (variable tasks, language-diverse)
 - **repoqa/** - Tool-Sensitive Code Understanding (variable tasks, MCP-sensitive)
+- **kubernetes_docs/** - Kubernetes documentation regeneration tasks (doc.go, README reconstruction)
 
 See [benchmarks/README.md](../benchmarks/README.md#benchmark-comparison-matrix) for comparison matrix and setup details.
 
@@ -207,7 +210,7 @@ Tools for extracting execution metrics from agent runs:
 
 | File | Purpose |
 |------|---------|
-| `.env.local.example` | Template for credentials (ANTHROPIC_API_KEY, SRC_ACCESS_TOKEN) |
+| `.env.local.example` | Template for credentials (ANTHROPIC_API_KEY, SOURCEGRAPH_ACCESS_TOKEN) |
 | `.python-version` | Python version specification (3.12.11) |
 | `setup.py` | Python package configuration |
 | `AGENTS.md` | Agent patterns, workflows, and learned knowledge |
@@ -220,7 +223,7 @@ Tools for extracting execution metrics from agent runs:
 
 2. ENVIRONMENT SETUP
    └─> source infrastructure/load-env.sh
-       (loads ANTHROPIC_API_KEY, SRC_ACCESS_TOKEN, etc.)
+       (loads ANTHROPIC_API_KEY, SOURCEGRAPH_ACCESS_TOKEN, etc.)
 
 3. AGENT INITIALIZATION
     └─> agents/ (BaselineClaudeCodeAgent or MCP variant agents)
@@ -260,7 +263,7 @@ Tools for extracting execution metrics from agent runs:
 
 ## Agent Design
 
-Four production agents for A/B testing MCP impact:
+Five benchmarking agents for A/B testing MCP impact:
 
 ### BaselineClaudeCodeAgent
 
@@ -274,8 +277,26 @@ Four production agents for A/B testing MCP impact:
 
 **Usage**:
 ```bash
-harbor run --task <task_path> \
-  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001
+```
+
+### StrategicDeepSearchAgent
+
+**File**: `agents/mcp_variants.py`  
+**Import**: `agents.mcp_variants:StrategicDeepSearchAgent`
+
+- **Purpose**: Recommended MCP agent that uses Deep Search strategically for architecture/context discovery
+- **Features**: Opinionated prompts that trigger Deep Search at task start and when encountering information gaps
+- **Environments**: ANTHROPIC_API_KEY + SOURCEGRAPH_URL + SOURCEGRAPH_ACCESS_TOKEN
+- **Use Case**: Balanced MCP runs that avoid overusing Deep Search while still gathering critical context
+
+**Usage**:
+```bash
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 ```
 
 ### DeepSearchFocusedAgent
@@ -283,15 +304,16 @@ harbor run --task <task_path> \
 **File**: `agents/mcp_variants.py`  
 **Import**: `agents.mcp_variants:DeepSearchFocusedAgent`
 
-- **Purpose**: Test MCP value with aggressive Deep Search prompting
-- **Features**: MCP with Sourcegraph Deep Search enabled + dedicated system prompts
-- **Environments**: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN + SOURCEGRAPH_URL
+- **Purpose**: Test the value of a dedicated deep-search-only MCP endpoint.
+- **Features**: MCP with a dedicated deep-search-only endpoint and aggressive system prompts.
+- **Environments**: ANTHROPIC_API_KEY + SOURCEGRAPH_ACCESS_TOKEN + SOURCEGRAPH_URL
 - **Use Case**: Maximize Deep Search impact on task success
 
 **Usage**:
 ```bash
-harbor run --task <task_path> \
-  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:DeepSearchFocusedAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 ```
 
 ### MCPNonDeepSearchAgent
@@ -301,13 +323,14 @@ harbor run --task <task_path> \
 
 - **Purpose**: Test if simpler search (keyword/NLS) is sufficient without Deep Search
 - **Features**: MCP with keyword and natural language search only (Deep Search disabled)
-- **Environments**: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN + SOURCEGRAPH_URL
+- **Environments**: ANTHROPIC_API_KEY + SOURCEGRAPH_ACCESS_TOKEN + SOURCEGRAPH_URL
 - **Use Case**: Measure Deep Search overhead vs simpler search strategies
 
 **Usage**:
 ```bash
-harbor run --task <task_path> \
-  --agent-import-path agents.mcp_variants:MCPNonDeepSearchAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:MCPNonDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 ```
 
 ### FullToolkitAgent
@@ -317,13 +340,14 @@ harbor run --task <task_path> \
 
 - **Purpose**: Control for all-MCP tools with neutral prompting
 - **Features**: MCP with all available tools, no task-specific prompts (baseline MCP)
-- **Environments**: ANTHROPIC_API_KEY + SRC_ACCESS_TOKEN + SOURCEGRAPH_URL
+- **Environments**: ANTHROPIC_API_KEY + SOURCEGRAPH_ACCESS_TOKEN + SOURCEGRAPH_URL
 - **Use Case**: Measure agent's natural tool choices with all options available
 
 **Usage**:
 ```bash
-harbor run --task <task_path> \
-  --agent-import-path agents.mcp_variants:FullToolkitAgent
+harbor run --path <task_path> \
+  --agent-import-path agents.mcp_variants:FullToolkitAgent \
+  --model anthropic/claude-haiku-4-5-20251001
 ```
 
 ### Deprecated Shim
@@ -343,15 +367,17 @@ The 4-agent design enables systematic MCP evaluation:
 | Agent | MCP | Prompting | Purpose |
 |-------|-----|-----------|---------|
 | Baseline | No | N/A | Control: pure Claude Code |
-| DeepSearchFocused | Yes | Aggressive Deep Search | Max Deep Search impact |
+| StrategicDeepSearch | Yes | Targeted Deep Search | Recommended MCP run (context-first) |
+| DeepSearchFocused | Yes | Deep Search Only | Max Deep Search impact |
 | MCPNonDeepSearch | Yes | Keyword/NLS only | Test Deep Search necessity |
 | FullToolkit | Yes | Neutral | Control: all MCP tools |
 
 **Testing Matrix**:
+- **Baseline vs StrategicDeepSearch**: Strategic MCP vs no MCP
 - **Baseline vs FullToolkit**: Total MCP value (all tools)
-- **FullToolkit vs DeepSearchFocused**: Deep Search prompting impact
-- **FullToolkit vs MCPNonDeepSearch**: Deep Search necessity vs simpler search
-- **DeepSearchFocused vs MCPNonDeepSearch**: Aggressive prompting benefit
+- **StrategicDeepSearch vs DeepSearchFocused**: Strategic vs aggressive Deep Search usage
+- **StrategicDeepSearch vs MCPNonDeepSearch**: Deep Search necessity vs simpler search
+- **FullToolkit vs DeepSearchFocused**: Prompting impact when all tools exist
 
 **Design**:
 - All agents use identical command generation logic (same base class)
@@ -378,7 +404,7 @@ The 4-agent design enables systematic MCP evaluation:
 
 4. **Smoke Tests** (`smoke_test.sh`)
    - Environment availability (podman, harbor, python)
-   - Tool availability (SRC_ACCESS_TOKEN, ANTHROPIC_API_KEY)
+   - Tool availability (SOURCEGRAPH_ACCESS_TOKEN, ANTHROPIC_API_KEY)
    - Basic agent functionality
 
 ## Containerization: Harbor + Podman

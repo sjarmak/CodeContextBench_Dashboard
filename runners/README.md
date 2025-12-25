@@ -36,8 +36,8 @@ export ANTHROPIC_API_KEY="sk-..."
 
 # For Claude + Sourcegraph MCP
 export ANTHROPIC_API_KEY="sk-..."
-export SRC_ACCESS_TOKEN="sgp_..."
-export SOURCEGRAPH_URL="https://sourcegraph.sourcegraph.com"  # optional
+export SOURCEGRAPH_ACCESS_TOKEN="sgp_..."
+export SOURCEGRAPH_URL="https://sourcegraph.sourcegraph.com"
 ```
 
 ### compare_results.py
@@ -95,12 +95,12 @@ python3 aggregator.py --runs jobs/ --output analysis.json
 ### claude-baseline
 Claude Code CLI without Sourcegraph tools (control).
 - Requires: `ANTHROPIC_API_KEY`
-- Import path: `agents:BaselineClaudeCodeAgent`
+- Import path: `agents.claude_baseline_agent:BaselineClaudeCodeAgent`
 
 ### claude-mcp
 Claude Code with Sourcegraph MCP server for code intelligence.
-- Requires: `ANTHROPIC_API_KEY`, `SRC_ACCESS_TOKEN`
-- Import path: `agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent`
+- Requires: `ANTHROPIC_API_KEY`, `SOURCEGRAPH_ACCESS_TOKEN`, `SOURCEGRAPH_URL`
+- Import path: `agents.mcp_variants:StrategicDeepSearchAgent`
 
 ## Supported Benchmarks
 

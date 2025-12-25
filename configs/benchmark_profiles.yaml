@@ -1,0 +1,42 @@
+# Benchmark profile definitions for CodeContextBench-fft
+#
+# Each profile defines a benchmark slice plus an agent matrix. The profile runner
+# (scripts/benchmark_profile_runner.py) loads this file alongside
+# configs/benchmark_pipeline.yaml to locate manifest metadata, task directories,
+# and Harbor launch parameters.
+---
+defaults:
+  model: anthropic/claude-haiku-4-5-20251001
+  jobs_root: jobs/benchmark_profiles
+  harbor:
+    n_tasks: 1
+    n_concurrent: 1
+    timeout_multiplier: 2.0
+profiles:
+  repoqa_smoke:
+    description: RepoQA smoke comparison (baseline vs strategic Deep Search)
+    benchmarks:
+      - id: repoqa
+        jobs_subdir: repoqa
+        task_names:
+          - sr-qa-requests-001
+        harbor:
+          timeout_multiplier: 1.5
+    agents:
+      - name: baseline
+        display_name: Baseline Claude Code
+        agent_import_path: agents.claude_baseline_agent:BaselineClaudeCodeAgent
+      - name: strategic
+        display_name: Strategic Deep Search Agent
+        agent_import_path: agents.mcp_variants:StrategicDeepSearchAgent
+  dibench_smoke:
+    description: DIBench adapter sanity (baseline only)
+    benchmarks:
+      - id: dibench
+        jobs_subdir: dibench
+        task_names:
+          - python-instance-001
+    agents:
+      - name: baseline
+        display_name: Baseline Claude Code
+        agent_import_path: agents.claude_baseline_agent:BaselineClaudeCodeAgent

@@ -1,0 +1,83 @@
+pipeline_version: 0.1.0
+logs_root: artifacts/benchmark_pipeline
+env_fingerprint_vars:
+  - ANTHROPIC_API_KEY
+  - SOURCEGRAPH_ACCESS_TOKEN
+  - SOURCEGRAPH_URL
+env_files:
+  - .env.local
+benchmarks:
+  repoqa:
+    description: RepoQA adapter refresh and Harbor sanity validation
+    task_root: benchmarks/repoqa
+    dataset_paths:
+      - ${REPOQA_DATASET_PATH}
+    artifact_paths:
+      - benchmarks/repoqa/tasks
+    creation:
+      commands:
+        - name: repoqa-adapter-refresh
+          run: >
+            python benchmarks/repoqa/run_adapter.py \
+              --dataset_path ${REPOQA_DATASET_PATH} \
+              --output_dir benchmarks/repoqa/tasks \
+              --variants sr-qa md-qa nr-qa \
+              --limit 10
+          workdir: ${PROJECT_ROOT}
+    validation:
+      commands:
+        - name: repoqa-structural-validation
+          run: >
+            python runners/validate_tasks.py \
+              --input benchmarks/repoqa/tasks \
+              --output artifacts/benchmark_pipeline/repoqa-validation.json
+          workdir: ${PROJECT_ROOT}
+        - name: repoqa-harbor-sanity
+          run: >
+            harbor run \
+              --path benchmarks/repoqa/tasks \
+              --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+              --model anthropic/claude-haiku-4-5-20251001 \
+              -n 1 \
+              --jobs-dir jobs/benchmark-validation/repoqa-baseline \
+              --task-name sr-qa-requests-001
+          workdir: ${PROJECT_ROOT}
+    manifest:
+      path: benchmarks/repoqa/MANIFEST.json
+  dibench:
+    description: DIBench adapter refresh and Harbor validation
+    task_root: benchmarks/dibench
+    dataset_paths:
+      - ${DIBENCH_DATASET_PATH}
+    artifact_paths:
+      - benchmarks/dibench/tasks
+    creation:
+      commands:
+        - name: dibench-adapter-refresh
+          run: >
+            python benchmarks/dibench/run_adapter.py \
+              --dataset_path ${DIBENCH_DATASET_PATH} \
+              --repo_instances_dir benchmarks/dibench/.cache/repos \
+              --output_dir benchmarks/dibench/tasks \
+              --limit 5
+          workdir: ${PROJECT_ROOT}
+    validation:
+      commands:
+        - name: dibench-structural-validation
+          run: >
+            python runners/validate_tasks.py \
+              --input benchmarks/dibench/tasks \
+              --output artifacts/benchmark_pipeline/dibench-validation.json
+          workdir: ${PROJECT_ROOT}
+        - name: dibench-harbor-sanity
+          run: >
+            harbor run \
+              --path benchmarks/dibench/tasks \
+              --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+              --model anthropic/claude-haiku-4-5-20251001 \
+              -n 1 \
+              --jobs-dir jobs/benchmark-validation/dibench-baseline \
+              --task-name python-instance-001
+          workdir: ${PROJECT_ROOT}
+    manifest:
+      path: benchmarks/dibench/MANIFEST.json

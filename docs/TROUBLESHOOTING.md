@@ -5,7 +5,7 @@
 ### Agent fails to initialize
 
 - Check `ANTHROPIC_API_KEY` environment variable is set
-- For Claude+MCP: verify `SRC_ACCESS_TOKEN` is set
+- For Claude+MCP: verify `SOURCEGRAPH_ACCESS_TOKEN` (or legacy `SRC_ACCESS_TOKEN`) is set
 - Check Sourcegraph URL: `echo $SOURCEGRAPH_URL`
 - Run test: `python -m pytest tests/test_agent_env_injection.py -v`
 

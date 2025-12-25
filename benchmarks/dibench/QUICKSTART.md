@@ -40,13 +40,13 @@ Once tasks are generated, you can run them with Harbor:
 ```bash
 # Run a single task
 harbor run --path ./benchmarks/dibench/output/python-instance-001 \
-           --agent claude-code \
-           --model anthropic/claude-opus-4-1
+           --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+           --model anthropic/claude-haiku-4-5-20251001
 
 # Run all generated tasks
 harbor run --dataset ./benchmarks/dibench/output \
-           --agent claude-code \
-           --model anthropic/claude-opus-4-1 \
+           --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+           --model anthropic/claude-haiku-4-5-20251001 \
            --n-concurrent 4
 ```
 

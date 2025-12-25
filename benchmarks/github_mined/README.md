@@ -100,7 +100,8 @@ sgt-NNN/
 cd ~/harbor
 harbor run \
   --path benchmarks/github_mined \
-  --agent claude-code \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 5  # Run 5 tasks as pilot
 ```
 
@@ -110,12 +111,16 @@ source .env.local
 export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
 
 # Baseline (local grep/find)
-harbor run --path benchmarks/github_mined --agent claude-code -n 25
+harbor run --path benchmarks/github_mined \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 25
 
 # MCP (Sourcegraph semantic search)
 harbor run \
   --path benchmarks/github_mined \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 25
 ```
 

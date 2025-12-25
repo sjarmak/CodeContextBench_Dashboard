@@ -1,0 +1,56 @@
+id: sched-doc-001
+name: "Pod Topology Spread Plugin Documentation"
+category: scheduler-plugin-documentation
+difficulty: hard
+repository: kubernetes/kubernetes
+target_path: pkg/scheduler/framework/plugins/podtopologyspread
+
+description: |
+  Create comprehensive README documentation for the PodTopologySpread
+  scheduler plugin. This plugin implements the pod topology spread constraints
+  feature that allows users to spread pods across topology domains (zones, nodes).
+
+  Evaluation is performed by comparing the generated README.md against
+  ground truth documentation using an LLM judge.
+
+task_prompt: |
+  You are documenting the `podtopologyspread` scheduler plugin in Kubernetes.
+  This plugin is part of the scheduler framework and implements the Pod
+  Topology Spread Constraints feature (KEP-20190221).
+
+  Your task is to create a comprehensive README.md in `pkg/scheduler/framework/plugins/podtopologyspread/` that:
+
+  1. Explains the purpose of the plugin
+  2. Describes how topology spread constraints work
+  3. Documents the filtering and scoring logic
+  4. Explains key concepts: MaxSkew, TopologyKey, WhenUnsatisfiable
+  5. Provides usage examples
+  6. Notes configuration options
+  7. References related features and KEPs
+
+  The documentation should be suitable for developers who want to understand
+  how this plugin works internally.
+
+expected_output:
+  type: file
+  filename: README.md
+  location: pkg/scheduler/framework/plugins/podtopologyspread/README.md
+
+ground_truth:
+  primary_file: ground_truth/kep-excerpt.md
+
+verifier:
+  type: script
+  script: test.sh
+
+mcp_expected_value: very_high
+mcp_rationale: |
+  The PodTopologySpread plugin is complex and its behavior is extensively
+  documented in KEPs. With Sourcegraph Deep Search searching the kubernetes-stripped
+  index, an agent can:
+  - Find and understand KEP-895 (Pod Topology Spread)
+  - Discover KEP-1258 (Default Pod Topology Spread)
+  - Search for test cases that demonstrate edge cases
+  - Find related scheduler plugins for context
+  - Discover feature gate associations
+

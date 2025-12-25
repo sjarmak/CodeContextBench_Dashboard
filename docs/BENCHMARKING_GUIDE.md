@@ -12,8 +12,8 @@ source .venv-harbor/bin/activate
 
 harbor run \
   --path benchmarks/github_mined \
-  --agent claude-code \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/baseline-run \
   --task-name sgt-001 --task-name sgt-002 --task-name sgt-003
@@ -24,8 +24,8 @@ harbor run \
 ```bash
 harbor run \
   --path benchmarks/github_mined \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/mcp-run \
   --task-name sgt-001 --task-name sgt-002 --task-name sgt-003
@@ -41,7 +41,7 @@ source .venv-harbor/bin/activate
 
 # Verify credentials are set
 echo $ANTHROPIC_API_KEY  # Required for all agents
-echo $SRC_ACCESS_TOKEN   # Required for MCP agent only
+echo $SOURCEGRAPH_ACCESS_TOKEN   # Required for MCP agent only
 
 # Clean Docker cache (optional but recommended for fresh builds)
 docker system prune -af --volumes
@@ -55,8 +55,8 @@ Always validate one task before running full suites:
 # Baseline agent sanity check
 harbor run \
   --path benchmarks/github_mined \
-  --agent claude-code \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/sanity-baseline \
   --task-name sgt-001
@@ -83,8 +83,8 @@ Test with a subset before full suite to validate configuration:
 ```bash
 harbor run \
   --path benchmarks/github_mined \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/mcp-subset \
   --task-name sgt-001 \
@@ -102,8 +102,8 @@ Expected runtime: 10-15 minutes per task (large PyTorch clones)
 # Run all 25 github_mined tasks
 harbor run \
   --path benchmarks/github_mined \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/mcp-full \
   --task-name sgt-001 \
@@ -175,8 +175,8 @@ python3 runners/capture_pilot_observability.py --all
 # Run baseline
 harbor run \
   --path benchmarks/github_mined \
-  --agent claude-code \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/compare-baseline \
   --task-name sgt-001 --task-name sgt-002 --task-name sgt-003 --task-name sgt-004 --task-name sgt-005
@@ -184,8 +184,8 @@ harbor run \
 # Run MCP
 harbor run \
   --path benchmarks/github_mined \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/compare-mcp \
   --task-name sgt-001 --task-name sgt-002 --task-name sgt-003 --task-name sgt-004 --task-name sgt-005
@@ -210,7 +210,7 @@ Different models for different scenarios:
 
 ```bash
 # Fast/cheap testing (haiku)
---model anthropic/claude-haiku-4-5
+--model anthropic/claude-haiku-4-5-20251001
 
 # Better quality (sonnet)
 --model anthropic/claude-3-5-sonnet-20241022
@@ -307,8 +307,8 @@ docker system prune -af --volumes
 echo "Running baseline..."
 harbor run \
   --path benchmarks/github_mined \
-  --agent claude-code \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/ab-baseline \
   --task-name sgt-001 --task-name sgt-002 --task-name sgt-003 --task-name sgt-004 --task-name sgt-005
@@ -317,8 +317,8 @@ harbor run \
 echo "Running MCP..."
 harbor run \
   --path benchmarks/github_mined \
-  --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
-  --model anthropic/claude-haiku-4-5 \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
   -n 1 \
   --jobs-dir jobs/ab-mcp \
   --task-name sgt-001 --task-name sgt-002 --task-name sgt-003 --task-name sgt-004 --task-name sgt-005
@@ -340,7 +340,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 **Required for MCP agent only:**
 ```bash
-export SRC_ACCESS_TOKEN="sgp_..."
+export SOURCEGRAPH_ACCESS_TOKEN="sgp_..."
 export SOURCEGRAPH_URL="https://sourcegraph.sourcegraph.com"  # or your instance
 ```
 

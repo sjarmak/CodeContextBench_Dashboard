@@ -41,7 +41,7 @@ Each task directory follows the Harbor benchmark format:
 ```bash
 # Set up environment
 source .env.local
-export ANTHROPIC_API_KEY SOURCEGRAPH_INSTANCE SOURCEGRAPH_ACCESS_TOKEN GITHUB_TOKEN
+export ANTHROPIC_API_KEY SOURCEGRAPH_URL SOURCEGRAPH_ACCESS_TOKEN GITHUB_TOKEN
 
 # Install Harbor
 cd CodeContextBench
@@ -53,8 +53,8 @@ source harbor/bin/activate
 ```bash
 # Run a single task with Claude Code (no MCP)
 harbor run \
-    --task benchmarks/dependeval_benchmark/DR_python/dependency_recognition-python-unknown \
-    --agent claude-code \
+    --path benchmarks/dependeval_benchmark/DR_python/dependency_recognition-python-unknown \
+    --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
     --model anthropic/claude-haiku-4-5-20251001 \
     -n 1
 ```
@@ -64,8 +64,8 @@ harbor run \
 ```bash
 # Run with Sourcegraph MCP
 harbor run \
-    --task benchmarks/dependeval_benchmark/DR_python/dependency_recognition-python-unknown \
-    --agent-import-path agents.claude_sourcegraph_mcp_agent:ClaudeCodeSourcegraphMCPAgent \
+    --path benchmarks/dependeval_benchmark/DR_python/dependency_recognition-python-unknown \
+    --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
     --model anthropic/claude-haiku-4-5-20251001 \
     -n 1
 ```
@@ -139,7 +139,7 @@ jobs/dependeval-comparison-YYYYMMDD-HHMM/
 
 - [scripts/run_dependeval_comparison.sh](../../scripts/run_dependeval_comparison.sh) - Run full comparison
 - [scripts/analyze_dependeval_comparison.py](../../scripts/analyze_dependeval_comparison.py) - Analyze results
-- [agents/claude_sourcegraph_mcp_agent.py](../../agents/claude_sourcegraph_mcp_agent.py) - MCP-enabled agent
+- [agents/mcp_variants.py](../../agents/mcp_variants.py) - MCP variants (StrategicDeepSearchAgent recommended)
 - [AGENTS.md](../../AGENTS.md) - Project guidelines
 
 ## Notes

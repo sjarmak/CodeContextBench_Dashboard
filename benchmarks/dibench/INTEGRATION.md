@@ -95,8 +95,8 @@ harbor datasets list | grep dibench
 
 # Run evaluation
 harbor run --dataset dibench@1.0 \
-           --agent claude-code \
-           --model anthropic/claude-opus-4-1
+           --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+           --model anthropic/claude-haiku-4-5-20251001
 ```
 
 ## Customization
