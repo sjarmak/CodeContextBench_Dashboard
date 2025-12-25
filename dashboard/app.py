@@ -29,30 +29,76 @@ if "selected_experiment" not in st.session_state:
 def main():
     """Main dashboard entry point."""
 
+    # Initialize selected page in session state
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "Home"
+
     # Sidebar navigation
     st.sidebar.title("CodeContextBench")
     st.sidebar.markdown("---")
 
-    page = st.sidebar.radio(
-        "Navigation",
-        [
-            "Home",
-            "Benchmark Manager",
-            "Add Benchmark",
-            "Agent Versions",
-            "Evaluation Runner",
-            "Comparison Table",
-            "Deep Search Analytics",
-            "Raw Results",
-            "Generate Report",
-            "LLM Judge",
-            "Manifests (Legacy)",
-            "Results Browser (Legacy)",
-        ],
-    )
+    # Custom CSS for navigation
+    st.sidebar.markdown("""
+    <style>
+    .stButton > button {
+        width: 100%;
+        border-radius: 0;
+        border: none;
+        border-bottom: 1px solid #333;
+        background-color: transparent;
+        color: inherit;
+        text-align: left;
+        padding: 12px 16px;
+        font-weight: normal;
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-left: 3px solid #4a9eff;
+        padding-left: 13px;
+    }
+    .stButton > button:focus {
+        box-shadow: none;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Navigation items
+    nav_items = [
+        "Home",
+        "Benchmark Manager",
+        "Add Benchmark",
+        "Agent Versions",
+        "Evaluation Runner",
+        "Comparison Table",
+        "Deep Search Analytics",
+        "Raw Results",
+        "Generate Report",
+        "LLM Judge",
+        "Manifests (Legacy)",
+        "Results Browser (Legacy)",
+    ]
+
+    # Create navigation buttons
+    for item in nav_items:
+        # Highlight current page with different styling
+        if item == st.session_state.current_page:
+            st.sidebar.markdown(
+                f'<div style="background-color: rgba(74, 158, 255, 0.1); '
+                f'border-left: 3px solid #4a9eff; padding: 12px 13px; '
+                f'border-bottom: 1px solid #333; font-weight: 500;">{item}</div>',
+                unsafe_allow_html=True
+            )
+        else:
+            if st.sidebar.button(item, key=f"nav_{item}"):
+                st.session_state.current_page = item
+                st.rerun()
 
     st.sidebar.markdown("---")
     st.sidebar.caption(f"Project: {PROJECT_ROOT.name}")
+
+    # Get selected page
+    page = st.session_state.current_page
 
     # Route to appropriate page
     if page == "Home":
