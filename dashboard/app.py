@@ -1,12 +1,7 @@
 """
 CodeContextBench Evaluation Dashboard
 
-Streamlit UI for:
-- Browsing benchmark manifests
-- Viewing experiment results
-- Comparing agent performance
-- Analyzing Deep Search usage
-- Triggering benchmark runs
+Full-featured benchmark management and evaluation platform.
 """
 
 import streamlit as st
@@ -15,7 +10,7 @@ from pathlib import Path
 # Configure page
 st.set_page_config(
     page_title="CodeContextBench Dashboard",
-    page_icon="📊",
+    page_icon="CB",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -35,61 +30,93 @@ def main():
     """Main dashboard entry point."""
 
     # Sidebar navigation
-    st.sidebar.title("📊 CodeContextBench")
+    st.sidebar.title("CodeContextBench")
     st.sidebar.markdown("---")
 
     page = st.sidebar.radio(
         "Navigation",
         [
-            "🏠 Home",
-            "📋 Benchmark Manifests",
-            "📊 Experiment Results",
-            "🔍 Agent Comparison",
-            "🔎 Deep Search Analytics",
-            "▶️ Run Benchmarks",
+            "Home",
+            "---",
+            "Benchmark Manager",
+            "Add Benchmark",
+            "Agent Versions",
+            "---",
+            "Evaluation Runner",
+            "Raw Results",
+            "Generate Report",
+            "LLM Judge",
+            "---",
+            "Comparison Table",
+            "Deep Search Analytics",
+            "---",
+            "Legacy: Manifests",
+            "Legacy: Results Browser",
         ],
     )
 
     st.sidebar.markdown("---")
-    st.sidebar.info(
-        f"""
-        **Project Root:** `{PROJECT_ROOT.name}`
-
-        **Quick Links:**
-        - [Documentation](../docs/)
-        - [Benchmarks](../benchmarks/)
-        - [Agents](../agents/)
-        """
-    )
+    st.sidebar.caption(f"Project: {PROJECT_ROOT.name}")
 
     # Route to appropriate page
-    if page == "🏠 Home":
+    if page == "---":
+        pass  # Separator
+    elif page == "Home":
         show_home()
-    elif page == "📋 Benchmark Manifests":
-        show_manifests()
-    elif page == "📊 Experiment Results":
-        show_results()
-    elif page == "🔍 Agent Comparison":
-        show_comparison()
-    elif page == "🔎 Deep Search Analytics":
+    elif page == "Benchmark Manager":
+        show_benchmark_manager()
+    elif page == "Add Benchmark":
+        show_add_benchmark()
+    elif page == "Agent Versions":
+        show_agent_versions()
+    elif page == "Evaluation Runner":
+        show_evaluation_runner()
+    elif page == "Raw Results":
+        show_raw_results()
+    elif page == "Generate Report":
+        show_generate_report()
+    elif page == "LLM Judge":
+        show_llm_judge()
+    elif page == "Comparison Table":
+        show_comparison_enhanced()
+    elif page == "Deep Search Analytics":
         show_deep_search()
-    elif page == "▶️ Run Benchmarks":
-        show_run_triggers()
+    elif page == "Legacy: Manifests":
+        show_manifests()
+    elif page == "Legacy: Results Browser":
+        show_results()
 
 
 def show_home():
     """Home page with overview and quick stats."""
-    st.title("CodeContextBench Evaluation Dashboard")
+    st.title("CodeContextBench Evaluation Platform")
 
     st.markdown(
         """
-    Welcome to the CodeContextBench evaluation dashboard! This interface helps you:
+    **Full-featured benchmark management and evaluation platform**
 
-    - **Browse Benchmark Manifests**: View benchmark configurations, datasets, and validation logs
-    - **Explore Experiment Results**: Dive into Harbor execution results and LLM judge assessments
-    - **Compare Agents**: Side-by-side comparison of agent performance across metrics
-    - **Analyze Deep Search**: Understand MCP Deep Search usage patterns and effectiveness
-    - **Trigger Runs**: Launch benchmark lifecycle, profile runs, or evaluation pipelines
+    ### Benchmark Management
+    - Manage 7 registered benchmarks (Kubernetes, GitHub, Big Code, DIBench, DependEval, RepoQA, Synthetic)
+    - Oracle validation for task sanity checking
+    - Task selection and profiles
+    - Add new benchmarks dynamically
+
+    ### Agent Configuration
+    - Manage agent versions with model, prompt, and tool configurations
+    - Track agent modifications for reproducibility
+    - Version control for experimental changes
+
+    ### Evaluation Execution
+    - Run evaluations with configurable agents and task selection
+    - Live progress monitoring with pause/resume capability
+    - Background execution with real-time updates
+    - Concurrent task execution
+
+    ### Analysis & Reporting
+    - Comprehensive comparison tables with tokens, costs, pass rates
+    - Deep Search analytics and query patterns
+    - LLM-as-judge evaluation integration
+    - Export results for further analysis
     """
     )
 
@@ -153,39 +180,73 @@ def show_home():
         st.info("No experiments directory found.")
 
 
+def show_benchmark_manager():
+    """Benchmark manager page."""
+    from pages.benchmark_manager import show_benchmark_manager as show_manager
+    show_manager()
+
+
+def show_add_benchmark():
+    """Add benchmark page."""
+    from pages.add_benchmark import show_add_benchmark as show_add
+    show_add()
+
+
+def show_agent_versions():
+    """Agent versions page."""
+    from pages.agent_versions import show_agent_versions as show_versions
+    show_versions()
+
+
+def show_evaluation_runner():
+    """Evaluation runner page."""
+    from pages.evaluation_runner import show_evaluation_runner as show_runner
+    show_runner()
+
+
+def show_raw_results():
+    """Raw results viewer."""
+    st.title("Raw Results Viewer")
+    st.write("View raw Harbor outputs (trajectory.json, result.json)")
+    st.info("Use Legacy: Results Browser for now. Enhanced raw viewer coming soon.")
+
+
+def show_generate_report():
+    """Generate report page."""
+    st.title("Generate Report")
+    st.write("Generate evaluation reports from runs")
+    st.info("Use postprocess script for now. Interactive report builder coming soon.")
+
+
+def show_llm_judge():
+    """LLM judge runner page."""
+    st.title("LLM Judge Evaluation")
+    st.write("Run LLM-as-judge evaluation on completed runs")
+    st.info("Use postprocess script with --judge flag for now. Interactive judge runner coming soon.")
+
+
+def show_comparison_enhanced():
+    """Enhanced comparison table."""
+    from pages.comparison_enhanced import show_comparison_enhanced as show_enhanced
+    show_enhanced()
+
+
 def show_manifests():
     """Browse benchmark manifests."""
     from pages.manifests import show_manifest_viewer
-
     show_manifest_viewer()
 
 
 def show_results():
     """Browse experiment results."""
     from pages.results import show_results_browser
-
     show_results_browser()
-
-
-def show_comparison():
-    """Compare agents side-by-side."""
-    from pages.comparison import show_comparison_view
-
-    show_comparison_view()
 
 
 def show_deep_search():
     """Analyze Deep Search usage."""
     from pages.deep_search import show_deep_search_analytics
-
     show_deep_search_analytics()
-
-
-def show_run_triggers():
-    """Trigger benchmark runs."""
-    from pages.run_triggers import show_run_triggers as show_triggers
-
-    show_triggers()
 
 
 if __name__ == "__main__":
