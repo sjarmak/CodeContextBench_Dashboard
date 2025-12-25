@@ -83,29 +83,51 @@ def show_run_configuration():
     st.write(f"**Selected: {len(selected_tasks)} tasks**")
 
     # Agent selection
-    st.markdown("#### Agent Selection")
+    st.markdown("#### Agent Configuration")
 
-    # Predefined agents
-    default_agents = [
-        "agents.claude_baseline_agent:BaselineClaudeCodeAgent",
-        "agents.mcp_variants:DeepSearchFocusedAgent",
-        "agents.mcp_variants:StrategicDeepSearchAgent",
-    ]
+    # Use baseline agent only
+    agent_import_path = "agents.claude_baseline_agent:BaselineClaudeCodeAgent"
+    st.write(f"**Agent:** {agent_import_path}")
 
-    # Get custom agents from registry
-    custom_agents = AgentRegistry.list_all(active_only=True)
-
-    agent_options = default_agents + [a["import_path"] for a in custom_agents]
-
-    selected_agents = st.multiselect(
-        "Select Agents",
-        agent_options,
-        default=[agent_options[0]] if agent_options else []
+    # MCP Type Selection
+    mcp_type = st.radio(
+        "MCP Configuration",
+        options=["None (Pure Baseline)", "Sourcegraph MCP", "Deep Search MCP"],
+        help="""
+        - None: Pure baseline with no MCP
+        - Sourcegraph: Full Sourcegraph MCP with all tools (keyword, NLS, Deep Search)
+        - Deep Search: Deep Search-only MCP endpoint
+        """
     )
 
-    if not selected_agents:
-        st.warning("Please select at least one agent")
-        return None
+    # Map selection to environment variable value
+    mcp_env_value = {
+        "None (Pure Baseline)": "none",
+        "Sourcegraph MCP": "sourcegraph",
+        "Deep Search MCP": "deepsearch"
+    }[mcp_type]
+
+    # Store in session state for later use
+    st.session_state["baseline_mcp_type"] = mcp_env_value
+
+    st.info(f"MCP Type: {mcp_type}")
+
+    # Display what will be created based on MCP selection
+    with st.expander("Configuration Details"):
+        if mcp_env_value == "none":
+            st.write("- No mcp.json will be created")
+            st.write("- No CLAUDE.md will be created")
+            st.write("- Pure baseline agent with local tools only")
+        elif mcp_env_value == "sourcegraph":
+            st.write("- mcp.json: Sourcegraph MCP endpoint (.api/mcp/v1)")
+            st.write("- CLAUDE.md: Instructions for sg_keyword_search, sg_nls_search, sg_deepsearch")
+            st.write("- Access to all Sourcegraph MCP tools")
+        elif mcp_env_value == "deepsearch":
+            st.write("- mcp.json: Deep Search MCP endpoint (.api/mcp/deepsearch)")
+            st.write("- CLAUDE.md: Instructions for sg_deepsearch only")
+            st.write("- Focused on Deep Search semantic code understanding")
+
+    selected_agents = [agent_import_path]
 
     # Configuration
     st.markdown("#### Run Configuration")
@@ -133,17 +155,25 @@ def show_run_configuration():
 
     if st.button("Start Evaluation Run", type="primary"):
         try:
+            # Get MCP type from session state
+            mcp_type_env = st.session_state.get("baseline_mcp_type", "none")
+
             run_id = create_evaluation_run(
                 benchmark_name=selected_benchmark["name"],
                 agents=selected_agents,
                 task_selection=selected_tasks,
                 concurrency=concurrency,
-                config={"timeout": timeout}
+                config={
+                    "timeout": timeout,
+                    "env": {
+                        "BASELINE_MCP_TYPE": mcp_type_env
+                    }
+                }
             )
 
             st.session_state["current_run_id"] = run_id
             st.session_state["show_monitoring"] = True
-            st.success(f"Run created: {run_id}")
+            st.success(f"Run created: {run_id} (MCP: {mcp_type_env})")
             st.rerun()
 
         except Exception as e:

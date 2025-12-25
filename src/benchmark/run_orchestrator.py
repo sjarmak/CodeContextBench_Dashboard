@@ -10,6 +10,7 @@ Manages Harbor evaluation runs with:
 Runs are executed as background processes and can be paused/resumed.
 """
 
+import os
 import subprocess
 import threading
 import time
@@ -18,7 +19,6 @@ from typing import List, Optional, Dict, Any, Callable
 from datetime import datetime
 import json
 import signal
-import os
 
 from .database import RunManager, TaskManager, BenchmarkRegistry
 
@@ -204,6 +204,13 @@ class EvaluationOrchestrator:
         if "timeout" in self.run_data.get("config", {}):
             cmd.extend(["--timeout", str(self.run_data["config"]["timeout"])])
 
+        # Prepare environment variables
+        env = os.environ.copy()
+
+        # Add any custom environment variables from config
+        if "env" in self.run_data.get("config", {}):
+            env.update(self.run_data["config"]["env"])
+
         # Run Harbor
         try:
             self.current_process = subprocess.Popen(
@@ -211,7 +218,8 @@ class EvaluationOrchestrator:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                cwd=str(benchmark_path.parent)
+                cwd=str(benchmark_path.parent),
+                env=env
             )
 
             # Wait for completion
