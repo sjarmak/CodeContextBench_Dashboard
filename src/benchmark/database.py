@@ -131,11 +131,44 @@ def init_database():
             )
         """)
 
+        # Judge evaluations
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS judge_evaluations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                task_name TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                judge_model TEXT NOT NULL,
+                score REAL,
+                reasoning TEXT,
+                evaluation_data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (run_id) REFERENCES evaluation_runs(run_id),
+                UNIQUE(run_id, task_name, agent_name, judge_model)
+            )
+        """)
+
+        # Evaluation reports
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS evaluation_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                task_name TEXT,
+                report_type TEXT NOT NULL,
+                report_data TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (run_id) REFERENCES evaluation_runs(run_id)
+            )
+        """)
+
         # Indexes for performance
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_status ON evaluation_runs(status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_run_tasks_run_id ON run_tasks(run_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_run_tasks_status ON run_tasks(status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_agents_active ON agent_versions(is_active)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_judge_run_id ON judge_evaluations(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_judge_task ON judge_evaluations(run_id, task_name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_run_id ON evaluation_reports(run_id)")
 
         conn.commit()
 
@@ -457,6 +490,184 @@ class TaskProfileManager:
                     result['task_list'] = json.loads(result['task_list'])
                 return result
             return None
+
+
+class JudgeEvaluationRegistry:
+    """Manage LLM judge evaluations."""
+
+    @staticmethod
+    def add(run_id: str, task_name: str, agent_name: str, judge_model: str,
+            score: Optional[float] = None, reasoning: Optional[str] = None,
+            evaluation_data: Optional[Dict] = None) -> int:
+        """Add or update judge evaluation for a task."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            # Try to update existing first
+            cursor.execute("""
+                UPDATE judge_evaluations
+                SET score = ?, reasoning = ?, evaluation_data = ?, created_at = CURRENT_TIMESTAMP
+                WHERE run_id = ? AND task_name = ? AND agent_name = ? AND judge_model = ?
+            """, (score, reasoning,
+                  json.dumps(evaluation_data) if evaluation_data else None,
+                  run_id, task_name, agent_name, judge_model))
+
+            if cursor.rowcount == 0:
+                # Insert new
+                cursor.execute("""
+                    INSERT INTO judge_evaluations
+                    (run_id, task_name, agent_name, judge_model, score, reasoning, evaluation_data)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (run_id, task_name, agent_name, judge_model, score, reasoning,
+                      json.dumps(evaluation_data) if evaluation_data else None))
+                return cursor.lastrowid
+
+            return cursor.lastrowid
+
+    @staticmethod
+    def get(run_id: str, task_name: str, agent_name: str, judge_model: str) -> Optional[Dict]:
+        """Get judge evaluation for a specific task."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM judge_evaluations
+                WHERE run_id = ? AND task_name = ? AND agent_name = ? AND judge_model = ?
+            """, (run_id, task_name, agent_name, judge_model))
+
+            row = cursor.fetchone()
+            if row:
+                result = dict(row)
+                if result.get('evaluation_data'):
+                    result['evaluation_data'] = json.loads(result['evaluation_data'])
+                return result
+            return None
+
+    @staticmethod
+    def list_for_run(run_id: str) -> List[Dict]:
+        """List all judge evaluations for a run."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM judge_evaluations
+                WHERE run_id = ?
+                ORDER BY task_name, agent_name
+            """, (run_id,))
+
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                if result.get('evaluation_data'):
+                    result['evaluation_data'] = json.loads(result['evaluation_data'])
+                results.append(result)
+            return results
+
+    @staticmethod
+    def list_for_task(run_id: str, task_name: str) -> List[Dict]:
+        """List all judge evaluations for a specific task."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM judge_evaluations
+                WHERE run_id = ? AND task_name = ?
+                ORDER BY agent_name, judge_model
+            """, (run_id, task_name))
+
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                if result.get('evaluation_data'):
+                    result['evaluation_data'] = json.loads(result['evaluation_data'])
+                results.append(result)
+            return results
+
+
+class EvaluationReportRegistry:
+    """Manage evaluation reports."""
+
+    @staticmethod
+    def add(run_id: str, report_type: str, report_data: Dict,
+            task_name: Optional[str] = None) -> int:
+        """Add evaluation report."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO evaluation_reports (run_id, task_name, report_type, report_data)
+                VALUES (?, ?, ?, ?)
+            """, (run_id, task_name, report_type, json.dumps(report_data)))
+            return cursor.lastrowid
+
+    @staticmethod
+    def get_latest(run_id: str, task_name: Optional[str] = None,
+                   report_type: Optional[str] = None) -> Optional[Dict]:
+        """Get latest report for a run/task."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            if task_name and report_type:
+                query = """
+                    SELECT * FROM evaluation_reports
+                    WHERE run_id = ? AND task_name = ? AND report_type = ?
+                    ORDER BY created_at DESC LIMIT 1
+                """
+                params = (run_id, task_name, report_type)
+            elif task_name:
+                query = """
+                    SELECT * FROM evaluation_reports
+                    WHERE run_id = ? AND task_name = ?
+                    ORDER BY created_at DESC LIMIT 1
+                """
+                params = (run_id, task_name)
+            elif report_type:
+                query = """
+                    SELECT * FROM evaluation_reports
+                    WHERE run_id = ? AND report_type = ?
+                    ORDER BY created_at DESC LIMIT 1
+                """
+                params = (run_id, report_type)
+            else:
+                query = """
+                    SELECT * FROM evaluation_reports
+                    WHERE run_id = ?
+                    ORDER BY created_at DESC LIMIT 1
+                """
+                params = (run_id,)
+
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+
+            if row:
+                result = dict(row)
+                if result.get('report_data'):
+                    result['report_data'] = json.loads(result['report_data'])
+                return result
+            return None
+
+    @staticmethod
+    def list_for_run(run_id: str, task_name: Optional[str] = None) -> List[Dict]:
+        """List all reports for a run."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            if task_name:
+                cursor.execute("""
+                    SELECT * FROM evaluation_reports
+                    WHERE run_id = ? AND task_name = ?
+                    ORDER BY created_at DESC
+                """, (run_id, task_name))
+            else:
+                cursor.execute("""
+                    SELECT * FROM evaluation_reports
+                    WHERE run_id = ?
+                    ORDER BY created_at DESC
+                """, (run_id,))
+
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                if result.get('report_data'):
+                    result['report_data'] = json.loads(result['report_data'])
+                results.append(result)
+            return results
 
 
 # Initialize database on import
