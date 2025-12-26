@@ -169,7 +169,7 @@ def show_task_detail(run_data, task):
     claude_files = list(task_output_dir.rglob("claude.txt"))
 
     # Tabs for different views
-    tabs = st.tabs(["Agent Trace", "Result Details", "LLM Judge"])
+    tabs = st.tabs(["Agent Trace", "Result Details", "LLM Judge", "Task Report"])
 
     with tabs[0]:
         show_agent_trace(claude_files, trajectory_files)
@@ -179,6 +179,9 @@ def show_task_detail(run_data, task):
 
     with tabs[2]:
         show_llm_judge_section(run_data, task, task_output_dir)
+
+    with tabs[3]:
+        show_task_report_section(run_data, task, task_output_dir, trajectory_files, result_files)
 
 
 def show_agent_trace(claude_files, trajectory_files):
@@ -482,6 +485,174 @@ def show_llm_judge_section(run_data, task, task_output_dir):
 
             except Exception as e:
                 st.error(f"Failed to run judge evaluation: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+
+
+def show_task_report_section(run_data, task, task_output_dir, trajectory_files, result_files):
+    """Show task report generation and export section."""
+    st.subheader("Task Report")
+
+    # Import report modules
+    try:
+        from benchmark.report_generator import (
+            generate_task_report,
+            format_task_report_markdown,
+            format_task_report_json,
+            format_task_report_csv_row
+        )
+        from benchmark.database import EvaluationReportRegistry, JudgeEvaluationRegistry
+    except ImportError as e:
+        st.error(f"Failed to import report modules: {e}")
+        return
+
+    # Check if report already exists
+    existing_report = EvaluationReportRegistry.get_latest(
+        run_data["run_id"],
+        task_name=task["task_name"],
+        report_type="task_report"
+    )
+
+    if existing_report:
+        st.info(f"Report exists - Generated: {existing_report['created_at'][:19]}")
+
+        # Display summary
+        report_data = existing_report.get("report_data", {})
+
+        if report_data:
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                success = report_data.get("result", {}).get("success", False)
+                st.metric("Success", "Yes" if success else "No")
+
+            with col2:
+                total_tokens = report_data.get("metrics", {}).get("tokens", {}).get("total_tokens", 0)
+                st.metric("Total Tokens", f"{total_tokens:,}")
+
+            with col3:
+                exec_time = report_data.get("metrics", {}).get("timing", {}).get("agent_execution_sec", 0)
+                st.metric("Execution Time", f"{exec_time:.1f}s")
+
+            with col4:
+                judge_score = report_data.get("judge_evaluation", {}).get("score", "N/A")
+                if isinstance(judge_score, (int, float)):
+                    st.metric("Judge Score", f"{judge_score:.2f}/5")
+                else:
+                    st.metric("Judge Score", judge_score)
+
+            st.markdown("---")
+
+            # Export options
+            st.write("**Export Report:**")
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                markdown = format_task_report_markdown(report_data)
+                st.download_button(
+                    "Download Markdown",
+                    markdown,
+                    file_name=f"{task['task_name']}_report.md",
+                    mime="text/markdown",
+                    key=f"download_md_{task['task_name']}"
+                )
+
+            with col2:
+                json_str = format_task_report_json(report_data)
+                st.download_button(
+                    "Download JSON",
+                    json_str,
+                    file_name=f"{task['task_name']}_report.json",
+                    mime="application/json",
+                    key=f"download_json_{task['task_name']}"
+                )
+
+            with col3:
+                csv_row = format_task_report_csv_row(report_data)
+                # Add header
+                csv_header = "task_name,agent_name,success,reward,total_tokens,input_tokens,output_tokens,cache_tokens,total_time_sec,agent_execution_sec,total_edits,total_writes,files_modified,judge_score,judge_model\n"
+                csv_content = csv_header + csv_row
+                st.download_button(
+                    "Download CSV",
+                    csv_content,
+                    file_name=f"{task['task_name']}_report.csv",
+                    mime="text/csv",
+                    key=f"download_csv_{task['task_name']}"
+                )
+
+            # Show full report in expander
+            with st.expander("View Full Report"):
+                st.markdown(markdown)
+
+        st.markdown("---")
+
+    # Generate report button
+    if st.button("Generate Task Report", key=f"generate_report_{task['task_name']}"):
+        with st.spinner("Generating task report..."):
+            try:
+                # Load trajectory
+                if not trajectory_files:
+                    st.error("No trajectory.json file found")
+                    return
+
+                with open(trajectory_files[0]) as f:
+                    trajectory = json.load(f)
+
+                # Load result
+                if not result_files:
+                    st.error("No result.json file found")
+                    return
+
+                with open(result_files[0]) as f:
+                    result = json.load(f)
+
+                # Try to load task metadata
+                task_metadata = None
+                benchmark_path = Path("benchmarks") / run_data.get("benchmark_name", "")
+                task_path = benchmark_path / task["task_name"]
+
+                if task_path.exists():
+                    task_toml = task_path / "task.toml"
+                    if task_toml.exists():
+                        try:
+                            import toml
+                            with open(task_toml) as f:
+                                task_metadata = toml.load(f)
+                        except:
+                            pass
+
+                # Get judge evaluation if exists
+                judge_evals = JudgeEvaluationRegistry.list_for_task(
+                    run_data["run_id"],
+                    task["task_name"]
+                )
+                judge_evaluation = judge_evals[0] if judge_evals else None
+
+                # Generate report
+                report = generate_task_report(
+                    run_id=run_data["run_id"],
+                    task_name=task["task_name"],
+                    agent_name=task["agent_name"],
+                    result_data=result,
+                    trajectory_data=trajectory,
+                    judge_evaluation=judge_evaluation,
+                    task_metadata=task_metadata
+                )
+
+                # Store in database
+                EvaluationReportRegistry.add(
+                    run_id=run_data["run_id"],
+                    task_name=task["task_name"],
+                    report_type="task_report",
+                    report_data=report
+                )
+
+                st.success("Task report generated successfully!")
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Failed to generate report: {e}")
                 import traceback
                 st.code(traceback.format_exc())
 
