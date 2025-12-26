@@ -16,12 +16,9 @@ fi
 
 # Source environment variables
 echo "Loading environment from .env.local..."
+set -a  # Automatically export all variables
 source .env.local
-
-# Export variables so child processes (Harbor) can access them
-export ANTHROPIC_API_KEY
-export SOURCEGRAPH_ACCESS_TOKEN
-export SOURCEGRAPH_URL
+set +a
 
 # Verify API key is set
 if [ -z "$ANTHROPIC_API_KEY" ]; then
@@ -29,13 +26,26 @@ if [ -z "$ANTHROPIC_API_KEY" ]; then
     exit 1
 fi
 
-echo "✓ Environment variables loaded"
-echo "✓ ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:0:10}..."
-echo "✓ SOURCEGRAPH_ACCESS_TOKEN: ${SOURCEGRAPH_ACCESS_TOKEN:0:10}..."
+echo ""
+echo "✓ Environment variables loaded and exported:"
+echo "  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:0:15}... (${#ANTHROPIC_API_KEY} chars)"
+if [ -n "$SOURCEGRAPH_ACCESS_TOKEN" ]; then
+    echo "  SOURCEGRAPH_ACCESS_TOKEN: ${SOURCEGRAPH_ACCESS_TOKEN:0:15}... (${#SOURCEGRAPH_ACCESS_TOKEN} chars)"
+fi
+if [ -n "$SOURCEGRAPH_URL" ]; then
+    echo "  SOURCEGRAPH_URL: $SOURCEGRAPH_URL"
+fi
+
+# Verify they're actually exported
+if ! env | grep -q "ANTHROPIC_API_KEY"; then
+    echo "ERROR: ANTHROPIC_API_KEY not in environment!"
+    exit 1
+fi
+
 echo ""
 echo "Starting dashboard on http://localhost:8501"
 echo "Press Ctrl+C to stop"
 echo ""
 
-# Start Streamlit dashboard
-streamlit run dashboard/app.py
+# Start Streamlit dashboard with explicit environment
+exec streamlit run dashboard/app.py
