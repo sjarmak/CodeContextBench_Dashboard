@@ -49,14 +49,14 @@ def run_oracle_validation(
         result["error"] = "No task.toml found"
         return result
 
-    # Run Harbor with oracle flag
-    # harbor run --path <task-path> --oracle --timeout <timeout>
+    # Run Harbor with oracle agent
+    # harbor run --path <task-path> --agent oracle -n 1
     cmd = [
         "harbor",
         "run",
         "--path", str(task_path),
-        "--oracle",
-        "--timeout", str(timeout_sec),
+        "--agent", "oracle",
+        "-n", "1",  # Run once
     ]
 
     try:
