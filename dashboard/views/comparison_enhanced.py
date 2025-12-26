@@ -47,7 +47,8 @@ def load_comparison_data():
 
             # Calculate stats
             total_tasks = len(agent_tasks)
-            passed = len([t for t in agent_tasks if t.get("reward", 0) > 0])
+            # Handle None rewards from old runs
+            passed = len([t for t in agent_tasks if (t.get("reward") or 0) > 0])
             failed = total_tasks - passed
 
             # Load result data for tokens/cost

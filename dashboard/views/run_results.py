@@ -157,7 +157,9 @@ def show_task_detail(run_data, task):
 
     # Find task output directory
     output_dir = Path(run_data.get("output_dir", f"jobs/{run_data['run_id']}"))
-    task_output_dir = output_dir / f"{task['task_name']}_{task['agent_name'].replace(':', '_')}"
+    # Sanitize agent name same way as orchestrator (replace : with __, / with _)
+    safe_agent_name = task['agent_name'].replace(":", "__").replace("/", "_")
+    task_output_dir = output_dir / f"{task['task_name']}_{safe_agent_name}"
 
     if not task_output_dir.exists():
         st.warning(f"Task output directory not found: {task_output_dir}")
