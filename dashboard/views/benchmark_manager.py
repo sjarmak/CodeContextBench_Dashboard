@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from benchmark.database import BenchmarkRegistry, TaskProfileManager
 from benchmark.oracle_validator import run_oracle_validation, validate_task_structure
+from benchmark.harbor_datasets import get_harbor_dataset_instances
 import pandas as pd
 
 
@@ -91,11 +92,14 @@ def show_tasks_section(benchmark: dict):
         st.info(f"📦 **Harbor Dataset**: {benchmark['name']}")
         st.write("This is a pre-installed Harbor dataset. Tasks are managed by Harbor.")
 
-        task_count = benchmark.get("task_count", 0)
-        st.write(f"**Available Tasks:** ~{task_count}")
-
-        st.write("**Usage:** Select this benchmark in 'Evaluation Runner' to run tasks.")
-        st.write("Harbor will automatically fetch and execute tasks from the dataset.")
+        # Load tasks from HuggingFace
+        with st.spinner("Loading task list from HuggingFace..."):
+            try:
+                tasks = get_harbor_dataset_instances(benchmark['folder_name'])
+                st.success(f"Loaded {len(tasks)} tasks")
+            except Exception as e:
+                st.error(f"Failed to load tasks: {e}")
+                tasks = []
 
         # Show metadata if available
         import json
@@ -105,6 +109,28 @@ def show_tasks_section(benchmark: dict):
                 st.write(f"**Languages:** {', '.join(metadata['languages'])}")
             if metadata.get("difficulty"):
                 st.write(f"**Difficulty:** {metadata['difficulty']}")
+
+        if tasks:
+            # Show task list in expandable
+            with st.expander(f"View All Tasks ({len(tasks)})", expanded=False):
+                # Add search box
+                search = st.text_input("Search tasks (e.g., 'django', 'pytest', 'astropy')")
+
+                if search:
+                    filtered_tasks = [t for t in tasks if search.lower() in t.lower()]
+                    st.write(f"**Showing {len(filtered_tasks)} tasks matching '{search}':**")
+                    tasks_to_show = filtered_tasks[:50]  # Limit to 50 for performance
+                else:
+                    st.write(f"**Showing first 50 of {len(tasks)} tasks:**")
+                    tasks_to_show = tasks[:50]
+
+                for task in tasks_to_show:
+                    st.write(f"- {task}")
+
+                if not search and len(tasks) > 50:
+                    st.info("Use the search box above to filter tasks")
+
+        st.write("**Usage:** Go to 'Evaluation Runner' to select and run tasks from this dataset.")
         return
 
     # Local benchmark - show tasks from folder
