@@ -164,6 +164,35 @@ See [README.md](kubernetes_docs/README.md) for setup requirements (doc stripping
 
 ---
 
+### 8. [swebench_pro/](swebench_pro/) - Multi-Language Long-Horizon Tasks (NEW)
+**Status**: Production-ready  
+**Task Count**: ~100 tasks (from ScaleAI/SWE-bench_Pro)  
+**Languages**: Go, TypeScript, Python  
+**Focus**: Long-horizon software engineering on production codebases  
+**Repositories**: flipt-io/flipt, tutao/tutanota, internetarchive/openlibrary, and more  
+**Suitable For**: Testing MCP value on multi-language, complex debugging tasks  
+**Task Format**: Harbor (via adapter)
+
+**Generate Tasks**:
+```bash
+cd benchmarks/swebench_pro
+python run_adapter.py --all --limit 10 --task-dir ./tasks --enable-mcp
+```
+
+**Run**:
+```bash
+harbor run --path benchmarks/swebench_pro/tasks/instance_flipt-io__flipt-xxx \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
+```
+
+**SWE-agent Integration**: Use `agents.swe_agent_wrapper:SWEAgentMCPAgent` for SWE-agent with MCP.
+
+See [README.md](swebench_pro/README.md) for setup and SWE-agent integration details.
+
+---
+
 ## Benchmark Comparison Matrix
 
 | Benchmark | MCP Value | Task Count | Repos | Setup Time | Best For |
@@ -175,6 +204,7 @@ See [README.md](kubernetes_docs/README.md) for setup requirements (doc stripping
 | dibench | ⭐⭐⭐ (medium) | Variable | Custom | 15min | Dependency inference |
 | repoqa | ⭐⭐⭐⭐ (high) | Variable | Custom | 10min | Tool-sensitive MCP eval |
 | kubernetes_docs | ⭐⭐⭐⭐ (high) | 5 | Kubernetes (code + KEPs) | 30min | Documentation & retrieval evaluation |
+| swebench_pro | ⭐⭐⭐⭐⭐ (high) | ~100 | Multi-lang (Go, TS, Py) | 15min | Long-horizon multi-language |
 
 ---
 

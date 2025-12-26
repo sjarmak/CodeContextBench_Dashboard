@@ -7,6 +7,10 @@ Single configurable agent:
   - Sourcegraph MCP: Full Sourcegraph MCP with all tools
   - Deep Search MCP: Deep Search-only MCP endpoint
 
+SWE-agent wrapper:
+- SWEAgentMCPAgent: SWE-agent with Sourcegraph MCP integration
+- SWEAgentBaselineAgent: Pure SWE-agent baseline
+
 Archived experimental agents:
 - MCP variants with different prompting strategies archived to archive/agents/mcp_variants.py
 """
@@ -18,9 +22,14 @@ def __getattr__(name):
         from agents.claude_baseline_agent import BaselineClaudeCodeAgent
 
         return BaselineClaudeCodeAgent
+    if name in ("SWEAgentWrapper", "SWEAgentMCPAgent", "SWEAgentBaselineAgent"):
+        from agents import swe_agent_wrapper
+        return getattr(swe_agent_wrapper, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
     "BaselineClaudeCodeAgent",
+    "SWEAgentMCPAgent",
+    "SWEAgentBaselineAgent",
 ]

@@ -10,6 +10,7 @@ Registers the standard benchmarks:
 - dependeval_benchmark
 - repoqa
 - 10figure
+- swebench_pro
 """
 
 import sys
@@ -63,6 +64,18 @@ DEFAULT_BENCHMARKS = [
         "folder_name": "10figure",
         "adapter_type": "custom",
         "description": "10figure synthetic tasks",
+    },
+    {
+        "name": "SWE-bench Pro",
+        "folder_name": "swebench_pro/tasks",
+        "adapter_type": "swebench_pro",
+        "description": "SWE-bench Pro: Long-horizon multi-language software engineering tasks (Go, TypeScript, Python)",
+        "metadata": {
+            "languages": ["go", "typescript", "python", "javascript"],
+            "difficulty": "hard",
+            "source": "ScaleAI/SWE-bench_Pro",
+            "mcp_enabled": True,
+        },
     },
 ]
 

@@ -20,10 +20,11 @@ def get_harbor_dataset_instances(dataset_name: str) -> List[str]:
     """
     # Map Harbor dataset names to HuggingFace dataset paths
     dataset_mapping = {
-        "swebench_verified": "princeton-nlp/SWE-bench_Verified",
-        "swe_bench_verified": "princeton-nlp/SWE-bench_Verified",  # Alias
+        "swe-bench-verified@1.0": "princeton-nlp/SWE-bench_Verified",
+        "swebench_verified": "princeton-nlp/SWE-bench_Verified",  # Old alias
+        "swe_bench_verified": "princeton-nlp/SWE-bench_Verified",  # Old alias
         "swebench_lite": "princeton-nlp/SWE-bench_Lite",
-        "swe_bench_lite": "princeton-nlp/SWE-bench_Lite",  # Alias
+        "swe_bench_lite": "princeton-nlp/SWE-bench_Lite",
         # Add more datasets as needed
     }
 
