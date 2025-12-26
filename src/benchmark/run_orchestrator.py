@@ -232,6 +232,10 @@ class EvaluationOrchestrator:
             # Wait for completion
             stdout, _ = self.current_process.communicate()
 
+            # Save Harbor output for debugging
+            log_file = output_dir / f"{task_name}_{agent.replace(':', '_')}_harbor.log"
+            log_file.write_text(stdout)
+
             # Check result
             if self.current_process.returncode == 0:
                 # Find result.json
@@ -258,9 +262,13 @@ class EvaluationOrchestrator:
                         self.run_id, task_name, agent, "completed"
                     )
             else:
+                # Extract key error info from stdout
+                error_lines = [line for line in stdout.split('\n') if 'error' in line.lower() or 'failed' in line.lower()]
+                error_snippet = '\n'.join(error_lines[:3]) if error_lines else stdout[:200]
+
                 TaskManager.update_status(
                     self.run_id, task_name, agent, "failed",
-                    error_message=f"Harbor exited with code {self.current_process.returncode}"
+                    error_message=f"Harbor exited with code {self.current_process.returncode}. Log: {log_file}. Error: {error_snippet}"
                 )
 
         except Exception as e:
