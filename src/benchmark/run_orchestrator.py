@@ -194,15 +194,22 @@ class EvaluationOrchestrator:
         # Build Harbor command
         cmd = [
             "harbor", "run",
-            "--path", str(task_path),
+            "--path", str(benchmark_path),  # Point to benchmark directory, not task
+            "--task-name", task_name,       # Specify which task to run
             "--agent-import-path", agent,
             "--model", "anthropic/claude-haiku-4-5-20251001",  # Default model
             "--jobs-dir", str(task_output_dir),
+            "-n", "1",  # Run once
         ]
 
-        # Add timeout if configured
+        # Add timeout multiplier if configured
         if "timeout" in self.run_data.get("config", {}):
-            cmd.extend(["--timeout", str(self.run_data["config"]["timeout"])])
+            # Harbor uses timeout-multiplier, not timeout
+            # Convert seconds to multiplier (Harbor's default timeout varies by task)
+            timeout_sec = self.run_data["config"]["timeout"]
+            # Use timeout-multiplier of 1.0 and let Harbor respect task's time_limit_sec
+            # For now, we'll skip this and let Harbor use task defaults
+            pass
 
         # Prepare environment variables
         env = os.environ.copy()
