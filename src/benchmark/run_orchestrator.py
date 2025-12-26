@@ -250,9 +250,25 @@ class EvaluationOrchestrator:
                     with open(result_files[0]) as f:
                         result_data = json.load(f)
 
-                    verifier_result = result_data.get("verifier_result", {})
-                    rewards = verifier_result.get("rewards", {})
-                    reward = rewards.get("reward", 0.0)
+                    # Extract reward from Harbor's result structure
+                    reward = 0.0
+
+                    # Try new Harbor format: stats.evals[agent_key].metrics[0].mean
+                    stats = result_data.get("stats", {})
+                    evals = stats.get("evals", {})
+
+                    # Get the first eval (there should only be one)
+                    if evals:
+                        first_eval = next(iter(evals.values()))
+                        metrics = first_eval.get("metrics", [])
+                        if metrics and len(metrics) > 0:
+                            reward = metrics[0].get("mean", 0.0)
+
+                    # Fallback to old format
+                    if reward == 0.0:
+                        verifier_result = result_data.get("verifier_result", {})
+                        rewards = verifier_result.get("rewards", {})
+                        reward = rewards.get("reward", 0.0)
 
                     trajectory_files = list(task_output_dir.rglob("trajectory.json"))
 
