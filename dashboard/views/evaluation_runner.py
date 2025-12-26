@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from benchmark.database import BenchmarkRegistry, RunManager, TaskManager, AgentRegistry
 from benchmark.run_orchestrator import create_evaluation_run, get_orchestrator
+from benchmark.harbor_datasets import get_harbor_dataset_instances
 import pandas as pd
 
 
@@ -42,25 +43,48 @@ def show_run_configuration():
 
     # Get benchmark tasks
     if is_harbor_dataset:
-        # For Harbor datasets, allow manual instance ID input
+        # For Harbor datasets, load instance list from HuggingFace
         st.markdown("#### Instance Selection")
         st.info(f"📦 **Harbor Dataset:** {selected_benchmark['name']}")
 
-        instance_input = st.text_area(
-            "Instance IDs (one per line)",
-            help="Enter specific instance IDs to run, one per line. "
-                 "Leave empty to see suggested instances.",
-            placeholder="django__django-11099\npytest-dev__pytest-5692"
+        # Load instance IDs
+        with st.spinner("Loading instances from HuggingFace..."):
+            try:
+                tasks = get_harbor_dataset_instances(selected_benchmark['folder_name'])
+                st.success(f"Loaded {len(tasks)} instances")
+            except Exception as e:
+                st.error(f"Failed to load instances: {e}")
+                return None
+
+        # Task selection UI (same as local benchmarks)
+        st.markdown("#### Task Selection")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("Select All Tasks"):
+                st.session_state["eval_selected_tasks"] = tasks
+                st.rerun()
+
+        with col2:
+            if st.button("Clear Selection"):
+                st.session_state["eval_selected_tasks"] = []
+                st.rerun()
+
+        selected_tasks = st.multiselect(
+            "Tasks to Run",
+            tasks,
+            default=st.session_state.get("eval_selected_tasks", []),
+            key="task_selection_multiselect"
         )
 
-        if instance_input.strip():
-            selected_tasks = [line.strip() for line in instance_input.strip().split("\n") if line.strip()]
-            st.write(f"**Selected: {len(selected_tasks)} instances**")
-        else:
-            st.warning("Please enter at least one instance ID to run")
-            st.write("**Example instance IDs:**")
-            st.code("django__django-11099\npytest-dev__pytest-5692\nscikit-learn__scikit-learn-13142")
+        st.session_state["eval_selected_tasks"] = selected_tasks
+
+        if not selected_tasks:
+            st.warning("Please select at least one task")
             return None
+
+        st.write(f"**Selected: {len(selected_tasks)} tasks**")
     else:
         # Local benchmark - enumerate from folder
         benchmark_path = Path("benchmarks") / selected_benchmark["folder_name"]
