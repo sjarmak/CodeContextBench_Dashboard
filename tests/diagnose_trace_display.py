@@ -49,13 +49,29 @@ def diagnose():
             print("   ❌ Run Results button not visible")
             return
 
+        # Scroll down to see more content
+        print("\n3. Scrolling to load all content...")
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        time.sleep(2)
+
+        page.screenshot(path=str(screenshots_dir / "03_after_scroll.png"))
+        print("   Screenshot: 03_after_scroll.png")
+
         # Check what's on the page
-        print("\n3. Analyzing page content...")
+        print("\n4. Analyzing page content...")
         page_text = page.locator("body").text_content()
 
-        # Check for select elements
+        # Check for Streamlit selectbox (looks for the div container)
+        selectboxes = page.locator('[data-baseweb="select"]').all()
+        print(f"   Found {len(selectboxes)} Streamlit selectbox elements")
+
+        # Also check for regular select elements
         selects = page.locator("select").all()
-        print(f"   Found {len(selects)} select elements")
+        print(f"   Found {len(selects)} regular select elements")
+
+        # Look for task selector specifically
+        if "View Task Details" in page_text or "Task Results" in page_text:
+            print("   ✓ Task results section found")
 
         for i, select in enumerate(selects):
             print(f"\n   Select {i}:")
@@ -75,25 +91,28 @@ def diagnose():
                 print(f"\n   Error {i+1}:")
                 print(f"   {error_text[:300]}")
 
-            page.screenshot(path=str(screenshots_dir / "03_errors.png"))
-            print("   Screenshot: 03_errors.png")
+            page.screenshot(path=str(screenshots_dir / "04_errors.png"))
+            print("   Screenshot: 04_errors.png")
 
-        # If we have selects, try selecting
-        if len(selects) >= 2:
-            print("\n4. Selecting first run and task...")
+        # Interact with Streamlit selectboxes
+        if len(selectboxes) >= 2:  # Need at least 2: one for run (already selected), one for task
+            print("\n5. Interacting with task selector...")
 
-            # Select first run
-            selects[0].select_option(index=0)
-            time.sleep(3)
+            # The second selectbox should be for task details
+            # Click on it to open the dropdown
+            task_selectbox = selectboxes[1]  # Second selectbox (first is run selector)
+            print("   Clicking task selectbox...")
+            task_selectbox.click()
+            time.sleep(2)
 
-            page.screenshot(path=str(screenshots_dir / "04_run_selected.png"))
-            print("   Screenshot: 04_run_selected.png")
+            # Look for menu options that appear
+            menu_options = page.locator('[role="option"]').all()
+            print(f"   Found {len(menu_options)} menu options")
 
-            # Select first task
-            # Refresh selects list as it might have changed
-            selects = page.locator("select").all()
-            if len(selects) >= 2:
-                selects[1].select_option(index=0)
+            if menu_options:
+                # Click first option
+                print(f"   Clicking first option: {menu_options[0].text_content()}")
+                menu_options[0].click()
                 time.sleep(4)
 
                 page.screenshot(path=str(screenshots_dir / "05_task_selected.png"))
@@ -113,7 +132,7 @@ def diagnose():
                     print("\n   ✓ No errors after selection")
 
                 # Look for trace tabs
-                print("\n5. Looking for trace tabs...")
+                print("\n6. Looking for trace tabs...")
                 all_tabs = page.locator('[data-testid="stTab"]').all()
                 print(f"   Found {len(all_tabs)} tabs")
 
@@ -125,7 +144,7 @@ def diagnose():
                 trace_tabs = ["Full Conversation", "Tool Calls", "Code Diffs", "Test Results"]
 
                 for tab_name in trace_tabs:
-                    print(f"\n6. Testing '{tab_name}' tab...")
+                    print(f"\n7. Testing '{tab_name}' tab...")
 
                     tab_found = False
                     for i, tab in enumerate(all_tabs):
@@ -152,6 +171,14 @@ def diagnose():
 
                     if not tab_found:
                         print(f"   ⚠ Tab '{tab_name}' not found")
+        else:
+            print(f"\n⚠ Not enough selectboxes found ({len(selectboxes)}). Expected at least 2.")
+            print("   The run selector might already be active. Trying to find task details anyway...")
+
+            # Maybe the task table is already shown
+            if "Task Results" in page_text:
+                print("   ✓ Task Results section visible, taking screenshot...")
+                page.screenshot(path=str(screenshots_dir / "05_task_results_visible.png"))
 
         print("\n" + "=" * 80)
         print("DIAGNOSTICS COMPLETE")
