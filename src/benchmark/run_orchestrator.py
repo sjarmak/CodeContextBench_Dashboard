@@ -209,8 +209,8 @@ class EvaluationOrchestrator:
             # Use Harbor dataset command
             cmd = [
                 "harbor", "run",
-                "--dataset", benchmark["folder_name"],  # e.g., "swe_bench_verified"
-                "--instance-id", task_name,             # Specific instance to run
+                "--dataset", benchmark["folder_name"],  # e.g., "swebench_verified"
+                "--task-name", task_name,               # Specific task to run from dataset
                 "--agent-import-path", agent,
                 "--model", "anthropic/claude-haiku-4-5-20251001",
                 "--jobs-dir", str(task_output_dir),
