@@ -6,6 +6,32 @@ Full-featured benchmark management and evaluation platform.
 
 import streamlit as st
 from pathlib import Path
+import os
+
+# Load and export environment variables from .env.local
+# This ensures Harbor subprocesses have access to API keys
+env_file = Path(__file__).parent.parent / ".env.local"
+if env_file.exists():
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            # Skip comments and empty lines
+            if not line or line.startswith("#"):
+                continue
+            # Parse KEY=VALUE
+            if "=" in line:
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                # Set in environment
+                os.environ[key] = value
+
+    # Explicitly export critical credentials for subprocesses
+    critical_vars = ["ANTHROPIC_API_KEY", "SOURCEGRAPH_ACCESS_TOKEN", "SOURCEGRAPH_URL"]
+    for var in critical_vars:
+        if var in os.environ:
+            # Re-set to ensure it's exported (belt and suspenders)
+            os.environ[var] = os.environ[var]
 
 # Configure page
 st.set_page_config(
@@ -89,6 +115,14 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.caption(f"Project: {PROJECT_ROOT.name}")
+
+    # Show credential status
+    api_key_loaded = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    if api_key_loaded:
+        st.sidebar.success("✓ API Key Loaded")
+    else:
+        st.sidebar.error("✗ API Key Missing")
+        st.sidebar.caption("Add ANTHROPIC_API_KEY to .env.local")
 
     # Get selected page
     page = st.session_state.current_page
