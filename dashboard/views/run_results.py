@@ -18,6 +18,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from benchmark.database import RunManager, TaskManager
+from benchmark.trace_parser import TraceParser
 
 
 def show_run_results():
@@ -184,31 +185,122 @@ def show_agent_trace(claude_files, trajectory_files):
     """Display agent execution trace."""
     st.subheader("Agent Trace")
 
-    if claude_files:
-        claude_file = claude_files[0]
-        st.write(f"**Trace file:** `{claude_file}`")
+    if not trajectory_files:
+        st.info("No trajectory file found.")
+        return
 
-        try:
-            with open(claude_file) as f:
-                trace_content = f.read()
+    trajectory_file = trajectory_files[0]
 
-            # Display with syntax highlighting
-            st.text_area("Agent Execution Log", trace_content, height=400)
+    try:
+        # Parse trajectory
+        steps = TraceParser.parse_trajectory_file(trajectory_file)
 
-        except Exception as e:
-            st.error(f"Failed to read trace: {e}")
-    else:
-        st.info("No agent trace file (claude.txt) found.")
+        # Filter options
+        col1, col2 = st.columns(2)
+        with col1:
+            include_sidechain = st.checkbox("Include sidechain steps", value=False)
+        with col2:
+            show_tool_calls_only = st.checkbox("Show only tool calls", value=False)
 
-    # Also show trajectory.json if available
-    if trajectory_files:
+        # Filter steps
+        filtered_steps = TraceParser.filter_sidechain(steps, include_sidechain)
+
+        if show_tool_calls_only:
+            filtered_steps = [s for s in filtered_steps if s.tool_calls]
+
+        # Token and tool usage summary
+        with st.expander("Execution Summary", expanded=True):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.write("**Token Usage:**")
+                token_summary = TraceParser.get_token_summary(steps)
+                st.write(f"- Total: {token_summary['total']:,}")
+                st.write(f"- Prompt: {token_summary['total_prompt']:,}")
+                st.write(f"- Completion: {token_summary['total_completion']:,}")
+                st.write(f"- Cached: {token_summary['total_cached']:,}")
+
+            with col2:
+                st.write("**Tool Usage:**")
+                tool_summary = TraceParser.get_tool_usage_summary(steps)
+                for tool_name, count in sorted(tool_summary.items(), key=lambda x: x[1], reverse=True):
+                    st.write(f"- {tool_name}: {count}")
+
+        st.markdown("---")
+
+        # Display steps
+        for step in filtered_steps:
+            show_trace_step(step)
+
+        # Raw trajectory option
         with st.expander("Raw Trajectory (JSON)"):
-            try:
-                with open(trajectory_files[0]) as f:
-                    trajectory = json.load(f)
-                st.json(trajectory)
-            except Exception as e:
-                st.error(f"Failed to load trajectory: {e}")
+            with open(trajectory_file) as f:
+                trajectory = json.load(f)
+            st.json(trajectory)
+
+    except Exception as e:
+        st.error(f"Failed to parse trajectory: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+
+
+def show_trace_step(step):
+    """Display a single trace step."""
+    # Step header
+    icon = "👤" if step.source == "user" else "🤖"
+    source_label = "User" if step.source == "user" else "Assistant"
+
+    with st.expander(f"{icon} Step {step.step_id}: {source_label}", expanded=False):
+        # Timestamp
+        st.caption(f"Time: {step.timestamp}")
+
+        # Clean message (without tool calls)
+        clean_message = TraceParser.get_clean_message(step)
+        if clean_message:
+            st.markdown("**Message:**")
+            st.markdown(clean_message)
+
+        # Tool calls
+        if step.tool_calls:
+            st.markdown("**Tool Calls:**")
+
+            for i, tool_call in enumerate(step.tool_calls):
+                with st.container():
+                    st.markdown(f"**{i+1}. {tool_call.tool_name}**")
+
+                    # Show parameters
+                    for param_name, param_value in tool_call.parameters.items():
+                        if len(param_value) > 200:
+                            with st.expander(f"  {param_name}"):
+                                st.code(param_value, language="python" if "content" in param_name else None)
+                        else:
+                            st.code(f"{param_name}: {param_value}", language=None)
+
+        # Diffs
+        diffs = TraceParser.extract_diffs(step.tool_calls)
+        if diffs:
+            st.markdown("**Code Changes:**")
+
+            for diff in diffs:
+                if diff["type"] == "edit":
+                    st.markdown(f"📝 **Edit:** `{diff['file_path']}`")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("**Before:**")
+                        st.code(diff["old_string"], language="python")
+                    with col2:
+                        st.markdown("**After:**")
+                        st.code(diff["new_string"], language="python")
+
+                elif diff["type"] == "write":
+                    st.markdown(f"📄 **Write:** `{diff['file_path']}`")
+                    st.code(diff["content"], language="python")
+
+        # Metrics
+        if step.metrics:
+            with st.expander("Metrics"):
+                st.json(step.metrics)
 
 
 def show_result_details(result_files):
