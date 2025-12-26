@@ -189,7 +189,9 @@ class EvaluationOrchestrator:
         output_dir = Path(self.run_data.get("output_dir", f"jobs/{self.run_id}"))
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        task_output_dir = output_dir / f"{task_name}_{agent}"
+        # Sanitize agent name for filesystem/Docker (replace : with __)
+        safe_agent_name = agent.replace(":", "__").replace("/", "_")
+        task_output_dir = output_dir / f"{task_name}_{safe_agent_name}"
 
         # Build Harbor command
         cmd = [
@@ -236,7 +238,7 @@ class EvaluationOrchestrator:
             stdout, _ = self.current_process.communicate()
 
             # Save Harbor output for debugging
-            log_file = output_dir / f"{task_name}_{agent.replace(':', '_')}_harbor.log"
+            log_file = output_dir / f"{task_name}_{safe_agent_name}_harbor.log"
             log_file.write_text(stdout)
 
             # Check result
