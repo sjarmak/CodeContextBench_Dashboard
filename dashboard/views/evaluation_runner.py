@@ -53,19 +53,17 @@ def show_run_configuration():
     # Task selection
     st.markdown("#### Task Selection")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("All Tasks"):
+        if st.button("Select All Tasks"):
             st.session_state["eval_selected_tasks"] = tasks
+            st.rerun()
 
     with col2:
-        if st.button("First 5 Tasks"):
-            st.session_state["eval_selected_tasks"] = tasks[:5]
-
-    with col3:
         if st.button("Clear Selection"):
             st.session_state["eval_selected_tasks"] = []
+            st.rerun()
 
     selected_tasks = st.multiselect(
         "Tasks to Run",
