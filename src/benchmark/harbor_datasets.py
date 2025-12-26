@@ -19,13 +19,16 @@ def get_harbor_dataset_instances(dataset_name: str) -> List[str]:
         List of instance IDs
     """
     # Map Harbor dataset names to HuggingFace dataset paths
+    # For Harbor datasets, we use HuggingFace to get instance lists for the UI
     dataset_mapping = {
+        "swebench-verified@1.0": "princeton-nlp/SWE-bench_Verified",
         "swe-bench-verified@1.0": "princeton-nlp/SWE-bench_Verified",
-        "swebench_verified": "princeton-nlp/SWE-bench_Verified",  # Old alias
-        "swe_bench_verified": "princeton-nlp/SWE-bench_Verified",  # Old alias
+        "aider-polyglot@1.0": None,  # No HF equivalent, will need to handle differently
+        # Old aliases
+        "swebench_verified": "princeton-nlp/SWE-bench_Verified",
+        "swe_bench_verified": "princeton-nlp/SWE-bench_Verified",
         "swebench_lite": "princeton-nlp/SWE-bench_Lite",
         "swe_bench_lite": "princeton-nlp/SWE-bench_Lite",
-        # Add more datasets as needed
     }
 
     hf_dataset_path = dataset_mapping.get(dataset_name)
