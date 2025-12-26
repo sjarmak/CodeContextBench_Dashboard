@@ -324,17 +324,166 @@ def show_llm_judge_section(run_data, task, task_output_dir):
     """Show LLM judge evaluation section."""
     st.subheader("LLM Judge Evaluation")
 
-    st.info("LLM judge evaluation integration coming soon.")
+    # Import judge modules
+    try:
+        from benchmark.llm_judge import (
+            LLMJudge,
+            extract_tool_calls_from_trajectory,
+            extract_code_changes_from_trajectory,
+            load_task_description
+        )
+        from benchmark.database import JudgeEvaluationRegistry
+    except ImportError as e:
+        st.error(f"Failed to import judge modules: {e}")
+        return
 
-    st.write("**Features to implement:**")
-    st.write("- Run LLM judge on this task")
-    st.write("- View judge assessment")
-    st.write("- Store evaluation report with run results")
-    st.write("- Compare judge scores across runs")
+    # Check for ANTHROPIC_API_KEY
+    import os
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        st.warning("ANTHROPIC_API_KEY environment variable not set. Cannot run LLM judge.")
+        return
 
-    # Placeholder for judge functionality
-    if st.button("Run LLM Judge (Coming Soon)"):
-        st.warning("This feature is not yet implemented.")
+    # Model selector
+    judge_model = st.selectbox(
+        "Judge Model",
+        ["claude-haiku-4-5-20251001", "claude-sonnet-4-5-20251022", "claude-opus-4-5-20251022"],
+        help="Model to use for judge evaluation. Haiku is fastest and cheapest."
+    )
+
+    # Check if judge evaluation already exists
+    existing_evals = JudgeEvaluationRegistry.list_for_task(
+        run_data["run_id"],
+        task["task_name"]
+    )
+
+    if existing_evals:
+        st.info(f"Found {len(existing_evals)} existing judge evaluation(s)")
+
+        # Display existing evaluations
+        for eval_data in existing_evals:
+            with st.expander(f"Judge Evaluation - {eval_data['judge_model']}", expanded=True):
+                st.write(f"**Created:** {eval_data['created_at'][:19]}")
+
+                # Parse evaluation data
+                if eval_data.get("evaluation_data"):
+                    eval_json = eval_data["evaluation_data"]
+
+                    # Display scores
+                    col1, col2 = st.columns(2)
+
+                    # Retrieval quality
+                    with col1:
+                        retrieval = eval_json.get("retrieval_quality", {})
+                        if retrieval:
+                            st.metric("Retrieval Quality", f"{retrieval.get('score', 0)}/5")
+                            st.write(f"**Reasoning:** {retrieval.get('reasoning', 'N/A')}")
+
+                            if retrieval.get("strengths"):
+                                st.write("**Strengths:**")
+                                for strength in retrieval.get("strengths", []):
+                                    st.write(f"- {strength}")
+
+                            if retrieval.get("weaknesses"):
+                                st.write("**Weaknesses:**")
+                                for weakness in retrieval.get("weaknesses", []):
+                                    st.write(f"- {weakness}")
+
+                    # Code quality
+                    with col2:
+                        code_quality = eval_json.get("code_quality", {})
+                        if code_quality:
+                            st.metric("Code Quality", f"{code_quality.get('score', 0)}/5")
+                            st.write(f"**Reasoning:** {code_quality.get('reasoning', 'N/A')}")
+
+                            if code_quality.get("strengths"):
+                                st.write("**Strengths:**")
+                                for strength in code_quality.get("strengths", []):
+                                    st.write(f"- {strength}")
+
+                            if code_quality.get("weaknesses"):
+                                st.write("**Weaknesses:**")
+                                for weakness in code_quality.get("weaknesses", []):
+                                    st.write(f"- {weakness}")
+
+        st.markdown("---")
+
+    # Run judge button
+    if st.button("Run LLM Judge Evaluation", key=f"judge_{task['task_name']}"):
+        with st.spinner("Running LLM judge evaluation..."):
+            try:
+                # Find trajectory and result files
+                trajectory_files = list(task_output_dir.rglob("trajectory.json"))
+                result_files = list(task_output_dir.rglob("result.json"))
+
+                if not trajectory_files:
+                    st.error("No trajectory.json file found")
+                    return
+
+                if not result_files:
+                    st.error("No result.json file found")
+                    return
+
+                # Load trajectory
+                with open(trajectory_files[0]) as f:
+                    trajectory = json.load(f)
+
+                # Load result
+                with open(result_files[0]) as f:
+                    result = json.load(f)
+
+                # Get task description
+                benchmark_path = Path("benchmarks") / run_data.get("benchmark_name", "")
+                task_path = benchmark_path / task["task_name"]
+
+                if task_path.exists():
+                    task_description = load_task_description(task_path)
+                else:
+                    task_description = f"Task: {task['task_name']}"
+
+                # Extract tool calls and code changes
+                tool_calls = extract_tool_calls_from_trajectory(trajectory)
+                code_changes = extract_code_changes_from_trajectory(trajectory)
+
+                # Get reward
+                reward = result.get("verifier_result", {}).get("rewards", {}).get("reward", 0.0)
+
+                # Initialize judge
+                judge = LLMJudge(model=judge_model)
+
+                # Evaluate retrieval quality
+                st.write("Evaluating retrieval quality...")
+                retrieval_assessment = judge.evaluate_retrieval(task_description, tool_calls)
+
+                # Evaluate code quality
+                st.write("Evaluating code quality...")
+                code_assessment = judge.evaluate_code(task_description, code_changes, reward)
+
+                # Store in database
+                evaluation_data = {
+                    "retrieval_quality": retrieval_assessment.to_dict(),
+                    "code_quality": code_assessment.to_dict()
+                }
+
+                # Calculate average score
+                avg_score = (retrieval_assessment.score + code_assessment.score) / 2.0
+
+                JudgeEvaluationRegistry.add(
+                    run_id=run_data["run_id"],
+                    task_name=task["task_name"],
+                    agent_name=task["agent_name"],
+                    judge_model=judge_model,
+                    score=avg_score,
+                    reasoning=f"Retrieval: {retrieval_assessment.score}/5, Code: {code_assessment.score}/5",
+                    evaluation_data=evaluation_data
+                )
+
+                st.success("Judge evaluation complete!")
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Failed to run judge evaluation: {e}")
+                import traceback
+                st.code(traceback.format_exc())
 
 
 if __name__ == "__main__":
