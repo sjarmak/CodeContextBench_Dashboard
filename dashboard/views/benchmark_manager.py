@@ -133,17 +133,13 @@ def show_tasks_section(benchmark: dict):
                 st.success("Profile loaded!")
 
     # Quick selections
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     with col1:
         if st.button("Select All Tasks", key=f"select_all_{benchmark['id']}"):
             st.session_state[f"selected_tasks_{benchmark['id']}"] = tasks
 
     with col2:
-        if st.button("Select First 5", key=f"select_first5_{benchmark['id']}"):
-            st.session_state[f"selected_tasks_{benchmark['id']}"] = tasks[:5]
-
-    with col3:
         if st.button("Clear Selection", key=f"clear_selection_{benchmark['id']}"):
             st.session_state[f"selected_tasks_{benchmark['id']}"] = []
 

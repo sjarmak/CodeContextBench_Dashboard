@@ -67,16 +67,9 @@ def main():
     nav_items = [
         "Home",
         "Benchmark Manager",
-        "Add Benchmark",
-        "Agent Versions",
         "Evaluation Runner",
+        "Run Results",
         "Comparison Table",
-        "Deep Search Analytics",
-        "Raw Results",
-        "Generate Report",
-        "LLM Judge",
-        "Manifests (Legacy)",
-        "Results Browser (Legacy)",
     ]
 
     # Create navigation buttons
@@ -105,26 +98,12 @@ def main():
         show_home()
     elif page == "Benchmark Manager":
         show_benchmark_manager()
-    elif page == "Add Benchmark":
-        show_add_benchmark()
-    elif page == "Agent Versions":
-        show_agent_versions()
     elif page == "Evaluation Runner":
         show_evaluation_runner()
-    elif page == "Raw Results":
-        show_raw_results()
-    elif page == "Generate Report":
-        show_generate_report()
-    elif page == "LLM Judge":
-        show_llm_judge()
+    elif page == "Run Results":
+        show_run_results()
     elif page == "Comparison Table":
         show_comparison_enhanced()
-    elif page == "Deep Search Analytics":
-        show_deep_search()
-    elif page == "Manifests (Legacy)":
-        show_manifests()
-    elif page == "Results Browser (Legacy)":
-        show_results()
 
 
 def show_home():
@@ -228,67 +207,22 @@ def show_benchmark_manager():
     show_manager()
 
 
-def show_add_benchmark():
-    """Add benchmark page."""
-    from views.add_benchmark import show_add_benchmark as show_add
-    show_add()
-
-
-def show_agent_versions():
-    """Agent versions page."""
-    from views.agent_versions import show_agent_versions as show_versions
-    show_versions()
-
-
 def show_evaluation_runner():
     """Evaluation runner page."""
     from views.evaluation_runner import show_evaluation_runner as show_runner
     show_runner()
 
 
-def show_raw_results():
-    """Raw results viewer."""
-    st.title("Raw Results Viewer")
-    st.write("View raw Harbor outputs (trajectory.json, result.json)")
-    st.info("Use Legacy: Results Browser for now. Enhanced raw viewer coming soon.")
-
-
-def show_generate_report():
-    """Generate report page."""
-    st.title("Generate Report")
-    st.write("Generate evaluation reports from runs")
-    st.info("Use postprocess script for now. Interactive report builder coming soon.")
-
-
-def show_llm_judge():
-    """LLM judge runner page."""
-    st.title("LLM Judge Evaluation")
-    st.write("Run LLM-as-judge evaluation on completed runs")
-    st.info("Use postprocess script with --judge flag for now. Interactive judge runner coming soon.")
+def show_run_results():
+    """Run results viewer page."""
+    from views.run_results import show_run_results as show_results
+    show_results()
 
 
 def show_comparison_enhanced():
     """Enhanced comparison table."""
     from views.comparison_enhanced import show_comparison_enhanced as show_enhanced
     show_enhanced()
-
-
-def show_manifests():
-    """Browse benchmark manifests."""
-    from views.manifests import show_manifest_viewer
-    show_manifest_viewer()
-
-
-def show_results():
-    """Browse experiment results."""
-    from views.results import show_results_browser
-    show_results_browser()
-
-
-def show_deep_search():
-    """Analyze Deep Search usage."""
-    from views.deep_search import show_deep_search_analytics
-    show_deep_search_analytics()
 
 
 if __name__ == "__main__":
