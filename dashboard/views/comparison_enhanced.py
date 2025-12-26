@@ -52,7 +52,9 @@ def load_comparison_data():
             failed = total_tasks - passed
 
             # Load result data for tokens/cost
-            total_tokens = 0
+            total_input_tokens = 0
+            total_output_tokens = 0
+            total_cached_tokens = 0
             total_cost = 0.0
             total_time = 0.0
 
@@ -63,8 +65,9 @@ def load_comparison_data():
                             result_data = json.load(f)
 
                         agent_result = result_data.get("agent_result", {})
-                        total_tokens += agent_result.get("n_input_tokens", 0)
-                        total_tokens += agent_result.get("n_output_tokens", 0)
+                        total_input_tokens += agent_result.get("n_input_tokens", 0)
+                        total_output_tokens += agent_result.get("n_output_tokens", 0)
+                        total_cached_tokens += agent_result.get("n_cache_tokens", 0)
 
                         # Calculate cost
                         cost_breakdown = calculate_cost(
@@ -91,6 +94,9 @@ def load_comparison_data():
             # Determine if subset or full
             run_type = "Subset" if run.get("task_selection") else "Full"
 
+            # Calculate total billable tokens (all tokens, including cached)
+            total_tokens = total_input_tokens + total_output_tokens + total_cached_tokens
+
             comparison_data.append({
                 "Run ID": run["run_id"],
                 "Benchmark": benchmark_name,
@@ -100,6 +106,9 @@ def load_comparison_data():
                 "Passed": passed,
                 "Failed": failed,
                 "Pass Rate": f"{passed/total_tasks*100:.1f}%" if total_tasks > 0 else "0%",
+                "Input Tokens": f"{total_input_tokens:,}",
+                "Output Tokens": f"{total_output_tokens:,}",
+                "Cached Tokens": f"{total_cached_tokens:,}",
                 "Total Tokens": f"{total_tokens:,}",
                 "Cost (USD)": f"${total_cost:.4f}",
                 "Avg Time (s)": f"{total_time/total_tasks:.1f}" if total_tasks > 0 else "0",
@@ -155,6 +164,9 @@ def show_comparison_enhanced():
         use_container_width=True,
         hide_index=True,
     )
+
+    # Add note about cached tokens
+    st.caption("💡 **Note on Cached Tokens:** Anthropic charges for cached tokens at ~10% of regular input token rates (e.g., Haiku 4.5: $0.08 vs $0.80 per million). The cost shown includes this discounted rate.")
 
     # Download option
     csv = filtered_df.to_csv(index=False)

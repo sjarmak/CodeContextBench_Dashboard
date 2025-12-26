@@ -234,8 +234,8 @@ def show_agent_trace(claude_files, trajectory_files):
         st.markdown("---")
 
         # Display steps
-        for step in filtered_steps:
-            show_trace_step(step)
+        for idx, step in enumerate(filtered_steps, start=1):
+            show_trace_step(step, step_number=idx)
 
         # Raw trajectory option
         with st.expander("Raw Trajectory (JSON)"):
@@ -249,13 +249,18 @@ def show_agent_trace(claude_files, trajectory_files):
         st.code(traceback.format_exc())
 
 
-def show_trace_step(step):
+def show_trace_step(step, step_number=None):
     """Display a single trace step."""
     # Step header
     icon = "👤" if step.source == "user" else "🤖"
     source_label = "User" if step.source == "user" else "Assistant"
 
-    with st.expander(f"{icon} Step {step.step_id}: {source_label}", expanded=False):
+    # Use sequential numbering for display, show actual step_id in parentheses
+    step_label = f"Step {step_number}" if step_number else f"Step {step.step_id}"
+    if step_number and step.step_id != step_number:
+        step_label += f" (ID: {step.step_id})"
+
+    with st.expander(f"{icon} {step_label}: {source_label}", expanded=False):
         # Timestamp
         st.caption(f"Time: {step.timestamp}")
 
