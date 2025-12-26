@@ -279,13 +279,14 @@ def show_conversation_view(steps):
                 with st.expander(f"🔧 Tool Calls ({len(step.tool_calls)})", expanded=False):
                     for tool in step.tool_calls:
                         st.markdown(f"**{tool.tool_name}**")
-                        if tool.input_data:
-                            st.json(tool.input_data)
+                        if tool.parameters:
+                            st.json(tool.parameters)
 
             # Show diffs inline
-            if step.diffs:
-                with st.expander(f"📝 Code Changes ({len(step.diffs)})", expanded=False):
-                    for diff in step.diffs:
+            diffs = TraceParser.extract_diffs(step.tool_calls)
+            if diffs:
+                with st.expander(f"📝 Code Changes ({len(diffs)})", expanded=False):
+                    for diff in diffs:
                         if diff["type"] == "edit":
                             st.markdown(f"**Edit:** `{diff['file_path']}`")
                             col1, col2 = st.columns(2)
@@ -321,9 +322,10 @@ def show_full_conversation(steps):
                 st.markdown(f"- `{tool.tool_name}`")
 
         # Diffs
-        if step.diffs:
-            st.markdown(f"**📝 Code Changes ({len(step.diffs)}):**")
-            for diff in step.diffs:
+        diffs = TraceParser.extract_diffs(step.tool_calls)
+        if diffs:
+            st.markdown(f"**📝 Code Changes ({len(diffs)}):**")
+            for diff in diffs:
                 if diff["type"] == "edit":
                     st.markdown(f"- Edit: `{diff['file_path']}`")
                 elif diff["type"] == "write":
@@ -340,7 +342,7 @@ def show_all_tool_calls(steps):
             for tool in step.tool_calls:
                 all_tools.append({
                     "tool": tool.tool_name,
-                    "input": tool.input_data,
+                    "parameters": tool.parameters,
                     "timestamp": step.timestamp
                 })
 
@@ -352,22 +354,22 @@ def show_all_tool_calls(steps):
 
     for i, tool_data in enumerate(all_tools, 1):
         with st.expander(f"{i}. {tool_data['tool']} - {tool_data['timestamp']}", expanded=False):
-            if tool_data['input']:
-                st.json(tool_data['input'])
+            if tool_data['parameters']:
+                st.json(tool_data['parameters'])
             else:
-                st.info("No input data")
+                st.info("No parameters")
 
 
 def show_all_diffs(steps):
     """Show all code diffs aggregated."""
     all_diffs = []
     for step in steps:
-        if step.diffs:
-            for diff in step.diffs:
-                all_diffs.append({
-                    **diff,
-                    "timestamp": step.timestamp
-                })
+        diffs = TraceParser.extract_diffs(step.tool_calls)
+        for diff in diffs:
+            all_diffs.append({
+                **diff,
+                "timestamp": step.timestamp
+            })
 
     if not all_diffs:
         st.info("No code changes found")
