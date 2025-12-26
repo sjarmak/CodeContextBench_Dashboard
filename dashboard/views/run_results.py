@@ -67,13 +67,18 @@ def show_run_overview(run_data):
     """Display run overview with metrics."""
     st.subheader("Run Overview")
 
+    # Get task counts
+    tasks = TaskManager.get_tasks(run_data["run_id"])
+    total_tasks = len(tasks)
+    completed_tasks = len([t for t in tasks if t["status"] == "completed"])
+
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.metric("Status", run_data.get("status", "unknown").upper())
 
     with col2:
-        st.metric("Tasks", f"{run_data.get('completed_tasks', 0)}/{run_data.get('total_tasks', 0)}")
+        st.metric("Tasks", f"{completed_tasks}/{total_tasks}")
 
     with col3:
         benchmark_name = run_data.get("benchmark_name", "Unknown")

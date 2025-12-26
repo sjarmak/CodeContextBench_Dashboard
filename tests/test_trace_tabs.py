@@ -152,13 +152,19 @@ def test_trace_tabs():
                 if not tab_found:
                     print(f"   ⚠ Tab '{expected_tab}' not found")
 
+        else:
+            print("\n⚠ No runs found to test")
+            print("   Please run an evaluation first")
+
         print("\n" + "=" * 80)
         print("TEST COMPLETE")
         print("=" * 80)
         print("\n✓ All tabs should be error-free")
         print("✓ TraceStep attribute errors should be fixed")
-        print("\nPress Enter to close browser...")
-        input()
+
+        # Auto-close after 3 seconds instead of waiting for input
+        print("\nClosing browser in 3 seconds...")
+        time.sleep(3)
 
         browser.close()
 
