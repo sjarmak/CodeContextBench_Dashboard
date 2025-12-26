@@ -220,12 +220,15 @@ class EvaluationOrchestrator:
 
         # Run Harbor
         try:
+            # Run from project root so relative paths work correctly
+            project_root = Path.cwd()
+
             self.current_process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                cwd=str(benchmark_path.parent),
+                cwd=str(project_root),  # Run from project root
                 env=env
             )
 
