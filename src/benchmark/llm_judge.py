@@ -263,13 +263,25 @@ def extract_code_changes_from_trajectory(trajectory: Dict) -> str:
             x in tool_name.lower() for x in ["edit", "write", "create", "replace"]
         ):
             raw_args = extra.get("raw_arguments", {})
-            changes.append(
-                {
-                    "tool": tool_name,
-                    "file": raw_args.get("file_path", raw_args.get("path", "unknown")),
-                    "content_preview": str(raw_args)[:500],
-                }
-            )
+            file_path = raw_args.get("file_path", raw_args.get("path", "unknown"))
+
+            # Extract actual diff content
+            if "edit" in tool_name.lower():
+                old_str = raw_args.get("old_string", "")
+                new_str = raw_args.get("new_string", "")
+                changes.append({
+                    "type": "edit",
+                    "file": file_path,
+                    "old": old_str,
+                    "new": new_str,
+                })
+            elif "write" in tool_name.lower():
+                content = raw_args.get("content", "")
+                changes.append({
+                    "type": "write",
+                    "file": file_path,
+                    "content": content,
+                })
 
     # Also check old format
     for step in trajectory.get("steps", []):
@@ -281,31 +293,49 @@ def extract_code_changes_from_trajectory(trajectory: Dict) -> str:
             for item in content:
                 if isinstance(item, dict) and item.get("type") == "tool_use":
                     name = item.get("name", "")
-                    if any(
-                        x in name.lower()
-                        for x in ["edit", "write", "create", "replace"]
-                    ):
-                        input_data = item.get("input", {})
-                        changes.append(
-                            {
-                                "tool": name,
-                                "file": input_data.get(
-                                    "file_path", input_data.get("path", "unknown")
-                                ),
-                                "content_preview": str(input_data)[:500],
-                            }
-                        )
+                    input_data = item.get("input", {})
+
+                    if "edit" in name.lower():
+                        old_str = input_data.get("old_string", "")
+                        new_str = input_data.get("new_string", "")
+                        file_path = input_data.get("file_path", input_data.get("path", "unknown"))
+                        changes.append({
+                            "type": "edit",
+                            "file": file_path,
+                            "old": old_str,
+                            "new": new_str,
+                        })
+                    elif "write" in name.lower() or "create" in name.lower():
+                        content_str = input_data.get("content", "")
+                        file_path = input_data.get("file_path", input_data.get("path", "unknown"))
+                        changes.append({
+                            "type": "write",
+                            "file": file_path,
+                            "content": content_str,
+                        })
 
     if not changes:
         return "No code changes found"
 
     lines = []
     for i, change in enumerate(changes[:20], 1):
-        lines.append(f"{i}. {change['tool']} on {change['file']}")
-        lines.append(f"   Preview: {change['content_preview'][:200]}...")
+        if change["type"] == "edit":
+            lines.append(f"\n{i}. EDIT: {change['file']}")
+            lines.append("=" * 60)
+            lines.append("OLD:")
+            lines.append(change['old'][:2000] if len(change['old']) > 2000 else change['old'])
+            lines.append("\nNEW:")
+            lines.append(change['new'][:2000] if len(change['new']) > 2000 else change['new'])
+            lines.append("=" * 60)
+        elif change["type"] == "write":
+            lines.append(f"\n{i}. WRITE: {change['file']}")
+            lines.append("=" * 60)
+            content = change['content'][:2000] if len(change['content']) > 2000 else change['content']
+            lines.append(content)
+            lines.append("=" * 60)
 
     if len(changes) > 20:
-        lines.append(f"... and {len(changes) - 20} more changes")
+        lines.append(f"\n... and {len(changes) - 20} more changes")
 
     return "\n".join(lines)
 

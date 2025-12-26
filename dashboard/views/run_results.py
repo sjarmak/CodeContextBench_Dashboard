@@ -454,8 +454,19 @@ def show_llm_judge_section(run_data, task, task_output_dir):
                 tool_calls = extract_tool_calls_from_trajectory(trajectory)
                 code_changes = extract_code_changes_from_trajectory(trajectory)
 
-                # Get reward
-                reward = result.get("verifier_result", {}).get("rewards", {}).get("reward", 0.0)
+                # Get reward (use new Harbor format)
+                reward = 0.0
+                stats = result.get("stats", {})
+                evals = stats.get("evals", {})
+                if evals:
+                    first_eval = next(iter(evals.values()))
+                    metrics = first_eval.get("metrics", [])
+                    if metrics and len(metrics) > 0:
+                        reward = metrics[0].get("mean", 0.0)
+
+                # Fallback to old format
+                if reward == 0.0:
+                    reward = result.get("verifier_result", {}).get("rewards", {}).get("reward", 0.0)
 
                 # Initialize judge
                 judge = LLMJudge(model=judge_model)
