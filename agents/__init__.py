@@ -1,14 +1,14 @@
 """Harbor agents for CodeContextBench.
 
-Production agents:
-- BaselineClaudeCodeAgent: Control agent without MCP
-- StrategicDeepSearchAgent: MCP with strategic Deep Search (RECOMMENDED)
-- DeepSearchFocusedAgent: MCP with aggressive Deep Search prompting
-- MCPNonDeepSearchAgent: MCP with keyword/NLS search only
-- FullToolkitAgent: MCP with all tools available (neutral prompting)
+Single configurable agent:
+- BaselineClaudeCodeAgent: Configurable agent with optional MCP support
+  - Configure via BASELINE_MCP_TYPE env var: none, sourcegraph, deepsearch
+  - No MCP: Pure baseline with local tools only
+  - Sourcegraph MCP: Full Sourcegraph MCP with all tools
+  - Deep Search MCP: Deep Search-only MCP endpoint
 
-Deprecated:
-- ClaudeCodeSourcegraphMCPAgent: Use DeepSearchFocusedAgent instead
+Archived experimental agents:
+- MCP variants with different prompting strategies archived to archive/agents/mcp_variants.py
 """
 
 
@@ -18,34 +18,9 @@ def __getattr__(name):
         from agents.claude_baseline_agent import BaselineClaudeCodeAgent
 
         return BaselineClaudeCodeAgent
-    elif name == "StrategicDeepSearchAgent":
-        from agents.mcp_variants import StrategicDeepSearchAgent
-
-        return StrategicDeepSearchAgent
-    elif name == "DeepSearchFocusedAgent":
-        from agents.mcp_variants import DeepSearchFocusedAgent
-
-        return DeepSearchFocusedAgent
-    elif name == "MCPNonDeepSearchAgent":
-        from agents.mcp_variants import MCPNonDeepSearchAgent
-
-        return MCPNonDeepSearchAgent
-    elif name == "FullToolkitAgent":
-        from agents.mcp_variants import FullToolkitAgent
-
-        return FullToolkitAgent
-    elif name == "ClaudeCodeSourcegraphMCPAgent":
-        from agents.mcp_variants import DeepSearchFocusedAgent
-
-        return DeepSearchFocusedAgent
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
     "BaselineClaudeCodeAgent",
-    "DeepSearchFocusedAgent",
-    "MCPNonDeepSearchAgent",
-    "FullToolkitAgent",
-    # Deprecated: kept for backward compatibility
-    "ClaudeCodeSourcegraphMCPAgent",
 ]
