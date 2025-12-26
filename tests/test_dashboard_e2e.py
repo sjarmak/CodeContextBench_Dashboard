@@ -45,9 +45,9 @@ class TestDashboardNavigation:
         page.wait_for_load_state("networkidle")
         time.sleep(2)
 
-        # Check navigation items
+        # Check navigation items exist in sidebar
+        # Streamlit buttons might not have role="button", so check by text
         nav_items = [
-            "Home",
             "Benchmark Manager",
             "Evaluation Runner",
             "Run Results",
@@ -55,9 +55,10 @@ class TestDashboardNavigation:
         ]
 
         for item in nav_items:
-            # Streamlit buttons use different selectors
-            button = page.get_by_role("button", name=item)
-            assert button.is_visible(), f"Navigation button '{item}' not found"
+            # Use sidebar locator to avoid strict mode violations
+            sidebar = page.locator('[data-testid="stSidebar"]')
+            nav_item = sidebar.get_by_text(item, exact=True).first
+            assert nav_item.is_visible(), f"Navigation item '{item}' not found in sidebar"
 
 
 class TestBenchmarkManager:
@@ -69,12 +70,13 @@ class TestBenchmarkManager:
         page.wait_for_load_state("networkidle")
         time.sleep(2)
 
-        # Click Benchmark Manager
-        page.get_by_role("button", name="Benchmark Manager").click()
+        # Click Benchmark Manager in sidebar
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        sidebar.get_by_text("Benchmark Manager", exact=True).first.click()
         time.sleep(2)
 
-        # Check page loaded
-        page.get_by_text("Benchmark Manager").is_visible()
+        # Check page loaded (use .first to avoid strict mode violation)
+        page.get_by_text("Benchmark Manager").first.is_visible()
         page.get_by_text("Registered Benchmarks").is_visible()
 
     def test_oracle_validation_section_exists(self, page: Page, dashboard_url):
@@ -84,7 +86,8 @@ class TestBenchmarkManager:
         time.sleep(2)
 
         # Navigate to Benchmark Manager
-        page.get_by_role("button", name="Benchmark Manager").click()
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        sidebar.get_by_text("Benchmark Manager", exact=True).first.click()
         time.sleep(2)
 
         # Select a benchmark (if any exist)
@@ -115,12 +118,13 @@ class TestEvaluationRunner:
         page.wait_for_load_state("networkidle")
         time.sleep(2)
 
-        # Click Evaluation Runner
-        page.get_by_role("button", name="Evaluation Runner").click()
+        # Click Evaluation Runner in sidebar
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        sidebar.get_by_text("Evaluation Runner", exact=True).first.click()
         time.sleep(2)
 
-        # Check page loaded
-        page.get_by_text("Evaluation Runner").is_visible()
+        # Check page loaded (use .first to avoid strict mode violation)
+        page.get_by_text("Evaluation Runner").first.is_visible()
 
     def test_mcp_configuration_options(self, page: Page, dashboard_url):
         """Test that MCP configuration radio buttons exist."""
@@ -129,7 +133,8 @@ class TestEvaluationRunner:
         time.sleep(2)
 
         # Navigate to Evaluation Runner
-        page.get_by_role("button", name="Evaluation Runner").click()
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        sidebar.get_by_text("Evaluation Runner", exact=True).first.click()
         time.sleep(2)
 
         # Check MCP configuration section
@@ -150,12 +155,13 @@ class TestRunResults:
         page.wait_for_load_state("networkidle")
         time.sleep(2)
 
-        # Click Run Results
-        page.get_by_role("button", name="Run Results").click()
+        # Click Run Results in sidebar
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        sidebar.get_by_text("Run Results", exact=True).first.click()
         time.sleep(2)
 
-        # Check page loaded
-        page.get_by_text("Run Results").is_visible()
+        # Check page loaded (use .first to avoid strict mode violation)
+        page.get_by_text("Run Results").first.is_visible()
 
     def test_run_results_tabs_exist(self, page: Page, dashboard_url):
         """Test that all required tabs exist when a run is selected."""
@@ -164,7 +170,8 @@ class TestRunResults:
         time.sleep(2)
 
         # Navigate to Run Results
-        page.get_by_role("button", name="Run Results").click()
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        sidebar.get_by_text("Run Results", exact=True).first.click()
         time.sleep(2)
 
         # Try to select a run (if any exist)
@@ -199,7 +206,8 @@ class TestLLMJudgeIntegration:
         time.sleep(2)
 
         # Navigate to Run Results
-        page.get_by_role("button", name="Run Results").click()
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        sidebar.get_by_text("Run Results", exact=True).first.click()
         time.sleep(2)
 
         try:
@@ -246,7 +254,8 @@ class TestTaskReportGeneration:
         time.sleep(2)
 
         # Navigate to Run Results
-        page.get_by_role("button", name="Run Results").click()
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        sidebar.get_by_text("Run Results", exact=True).first.click()
         time.sleep(2)
 
         try:
@@ -281,12 +290,13 @@ class TestComparisonTable:
         page.wait_for_load_state("networkidle")
         time.sleep(2)
 
-        # Click Comparison Table
-        page.get_by_role("button", name="Comparison Table").click()
+        # Click Comparison Table in sidebar
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        sidebar.get_by_text("Comparison Table", exact=True).first.click()
         time.sleep(2)
 
-        # Check page loaded
-        page.get_by_text("Comparison Table").is_visible()
+        # Check page loaded (use .first to avoid strict mode violation)
+        page.get_by_text("Comparison Table").first.is_visible()
 
 
 # Test configuration
