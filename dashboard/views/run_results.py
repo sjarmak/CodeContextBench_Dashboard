@@ -201,19 +201,10 @@ def show_agent_trace(claude_files, trajectory_files):
         steps = TraceParser.parse_trajectory_file(trajectory_file)
 
         # Filter options
-        col1, col2 = st.columns(2)
-        with col1:
-            include_sidechain = st.checkbox("Include sidechain steps", value=False)
-        with col2:
-            show_tool_calls_only = st.checkbox("Show only tool calls", value=False)
-
-        # Filter steps
+        include_sidechain = st.checkbox("Include sidechain steps", value=False)
         filtered_steps = TraceParser.filter_sidechain(steps, include_sidechain)
 
-        if show_tool_calls_only:
-            filtered_steps = [s for s in filtered_steps if s.tool_calls]
-
-        # Token and tool usage summary
+        # Execution Summary
         with st.expander("Execution Summary", expanded=True):
             col1, col2 = st.columns(2)
 
@@ -233,12 +224,26 @@ def show_agent_trace(claude_files, trajectory_files):
 
         st.markdown("---")
 
-        # Display steps
-        for idx, step in enumerate(filtered_steps, start=1):
-            show_trace_step(step, step_number=idx)
+        # Show redesigned conversation view
+        show_conversation_view(filtered_steps)
+
+        # Separate sections for aggregated views
+        tab1, tab2, tab3, tab4 = st.tabs(["📝 Full Conversation", "🔧 Tool Calls", "📋 Code Diffs", "🧪 Test Results"])
+
+        with tab1:
+            show_full_conversation(filtered_steps)
+
+        with tab2:
+            show_all_tool_calls(filtered_steps)
+
+        with tab3:
+            show_all_diffs(filtered_steps)
+
+        with tab4:
+            show_test_results(trajectory_file)
 
         # Raw trajectory option
-        with st.expander("Raw Trajectory (JSON)"):
+        with st.expander("Raw Trajectory (JSON)", expanded=False):
             with open(trajectory_file) as f:
                 trajectory = json.load(f)
             st.json(trajectory)
@@ -247,6 +252,185 @@ def show_agent_trace(claude_files, trajectory_files):
         st.error(f"Failed to parse trajectory: {e}")
         import traceback
         st.code(traceback.format_exc())
+
+
+def show_conversation_view(steps):
+    """Show main conversation view: user message → assistant response."""
+    # Find first user message
+    user_steps = [s for s in steps if s.source == "user"]
+    assistant_steps = [s for s in steps if s.source == "assistant"]
+
+    if user_steps:
+        st.markdown("### 👤 User Request")
+        user_msg = TraceParser.get_clean_message(user_steps[0])
+        st.markdown(user_msg if user_msg else "_No message_")
+
+    if assistant_steps:
+        st.markdown("### 🤖 Assistant Response")
+
+        # Combine all assistant messages
+        for i, step in enumerate(assistant_steps, 1):
+            clean_msg = TraceParser.get_clean_message(step)
+            if clean_msg:
+                st.markdown(clean_msg)
+
+            # Show tool calls inline
+            if step.tool_calls:
+                with st.expander(f"🔧 Tool Calls ({len(step.tool_calls)})", expanded=False):
+                    for tool in step.tool_calls:
+                        st.markdown(f"**{tool.tool_name}**")
+                        if tool.input_data:
+                            st.json(tool.input_data)
+
+            # Show diffs inline
+            if step.diffs:
+                with st.expander(f"📝 Code Changes ({len(step.diffs)})", expanded=False):
+                    for diff in step.diffs:
+                        if diff["type"] == "edit":
+                            st.markdown(f"**Edit:** `{diff['file_path']}`")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown("**Before:**")
+                                st.code(diff["old_string"], language="python")
+                            with col2:
+                                st.markdown("**After:**")
+                                st.code(diff["new_string"], language="python")
+                        elif diff["type"] == "write":
+                            st.markdown(f"**Write:** `{diff['file_path']}`")
+                            st.code(diff["content"], language="python")
+
+
+def show_full_conversation(steps):
+    """Show full conversation with all details."""
+    for idx, step in enumerate(steps, 1):
+        icon = "👤" if step.source == "user" else "🤖"
+        source_label = "User" if step.source == "user" else "Assistant"
+
+        st.markdown(f"**{icon} {source_label} - Step {idx}**")
+        st.caption(f"Time: {step.timestamp}")
+
+        # Message
+        clean_message = TraceParser.get_clean_message(step)
+        if clean_message:
+            st.markdown(clean_message)
+
+        # Tool calls
+        if step.tool_calls:
+            st.markdown(f"**🔧 Tool Calls ({len(step.tool_calls)}):**")
+            for tool in step.tool_calls:
+                st.markdown(f"- `{tool.tool_name}`")
+
+        # Diffs
+        if step.diffs:
+            st.markdown(f"**📝 Code Changes ({len(step.diffs)}):**")
+            for diff in step.diffs:
+                if diff["type"] == "edit":
+                    st.markdown(f"- Edit: `{diff['file_path']}`")
+                elif diff["type"] == "write":
+                    st.markdown(f"- Write: `{diff['file_path']}`")
+
+        st.markdown("---")
+
+
+def show_all_tool_calls(steps):
+    """Show all tool calls aggregated."""
+    all_tools = []
+    for step in steps:
+        if step.tool_calls:
+            for tool in step.tool_calls:
+                all_tools.append({
+                    "tool": tool.tool_name,
+                    "input": tool.input_data,
+                    "timestamp": step.timestamp
+                })
+
+    if not all_tools:
+        st.info("No tool calls found")
+        return
+
+    st.write(f"**Total Tool Calls: {len(all_tools)}**")
+
+    for i, tool_data in enumerate(all_tools, 1):
+        with st.expander(f"{i}. {tool_data['tool']} - {tool_data['timestamp']}", expanded=False):
+            if tool_data['input']:
+                st.json(tool_data['input'])
+            else:
+                st.info("No input data")
+
+
+def show_all_diffs(steps):
+    """Show all code diffs aggregated."""
+    all_diffs = []
+    for step in steps:
+        if step.diffs:
+            for diff in step.diffs:
+                all_diffs.append({
+                    **diff,
+                    "timestamp": step.timestamp
+                })
+
+    if not all_diffs:
+        st.info("No code changes found")
+        return
+
+    st.write(f"**Total Code Changes: {len(all_diffs)}**")
+
+    for i, diff in enumerate(all_diffs, 1):
+        if diff["type"] == "edit":
+            with st.expander(f"{i}. Edit: {diff['file_path']}", expanded=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Before:**")
+                    st.code(diff["old_string"], language="python")
+                with col2:
+                    st.markdown("**After:**")
+                    st.code(diff["new_string"], language="python")
+
+        elif diff["type"] == "write":
+            with st.expander(f"{i}. Write: {diff['file_path']}", expanded=True):
+                st.code(diff["content"], language="python")
+
+
+def show_test_results(trajectory_file):
+    """Show test results and comparisons."""
+    # Try to find test results in the trajectory
+    try:
+        with open(trajectory_file) as f:
+            trajectory = json.load(f)
+
+        # Look for test-related tool calls or results
+        test_steps = []
+        for step in trajectory.get("steps", []):
+            # Check if step contains test execution
+            content = step.get("content", [])
+            if isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict):
+                        if item.get("type") == "tool_result":
+                            # Check if this is a test result
+                            result_content = item.get("content", "")
+                            if any(word in str(result_content).lower() for word in ["test", "pytest", "pass", "fail", "assert"]):
+                                test_steps.append({
+                                    "tool": step.get("extra", {}).get("tool_use_name", "unknown"),
+                                    "content": result_content,
+                                    "timestamp": step.get("timestamp", "")
+                                })
+
+        if not test_steps:
+            st.info("No test results found in trajectory")
+            return
+
+        st.write(f"**Found {len(test_steps)} test-related outputs:**")
+
+        for i, test_step in enumerate(test_steps, 1):
+            with st.expander(f"{i}. {test_step['tool']} - {test_step['timestamp']}", expanded=True):
+                if isinstance(test_step['content'], str):
+                    st.code(test_step['content'])
+                else:
+                    st.json(test_step['content'])
+
+    except Exception as e:
+        st.error(f"Failed to load test results: {e}")
 
 
 def show_trace_step(step, step_number=None):
