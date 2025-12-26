@@ -84,6 +84,30 @@ def show_tasks_section(benchmark: dict):
     """Show tasks list and task profiles."""
     st.subheader("Tasks")
 
+    # Check if this is a Harbor dataset
+    is_harbor_dataset = benchmark.get("adapter_type") == "harbor_dataset"
+
+    if is_harbor_dataset:
+        st.info(f"📦 **Harbor Dataset**: {benchmark['name']}")
+        st.write("This is a pre-installed Harbor dataset. Tasks are managed by Harbor.")
+
+        task_count = benchmark.get("task_count", 0)
+        st.write(f"**Available Tasks:** ~{task_count}")
+
+        st.write("**Usage:** Select this benchmark in 'Evaluation Runner' to run tasks.")
+        st.write("Harbor will automatically fetch and execute tasks from the dataset.")
+
+        # Show metadata if available
+        import json
+        if benchmark.get("metadata"):
+            metadata = json.loads(benchmark["metadata"]) if isinstance(benchmark["metadata"], str) else benchmark["metadata"]
+            if metadata.get("languages"):
+                st.write(f"**Languages:** {', '.join(metadata['languages'])}")
+            if metadata.get("difficulty"):
+                st.write(f"**Difficulty:** {metadata['difficulty']}")
+        return
+
+    # Local benchmark - show tasks from folder
     benchmark_path = Path("benchmarks") / benchmark["folder_name"]
 
     if not benchmark_path.exists():
@@ -159,6 +183,12 @@ def show_tasks_section(benchmark: dict):
 def show_validation_section(benchmark: dict):
     """Show validation controls and results."""
     st.subheader("Validation")
+
+    # Skip validation for Harbor datasets (they're pre-validated)
+    is_harbor_dataset = benchmark.get("adapter_type") == "harbor_dataset"
+    if is_harbor_dataset:
+        st.info("📦 Harbor datasets are pre-validated and maintained by the Harbor team.")
+        return
 
     benchmark_path = Path("benchmarks") / benchmark["folder_name"]
 

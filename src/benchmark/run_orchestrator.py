@@ -165,10 +165,19 @@ class EvaluationOrchestrator:
 
     def _get_tasks_to_run(self, benchmark_path: Path) -> List[str]:
         """Get list of tasks to run based on selection."""
+        # Get benchmark info
+        benchmark = BenchmarkRegistry.get(self.run_data["benchmark_id"])
+        is_harbor_dataset = benchmark.get("adapter_type") == "harbor_dataset"
+
         task_selection = self.run_data.get("task_selection")
 
         if task_selection:
             return task_selection
+
+        # For Harbor datasets, we need explicit instance selection
+        # (can't enumerate tasks from filesystem)
+        if is_harbor_dataset:
+            return []  # Must specify instances explicitly
 
         # Get all tasks from benchmark directory
         tasks = []
@@ -180,7 +189,9 @@ class EvaluationOrchestrator:
 
     def _run_single_task(self, benchmark_path: Path, task_name: str, agent: str):
         """Run a single task with an agent."""
-        task_path = benchmark_path / task_name
+        # Get benchmark info to check if it's a Harbor dataset
+        benchmark = BenchmarkRegistry.get(self.run_data["benchmark_id"])
+        is_harbor_dataset = benchmark.get("adapter_type") == "harbor_dataset"
 
         # Update task status
         TaskManager.update_status(self.run_id, task_name, agent, "running")
@@ -194,15 +205,28 @@ class EvaluationOrchestrator:
         task_output_dir = output_dir / f"{task_name}_{safe_agent_name}"
 
         # Build Harbor command
-        cmd = [
-            "harbor", "run",
-            "--path", str(benchmark_path),  # Point to benchmark directory, not task
-            "--task-name", task_name,       # Specify which task to run
-            "--agent-import-path", agent,
-            "--model", "anthropic/claude-haiku-4-5-20251001",  # Default model
-            "--jobs-dir", str(task_output_dir),
-            "-n", "1",  # Run once
-        ]
+        if is_harbor_dataset:
+            # Use Harbor dataset command
+            cmd = [
+                "harbor", "run",
+                "--dataset", benchmark["folder_name"],  # e.g., "swe_bench_verified"
+                "--instance-id", task_name,             # Specific instance to run
+                "--agent-import-path", agent,
+                "--model", "anthropic/claude-haiku-4-5-20251001",
+                "--jobs-dir", str(task_output_dir),
+                "-n", "1",
+            ]
+        else:
+            # Use local benchmark path
+            cmd = [
+                "harbor", "run",
+                "--path", str(benchmark_path),  # Point to benchmark directory, not task
+                "--task-name", task_name,       # Specify which task to run
+                "--agent-import-path", agent,
+                "--model", "anthropic/claude-haiku-4-5-20251001",
+                "--jobs-dir", str(task_output_dir),
+                "-n", "1",
+            ]
 
         # Add timeout multiplier if configured
         if "timeout" in self.run_data.get("config", {}):

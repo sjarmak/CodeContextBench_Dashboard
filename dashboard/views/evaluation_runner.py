@@ -37,48 +37,73 @@ def show_run_configuration():
 
     selected_benchmark = next(b for b in benchmarks if b["name"] == selected_benchmark_name)
 
+    # Check if this is a Harbor dataset
+    is_harbor_dataset = selected_benchmark.get("adapter_type") == "harbor_dataset"
+
     # Get benchmark tasks
-    benchmark_path = Path("benchmarks") / selected_benchmark["folder_name"]
-    tasks = []
+    if is_harbor_dataset:
+        # For Harbor datasets, allow manual instance ID input
+        st.markdown("#### Instance Selection")
+        st.info(f"📦 **Harbor Dataset:** {selected_benchmark['name']}")
 
-    if benchmark_path.exists():
-        for task_dir in sorted(benchmark_path.iterdir()):
-            if task_dir.is_dir() and (task_dir / "task.toml").exists():
-                tasks.append(task_dir.name)
+        instance_input = st.text_area(
+            "Instance IDs (one per line)",
+            help="Enter specific instance IDs to run, one per line. "
+                 "Leave empty to see suggested instances.",
+            placeholder="django__django-11099\npytest-dev__pytest-5692"
+        )
 
-    if not tasks:
-        st.warning("No tasks found in selected benchmark")
-        return None
+        if instance_input.strip():
+            selected_tasks = [line.strip() for line in instance_input.strip().split("\n") if line.strip()]
+            st.write(f"**Selected: {len(selected_tasks)} instances**")
+        else:
+            st.warning("Please enter at least one instance ID to run")
+            st.write("**Example instance IDs:**")
+            st.code("django__django-11099\npytest-dev__pytest-5692\nscikit-learn__scikit-learn-13142")
+            return None
+    else:
+        # Local benchmark - enumerate from folder
+        benchmark_path = Path("benchmarks") / selected_benchmark["folder_name"]
+        tasks = []
 
-    # Task selection
-    st.markdown("#### Task Selection")
+        if benchmark_path.exists():
+            for task_dir in sorted(benchmark_path.iterdir()):
+                if task_dir.is_dir() and (task_dir / "task.toml").exists():
+                    tasks.append(task_dir.name)
 
-    col1, col2 = st.columns(2)
+        if not tasks:
+            st.warning("No tasks found in selected benchmark")
+            return None
 
-    with col1:
-        if st.button("Select All Tasks"):
-            st.session_state["eval_selected_tasks"] = tasks
-            st.rerun()
+        # Task selection
+        st.markdown("#### Task Selection")
 
-    with col2:
-        if st.button("Clear Selection"):
-            st.session_state["eval_selected_tasks"] = []
-            st.rerun()
+        col1, col2 = st.columns(2)
 
-    selected_tasks = st.multiselect(
-        "Tasks to Run",
-        tasks,
-        default=st.session_state.get("eval_selected_tasks", []),
-        key="task_selection_multiselect"
-    )
+        with col1:
+            if st.button("Select All Tasks"):
+                st.session_state["eval_selected_tasks"] = tasks
+                st.rerun()
 
-    st.session_state["eval_selected_tasks"] = selected_tasks
+        with col2:
+            if st.button("Clear Selection"):
+                st.session_state["eval_selected_tasks"] = []
+                st.rerun()
 
-    if not selected_tasks:
-        st.warning("Please select at least one task")
-        return None
+        selected_tasks = st.multiselect(
+            "Tasks to Run",
+            tasks,
+            default=st.session_state.get("eval_selected_tasks", []),
+            key="task_selection_multiselect"
+        )
 
-    st.write(f"**Selected: {len(selected_tasks)} tasks**")
+        st.session_state["eval_selected_tasks"] = selected_tasks
+
+        if not selected_tasks:
+            st.warning("Please select at least one task")
+            return None
+
+        st.write(f"**Selected: {len(selected_tasks)} tasks**")
 
     # Agent selection
     st.markdown("#### Agent Configuration")
