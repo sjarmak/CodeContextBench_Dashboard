@@ -33,6 +33,14 @@ def get_harbor_dataset_instances(dataset_name: str) -> List[str]:
 
     hf_dataset_path = dataset_mapping.get(dataset_name)
 
+    # If no HuggingFace path, return empty list (Harbor manages tasks internally)
+    if hf_dataset_path is None:
+        raise ValueError(
+            f"Task list not available for {dataset_name}. "
+            f"This Harbor dataset manages tasks internally. "
+            f"Go to Evaluation Runner to select tasks."
+        )
+
     if not hf_dataset_path:
         raise ValueError(f"Unknown Harbor dataset: {dataset_name}")
 

@@ -92,11 +92,15 @@ def show_tasks_section(benchmark: dict):
         st.info(f"📦 **Harbor Dataset**: {benchmark['name']}")
         st.write("This is a pre-installed Harbor dataset. Tasks are managed by Harbor.")
 
-        # Load tasks from HuggingFace
-        with st.spinner("Loading task list from HuggingFace..."):
+        # Try to load tasks from HuggingFace (if available)
+        with st.spinner("Loading task list..."):
             try:
                 tasks = get_harbor_dataset_instances(benchmark['folder_name'])
                 st.success(f"Loaded {len(tasks)} tasks")
+            except ValueError as e:
+                # Task list not available for this dataset
+                st.warning(str(e))
+                tasks = []
             except Exception as e:
                 st.error(f"Failed to load tasks: {e}")
                 tasks = []

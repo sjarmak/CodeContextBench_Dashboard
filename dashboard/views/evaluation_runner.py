@@ -48,43 +48,65 @@ def show_run_configuration():
         st.info(f"📦 **Harbor Dataset:** {selected_benchmark['name']}")
 
         # Load instance IDs
-        with st.spinner("Loading instances from HuggingFace..."):
+        manual_input = False
+        with st.spinner("Loading instances..."):
             try:
                 tasks = get_harbor_dataset_instances(selected_benchmark['folder_name'])
                 st.success(f"Loaded {len(tasks)} instances")
+            except ValueError as e:
+                # Task list not available - allow manual input
+                st.warning(str(e))
+                st.info("📝 Enter task names manually or use Harbor CLI to list available tasks")
+
+                task_input = st.text_area(
+                    "Task Names (one per line)",
+                    help="Enter task names to run, one per line",
+                    placeholder="task-name-1\ntask-name-2"
+                )
+
+                if task_input.strip():
+                    tasks = [line.strip() for line in task_input.strip().split("\n") if line.strip()]
+                    selected_tasks = tasks  # Use manual input directly
+                    manual_input = True
+                else:
+                    st.warning("Please enter at least one task name")
+                    return None
             except Exception as e:
                 st.error(f"Failed to load instances: {e}")
                 return None
 
-        # Task selection UI (same as local benchmarks)
-        st.markdown("#### Task Selection")
+        # Task selection UI (only show if not manual input)
+        if not manual_input:
+            st.markdown("#### Task Selection")
 
-        col1, col2 = st.columns(2)
+            col1, col2 = st.columns(2)
 
-        with col1:
-            if st.button("Select All Tasks"):
-                st.session_state["eval_selected_tasks"] = tasks
-                st.rerun()
+            with col1:
+                if st.button("Select All Tasks"):
+                    st.session_state["eval_selected_tasks"] = tasks
+                    st.rerun()
 
-        with col2:
-            if st.button("Clear Selection"):
-                st.session_state["eval_selected_tasks"] = []
-                st.rerun()
+            with col2:
+                if st.button("Clear Selection"):
+                    st.session_state["eval_selected_tasks"] = []
+                    st.rerun()
 
-        selected_tasks = st.multiselect(
-            "Tasks to Run",
-            tasks,
-            default=st.session_state.get("eval_selected_tasks", []),
-            key="task_selection_multiselect"
-        )
+            selected_tasks = st.multiselect(
+                "Tasks to Run",
+                tasks,
+                default=st.session_state.get("eval_selected_tasks", []),
+                key="task_selection_multiselect"
+            )
 
-        st.session_state["eval_selected_tasks"] = selected_tasks
+            st.session_state["eval_selected_tasks"] = selected_tasks
 
-        if not selected_tasks:
-            st.warning("Please select at least one task")
-            return None
+            if not selected_tasks:
+                st.warning("Please select at least one task")
+                return None
 
-        st.write(f"**Selected: {len(selected_tasks)} tasks**")
+            st.write(f"**Selected: {len(selected_tasks)} tasks**")
+        else:
+            st.write(f"**Selected: {len(selected_tasks)} tasks from manual input**")
     else:
         # Local benchmark - enumerate from folder
         benchmark_path = Path("benchmarks") / selected_benchmark["folder_name"]
