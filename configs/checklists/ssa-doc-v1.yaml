@@ -1,0 +1,427 @@
+# Server-Side Apply Documentation Checklist v1
+# 55 items across 8 categories for evaluating SSA documentation quality
+#
+# Categories: intro, concepts, ownership, merge, conflicts, api, migration, controllers
+# Severities: must (required), should (recommended), nice (nice-to-have)
+#
+# Reference bundle: k8s-ssa-refpack-v1
+# Sources: R1 (SSA reference), R2 (KEP-555), R3 (kubectl apply), R4 (API concepts),
+#          R5 (validation), R6 (SSA GA blog), R7 (kube-openapi)
+
+checklist_id: ssa-doc-v1
+name: Kubernetes Server-Side Apply Documentation Checklist
+ref_bundle_id: k8s-ssa-refpack-v1
+
+items:
+  # ============================================================================
+  # A) Introduction & positioning (7 items)
+  # ============================================================================
+  - id: SSA.C1
+    category: intro
+    statement: "Explains SSA solves server-side declarative intent application with tracked field ownership."
+    severity: must
+    refs: [R1, R2, R4]
+    keywords: ["server-side apply", "field ownership", "declarative"]
+
+  - id: SSA.C2
+    category: intro
+    statement: "Compares SSA vs client-side apply and the role of last-applied-configuration in CSA."
+    severity: must
+    refs: [R1, R2]
+    keywords: ["client-side apply", "last-applied-configuration", "CSA"]
+
+  - id: SSA.C3
+    category: intro
+    statement: "Mentions SSA improves robustness vs CSA (typed merge, fewer annotation limitations)."
+    severity: should
+    refs: [R1, R2]
+    keywords: ["robustness", "typed merge", "annotation"]
+
+  - id: SSA.C4
+    category: intro
+    statement: "Explains when SSA is appropriate vs PUT/Update vs Patch vs replace."
+    severity: must
+    refs: [R1, R4]
+    keywords: ["PUT", "Update", "Patch", "replace"]
+
+  - id: SSA.C5
+    category: intro
+    statement: "Notes SSA is the recommended future-facing declarative approach in Kubernetes."
+    severity: should
+    refs: [R4, R1]
+    keywords: ["recommended", "declarative", "future"]
+
+  - id: SSA.C6
+    category: intro
+    statement: "Mentions SSA conflicts are intentional safety signals."
+    severity: should
+    refs: [R1]
+    keywords: ["conflict", "safety", "signal"]
+
+  - id: SSA.C7
+    category: intro
+    statement: "Mentions SSA supersedes or replaces strategic merge patch in modern guidance."
+    severity: nice
+    refs: [R4]
+    keywords: ["supersede", "strategic merge patch", "replace"]
+
+  # ============================================================================
+  # B) Core concepts: managers & ownership (11 items)
+  # ============================================================================
+  - id: SSA.O1
+    category: ownership
+    statement: "Defines a field manager as the identity used to claim/track ownership."
+    severity: must
+    refs: [R1, R2]
+    keywords: ["field manager", "identity", "ownership"]
+
+  - id: SSA.O2
+    category: ownership
+    statement: "Explains manager naming/identification (best practices; uniqueness)."
+    severity: must
+    refs: [R1, R3]
+    keywords: ["manager name", "unique", "identification"]
+
+  - id: SSA.O3
+    category: ownership
+    statement: "Describes ownership as per-field (not per-object)."
+    severity: must
+    refs: [R1, R2]
+    keywords: ["per-field", "ownership", "granular"]
+
+  - id: SSA.O4
+    category: ownership
+    statement: "Explains metadata.managedFields exists and stores ownership metadata."
+    severity: must
+    refs: [R1]
+    keywords: ["managedFields", "metadata", "ownership"]
+
+  - id: SSA.O5
+    category: ownership
+    statement: "Mentions managers own fields they set in apply payload (intent fields)."
+    severity: should
+    refs: [R1, R2]
+    keywords: ["intent", "apply payload", "own fields"]
+
+  - id: SSA.O6
+    category: ownership
+    statement: "Explains co-ownership / shared fields behavior."
+    severity: should
+    refs: [R1]
+    keywords: ["co-ownership", "shared fields"]
+
+  - id: SSA.O7
+    category: ownership
+    statement: "Shows how to view managed fields (e.g., kubectl get ... --show-managed-fields)."
+    severity: must
+    refs: [R1]
+    keywords: ["--show-managed-fields", "view", "kubectl get"]
+
+  - id: SSA.O8
+    category: ownership
+    statement: "Explains managedFields can be large and typically hidden in normal output."
+    severity: should
+    refs: [R1]
+    keywords: ["large", "hidden", "output"]
+
+  - id: SSA.O9
+    category: ownership
+    statement: "Mentions ownership transfer occurs on forced conflicts."
+    severity: nice
+    refs: [R1, R3]
+    keywords: ["ownership transfer", "force", "conflict"]
+
+  - id: SSA.O10
+    category: ownership
+    statement: "Explains why manager identity matters for controllers/operators/tools."
+    severity: should
+    refs: [R1, R2]
+    keywords: ["controller", "operator", "manager identity"]
+
+  - id: SSA.O11
+    category: ownership
+    statement: "Mentions API server tracks managed fields for newly created objects."
+    severity: nice
+    refs: [R1]
+    keywords: ["API server", "track", "created"]
+
+  # ============================================================================
+  # C) Merge semantics (OpenAPI-driven behavior) (12 items)
+  # ============================================================================
+  - id: SSA.M1
+    category: merge
+    statement: "Explains merge behavior is schema-driven (OpenAPI extensions)."
+    severity: must
+    refs: [R1, R5, R7]
+    keywords: ["schema", "OpenAPI", "merge behavior"]
+
+  - id: SSA.M2
+    category: merge
+    statement: "Defines list atomic (treated as single value; replace as a whole)."
+    severity: must
+    refs: [R5, R6]
+    keywords: ["atomic", "list", "replace"]
+
+  - id: SSA.M3
+    category: merge
+    statement: "Defines list map semantics (elements keyed; merge by key; requires listMapKey)."
+    severity: must
+    refs: [R5]
+    keywords: ["map", "listMapKey", "merge by key"]
+
+  - id: SSA.M4
+    category: merge
+    statement: "Defines list set semantics (unique elements; unordered set-like behavior)."
+    severity: must
+    refs: [R5, R6]
+    keywords: ["set", "unique", "unordered"]
+
+  - id: SSA.M5
+    category: merge
+    statement: "Defines x-kubernetes-list-map-keys / listMapKey requirement and constraints."
+    severity: must
+    refs: [R5]
+    keywords: ["x-kubernetes-list-map-keys", "listMapKey"]
+
+  - id: SSA.M6
+    category: merge
+    statement: "Explains map-type lists require object elements and keys must be present/required/defaulted."
+    severity: should
+    refs: [R5]
+    keywords: ["object elements", "keys required", "defaulted"]
+
+  - id: SSA.M7
+    category: merge
+    statement: "Defines x-kubernetes-map-type atomic vs granular for maps/structs."
+    severity: must
+    refs: [R1, R6, R7]
+    keywords: ["x-kubernetes-map-type", "atomic", "granular"]
+
+  - id: SSA.M8
+    category: merge
+    statement: "Calls out maps default granular and can be configured atomic."
+    severity: should
+    refs: [R6, R7]
+    keywords: ["default granular", "configure atomic"]
+
+  - id: SSA.M9
+    category: merge
+    statement: "Provides real Kubernetes field examples for: atomic/map/set/granular."
+    severity: should
+    refs: [R1, R6]
+    keywords: ["example", "containers", "labels", "ports"]
+
+  - id: SSA.M10
+    category: merge
+    statement: "Includes a merge strategy quick-reference table."
+    severity: must
+    refs: [R5, R6]
+    keywords: ["table", "merge strategy", "reference"]
+
+  - id: SSA.M11
+    category: merge
+    statement: "Mentions lists/maps impact conflict granularity and ownership."
+    severity: should
+    refs: [R1, R6]
+    keywords: ["conflict granularity", "ownership"]
+
+  - id: SSA.M12
+    category: merge
+    statement: "Notes older patch-strategy annotations exist historically, but listType/listMapKey are modern."
+    severity: nice
+    refs: [R5]
+    keywords: ["patch-strategy", "historical", "listType"]
+
+  # ============================================================================
+  # D) Conflicts & resolution (10 items)
+  # ============================================================================
+  - id: SSA.X1
+    category: conflicts
+    statement: "Defines conflict: attempting to change a field owned by another manager with different value."
+    severity: must
+    refs: [R1]
+    keywords: ["conflict", "different value", "owned"]
+
+  - id: SSA.X2
+    category: conflicts
+    statement: "Explains conflict errors signal potential overwrite of collaborator changes."
+    severity: must
+    refs: [R1]
+    keywords: ["conflict error", "overwrite", "collaborator"]
+
+  - id: SSA.X3
+    category: conflicts
+    statement: "Documents --force-conflicts / force=true behavior (override + transfer ownership)."
+    severity: must
+    refs: [R1, R3]
+    keywords: ["--force-conflicts", "force=true", "override"]
+
+  - id: SSA.X4
+    category: conflicts
+    statement: "Explains safer alternatives: remove field from config, coordinate managers, align values."
+    severity: should
+    refs: [R1]
+    keywords: ["remove field", "coordinate", "align values"]
+
+  - id: SSA.X5
+    category: conflicts
+    statement: "Mentions fieldManager identity influences conflicts and ownership."
+    severity: should
+    refs: [R1, R3]
+    keywords: ["fieldManager", "identity", "influence"]
+
+  - id: SSA.X6
+    category: conflicts
+    statement: "Provides example conflict message and interpretation."
+    severity: nice
+    refs: [R1]
+    keywords: ["example", "error message", "interpretation"]
+
+  - id: SSA.X7
+    category: conflicts
+    statement: "Explains co-ownership/shared fields nuance."
+    severity: should
+    refs: [R1]
+    keywords: ["co-ownership", "shared", "nuance"]
+
+  - id: SSA.X8
+    category: conflicts
+    statement: "Mentions forced apply should be used carefully (can override others)."
+    severity: nice
+    refs: [R1, R3]
+    keywords: ["carefully", "force", "override"]
+
+  - id: SSA.X9
+    category: conflicts
+    statement: "Mentions conflict granularity depends on schema (atomic ownership = broader conflicts)."
+    severity: nice
+    refs: [R6, R5]
+    keywords: ["granularity", "atomic", "broader"]
+
+  - id: SSA.X10
+    category: conflicts
+    statement: "Explains how to inspect which manager owns conflicted fields (managedFields)."
+    severity: nice
+    refs: [R1]
+    keywords: ["inspect", "manager", "owns"]
+
+  # ============================================================================
+  # E) API usage & mechanics (8 items)
+  # ============================================================================
+  - id: SSA.A1
+    category: api
+    statement: "Shows kubectl apply --server-side --field-manager=... -f ... usage."
+    severity: must
+    refs: [R3, R1]
+    keywords: ["kubectl apply", "--server-side", "--field-manager"]
+
+  - id: SSA.A2
+    category: api
+    statement: "Documents --force-conflicts usage for kubectl."
+    severity: must
+    refs: [R3, R1]
+    keywords: ["--force-conflicts", "kubectl"]
+
+  - id: SSA.A3
+    category: api
+    statement: "Mentions query parameters (fieldManager, force) at API level."
+    severity: must
+    refs: [R1]
+    keywords: ["query parameter", "fieldManager", "API"]
+
+  - id: SSA.A4
+    category: api
+    statement: "Describes SSA uses PATCH apply semantics (not PUT)."
+    severity: must
+    refs: [R1]
+    keywords: ["PATCH", "apply", "semantics"]
+
+  - id: SSA.A5
+    category: api
+    statement: "Mentions apply patch content type (application/apply-patch+yaml)."
+    severity: should
+    refs: [R1]
+    keywords: ["application/apply-patch+yaml", "content type"]
+
+  - id: SSA.A6
+    category: api
+    statement: "Describes PATCH vs PUT differences in intent/merge context."
+    severity: should
+    refs: [R1, R4]
+    keywords: ["PATCH vs PUT", "intent", "merge"]
+
+  - id: SSA.A7
+    category: api
+    statement: "Mentions clients should send only fields they have an opinion about (partial object)."
+    severity: nice
+    refs: [R1]
+    keywords: ["partial object", "opinion", "intent"]
+
+  - id: SSA.A8
+    category: api
+    statement: "Includes a Go snippet demonstrating SSA-style patch usage."
+    severity: nice
+    refs: [R1]
+    keywords: ["Go", "snippet", "code example"]
+
+  # ============================================================================
+  # F) Migration from client-side apply (4 items)
+  # ============================================================================
+  - id: SSA.G1
+    category: migration
+    statement: "Explains migrating existing resources from CSA to SSA."
+    severity: must
+    refs: [R1, R2]
+    keywords: ["migrating", "CSA to SSA", "existing"]
+
+  - id: SSA.G2
+    category: migration
+    statement: "Mentions last-applied annotation differences (CSA vs SSA field tracking)."
+    severity: should
+    refs: [R2, R1]
+    keywords: ["last-applied", "annotation", "differences"]
+
+  - id: SSA.G3
+    category: migration
+    statement: "Describes common migration pitfalls (conflicts due to different managers)."
+    severity: should
+    refs: [R1, R3]
+    keywords: ["migration", "pitfall", "different managers"]
+
+  - id: SSA.G4
+    category: migration
+    statement: "Offers practical mitigation steps (choose names, force carefully, coordinate)."
+    severity: nice
+    refs: [R1, R3]
+    keywords: ["mitigation", "practical", "steps"]
+
+  # ============================================================================
+  # G) Controller integration & best practices (4 items)
+  # ============================================================================
+  - id: SSA.K1
+    category: controllers
+    statement: "Recommends best practices for controller field manager naming (stable, unique)."
+    severity: must
+    refs: [R1, R3]
+    keywords: ["controller", "naming", "best practice"]
+
+  - id: SSA.K2
+    category: controllers
+    statement: "Explains how controllers should use SSA to own specific fields."
+    severity: must
+    refs: [R1, R2]
+    keywords: ["controller", "own fields", "SSA"]
+
+  - id: SSA.K3
+    category: controllers
+    statement: "Describes strategies for shared fields across controllers."
+    severity: should
+    refs: [R1]
+    keywords: ["shared fields", "controllers", "strategy"]
+
+  - id: SSA.K4
+    category: controllers
+    statement: "Mentions why SSA is helpful for multi-actor systems (humans, controllers, GitOps)."
+    severity: nice
+    refs: [R1, R2]
+    keywords: ["multi-actor", "GitOps", "humans"]

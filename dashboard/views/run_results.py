@@ -176,7 +176,7 @@ def show_task_detail(run_data, task):
     claude_files = list(task_output_dir.rglob("claude.txt"))
 
     # Tabs for different views
-    tabs = st.tabs(["Agent Trace", "Result Details", "LLM Judge", "Task Report"])
+    tabs = st.tabs(["Agent Trace", "Result Details", "Checklist", "LLM Judge", "Task Report"])
 
     with tabs[0]:
         show_agent_trace(claude_files, trajectory_files)
@@ -185,9 +185,12 @@ def show_task_detail(run_data, task):
         show_result_details(result_files)
 
     with tabs[2]:
-        show_llm_judge_section(run_data, task, task_output_dir)
+        show_checklist_section(run_data, task, task_output_dir)
 
     with tabs[3]:
+        show_llm_judge_section(run_data, task, task_output_dir)
+
+    with tabs[4]:
         show_task_report_section(run_data, task, task_output_dir, trajectory_files, result_files)
 
 
@@ -519,6 +522,223 @@ def show_result_details(result_files):
             st.error(f"Failed to load result: {e}")
     else:
         st.info("No result file found.")
+
+
+def show_checklist_section(run_data, task, task_output_dir):
+    """Show checklist evaluation section for documentation tasks."""
+    st.subheader("Checklist Evaluation")
+
+    # Check if this is a doc task (kubernetes_docs benchmark)
+    benchmark_name = run_data.get("benchmark_name", "").lower()
+    is_doc_task = "doc" in benchmark_name or "kubernetes" in benchmark_name
+
+    if not is_doc_task:
+        st.info("Checklist evaluation is designed for documentation tasks (e.g., kubernetes_docs benchmark).")
+        st.caption("For code-based benchmarks, see the LLM Judge tab for quality assessment.")
+        return
+
+    # Try to find generated README or documentation
+    readme_files = list(task_output_dir.rglob("README.md"))
+    doc_files = list(task_output_dir.rglob("*.md"))
+
+    if not doc_files:
+        st.warning("No documentation files found in task output.")
+        return
+
+    # Load checklist
+    try:
+        from evaluation.checklist import Checklist, ChecklistEvaluator, Severity, EvaluationStatus
+        from benchmark.database import ChecklistEvaluationRegistry
+
+        checklist_path = Path(__file__).parent.parent.parent / "configs" / "checklists" / "ssa-doc-v1.yaml"
+
+        if not checklist_path.exists():
+            st.warning("Checklist file not found. Create configs/checklists/ssa-doc-v1.yaml")
+            return
+
+        checklist = Checklist.from_file(checklist_path)
+
+    except ImportError as e:
+        st.error(f"Failed to import checklist module: {e}")
+        return
+
+    # File selector
+    doc_file_options = [str(f.relative_to(task_output_dir)) for f in doc_files]
+    selected_doc = st.selectbox("Select document to evaluate", doc_file_options)
+
+    if not selected_doc:
+        return
+
+    doc_path = task_output_dir / selected_doc
+
+    # Read document content
+    try:
+        with open(doc_path) as f:
+            doc_content = f.read()
+    except Exception as e:
+        st.error(f"Failed to read document: {e}")
+        return
+
+    # Show document preview
+    with st.expander("Document Preview", expanded=False):
+        st.markdown(doc_content[:3000] + ("..." if len(doc_content) > 3000 else ""))
+
+    # Run evaluation
+    if st.button("Run Checklist Evaluation", key="run_checklist"):
+        with st.spinner("Evaluating document against checklist..."):
+            evaluator = ChecklistEvaluator(checklist)
+            result = evaluator.evaluate_tier_a(doc_content)
+
+            # Store in session state
+            st.session_state[f"checklist_result_{task['task_name']}"] = result
+
+            # Store in database
+            try:
+                ChecklistEvaluationRegistry.add(
+                    run_id=run_data["run_id"],
+                    task_name=task["task_name"],
+                    agent_name=task["agent_name"],
+                    checklist_id=checklist.checklist_id,
+                    covered_items=[e.to_dict() for e in result.item_evaluations],
+                    coverage_score=result.coverage_score,
+                    accuracy_score=result.accuracy_score,
+                    contradiction_count=result.contradiction_count,
+                    weighted_score=result.weighted_score,
+                    evaluation_details=result.evaluation_details,
+                )
+                st.success("Evaluation saved to database")
+            except Exception as e:
+                st.warning(f"Could not save to database: {e}")
+
+    # Display results
+    result_key = f"checklist_result_{task['task_name']}"
+    if result_key in st.session_state:
+        result = st.session_state[result_key]
+        _display_checklist_result(result, checklist)
+    else:
+        # Try to load from database
+        try:
+            from benchmark.database import ChecklistEvaluationRegistry
+            stored = ChecklistEvaluationRegistry.get(
+                run_id=run_data["run_id"],
+                task_name=task["task_name"],
+                agent_name=task["agent_name"],
+                checklist_id="ssa-doc-v1"
+            )
+            if stored:
+                st.info("Loaded previous evaluation from database")
+                # Display stored results
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Coverage", f"{stored['coverage_score']:.1%}")
+                with col2:
+                    st.metric("Accuracy", f"{stored['accuracy_score']:.1%}")
+                with col3:
+                    st.metric("Weighted Score", f"{stored['weighted_score']:.1%}")
+                with col4:
+                    st.metric("Contradictions", stored['contradiction_count'])
+            else:
+                st.info("Click 'Run Checklist Evaluation' to evaluate the document.")
+        except Exception:
+            st.info("Click 'Run Checklist Evaluation' to evaluate the document.")
+
+
+def _display_checklist_result(result, checklist):
+    """Display checklist evaluation results."""
+    from evaluation.checklist import EvaluationStatus, Severity
+
+    # Summary metrics
+    st.markdown("### Evaluation Results")
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Coverage", f"{result.coverage_score:.1%}",
+                  help="Percentage of checklist items covered")
+    with col2:
+        st.metric("Accuracy", f"{result.accuracy_score:.1%}",
+                  help="Correctness of covered items (from Tier B judge)")
+    with col3:
+        st.metric("Weighted Score", f"{result.weighted_score:.1%}",
+                  help="0.6*accuracy + 0.4*coverage - penalties")
+    with col4:
+        st.metric("Covered Items", f"{result.covered_count}/{result.total_items}")
+
+    # Progress bar
+    st.progress(result.coverage_score, text=f"Coverage: {result.covered_count}/{result.total_items} items")
+
+    # Category breakdown
+    st.markdown("### Coverage by Category")
+
+    category_stats = {}
+    for eval_item in result.item_evaluations:
+        item = next((i for i in checklist.items if i.id == eval_item.item_id), None)
+        if item:
+            cat = item.category
+            if cat not in category_stats:
+                category_stats[cat] = {"total": 0, "covered": 0}
+            category_stats[cat]["total"] += 1
+            if eval_item.covered:
+                category_stats[cat]["covered"] += 1
+
+    if category_stats:
+        cat_df_data = []
+        for cat, stats in sorted(category_stats.items()):
+            pct = stats["covered"] / stats["total"] * 100 if stats["total"] > 0 else 0
+            cat_df_data.append({
+                "Category": cat.title(),
+                "Covered": stats["covered"],
+                "Total": stats["total"],
+                "Coverage": f"{pct:.0f}%"
+            })
+
+        st.dataframe(cat_df_data, use_container_width=True, hide_index=True)
+
+    # Item-level details
+    st.markdown("### Item Details")
+
+    # Filter options
+    filter_col1, filter_col2 = st.columns(2)
+    with filter_col1:
+        status_filter = st.multiselect(
+            "Filter by status",
+            ["covered", "not_evaluated"],
+            default=["covered", "not_evaluated"]
+        )
+    with filter_col2:
+        severity_filter = st.multiselect(
+            "Filter by severity",
+            ["must", "should", "nice"],
+            default=["must", "should", "nice"]
+        )
+
+    # Display filtered items
+    for eval_item in result.item_evaluations:
+        item = next((i for i in checklist.items if i.id == eval_item.item_id), None)
+        if not item:
+            continue
+
+        # Apply filters
+        status_str = "covered" if eval_item.covered else "not_evaluated"
+        if status_str not in status_filter:
+            continue
+        if item.severity.value not in severity_filter:
+            continue
+
+        # Create expander for each item
+        status_icon = "✅" if eval_item.covered else "❌"
+        severity_badge = {"must": "🔴", "should": "🟡", "nice": "🟢"}[item.severity.value]
+
+        with st.expander(f"{status_icon} {item.id} {severity_badge} {item.statement[:60]}..."):
+            st.write(f"**Statement:** {item.statement}")
+            st.write(f"**Category:** {item.category} | **Severity:** {item.severity.value}")
+            st.write(f"**Status:** {eval_item.status.value}")
+
+            if eval_item.evidence:
+                st.write("**Evidence found:**")
+                st.code(eval_item.evidence[:500], language="markdown")
+
+            if eval_item.reasoning:
+                st.caption(f"Reasoning: {eval_item.reasoning}")
 
 
 def show_llm_judge_section(run_data, task, task_output_dir):
