@@ -132,30 +132,45 @@ class BaselineClaudeCodeAgent(ClaudeCode):
         with open(mcp_config_path, "w") as f:
             json.dump(mcp_config, f, indent=2)
 
+        # Upload to /app/ (working directory)
         await environment.upload_file(
-            source_path=mcp_config_path, target_path="/workspace/.mcp.json"
+            source_path=mcp_config_path, target_path="/app/.mcp.json"
         )
-        self.logger.info(f"BaselineClaudeCodeAgent: Sourcegraph MCP configured ({sg_url})")
+        # Also upload to home for Claude Code discovery
+        await environment.upload_file(
+            source_path=mcp_config_path, target_path="/root/.mcp.json"
+        )
+        self.logger.info(f"BaselineClaudeCodeAgent: Sourcegraph MCP configured at /app/ and /root/ ({sg_url})")
 
         # Upload CLAUDE.md with Sourcegraph instructions
-        claude_md_content = """# Sourcegraph MCP Tools
+        claude_md_content = """# MANDATORY: Use Sourcegraph MCP Tools
 
-## Available Tools
+## YOU MUST USE MCP TOOLS BEFORE LOCAL TOOLS
 
-You have access to Sourcegraph MCP with the following tools:
+You have Sourcegraph MCP configured. **Your first action should be an MCP tool call.**
 
-- `sg_keyword_search` - Fast exact string matching across the codebase
-- `sg_nls_search` - Natural language semantic search
-- `sg_deepsearch` - Deep semantic search with context understanding
+## MCP Tool Names (use exactly these)
 
-## Usage Guidelines
+- `mcp__sourcegraph__sg_deepsearch` - **USE THIS FIRST** - Deep semantic search
+- `mcp__sourcegraph__sg_keyword_search` - Exact string matching
+- `mcp__sourcegraph__sg_nls_search` - Natural language search
+- `mcp__sourcegraph__sg_read_file` - Read indexed file
 
-Use the most appropriate tool for your task:
-- Exact matches (function/class/variable names): `sg_keyword_search`
-- Conceptual questions: `sg_nls_search`
-- Understanding architecture and code relationships: `sg_deepsearch`
+## First Action
 
-Local tools (Grep, Glob, Read) are available for file-specific operations.
+Before using Bash/Grep/Read, call:
+```
+mcp__sourcegraph__sg_deepsearch(query="<describe the issue>")
+```
+
+## Why MCP First?
+
+The codebase is indexed in Sourcegraph. MCP tools provide:
+- Full cross-file code understanding
+- Semantic relationship awareness
+- Faster navigation than local grep
+
+Local tools (Grep, Glob, Read) should be used AFTER MCP identifies relevant files.
 """
 
         claude_md_path = self.logs_dir / "CLAUDE.md"
@@ -163,7 +178,7 @@ Local tools (Grep, Glob, Read) are available for file-specific operations.
             f.write(claude_md_content)
 
         await environment.upload_file(
-            source_path=claude_md_path, target_path="/workspace/CLAUDE.md"
+            source_path=claude_md_path, target_path="/app/CLAUDE.md"
         )
         self.logger.info("BaselineClaudeCodeAgent: Sourcegraph CLAUDE.md uploaded")
 
@@ -207,43 +222,57 @@ Local tools (Grep, Glob, Read) are available for file-specific operations.
         with open(mcp_config_path, "w") as f:
             json.dump(mcp_config, f, indent=2)
 
+        # Upload to /app/ (working directory)
         await environment.upload_file(
-            source_path=mcp_config_path, target_path="/workspace/.mcp.json"
+            source_path=mcp_config_path, target_path="/app/.mcp.json"
         )
-        self.logger.info(f"BaselineClaudeCodeAgent: Deep Search MCP configured ({deepsearch_url})")
+        # Also upload to home for Claude Code discovery
+        await environment.upload_file(
+            source_path=mcp_config_path, target_path="/root/.mcp.json"
+        )
+        self.logger.info(f"BaselineClaudeCodeAgent: Deep Search MCP configured at /app/ and /root/ ({deepsearch_url})")
 
         # Upload CLAUDE.md with Deep Search instructions
-        claude_md_content = """# Sourcegraph Deep Search
+        claude_md_content = """# MANDATORY: Use Deep Search MCP Tool
 
-## Available Tool
+## YOUR FIRST ACTION MUST BE A DEEP SEARCH CALL
 
-You have access to Sourcegraph Deep Search (`sg_deepsearch`) via MCP.
+You have Sourcegraph Deep Search MCP configured. **Call it before any local tools.**
 
-## What is Deep Search?
+## MCP Tool Name (use exactly this)
 
-Deep Search is a powerful semantic search tool that understands code relationships,
-architecture patterns, and cross-file dependencies.
+- `mcp__deepsearch__sg_deepsearch` - **CALL THIS FIRST** - Deep semantic search
 
-## When to Use Deep Search
+## First Action
 
-Use `sg_deepsearch` to:
-- Understand code architecture and subsystem structure
-- Find all usages and relationships of functions/classes
-- Trace data flow across multiple files
-- Discover code patterns and conventions
-- Answer architectural questions
-
-## Usage Pattern
-
+Before using Bash/Grep/Read, you MUST call:
 ```
-1. Use Deep Search to understand the problem space
-2. Identify relevant files and code locations
-3. Read specific files with local Read tool
-4. Make targeted code changes
+mcp__deepsearch__sg_deepsearch(query="<describe the issue>")
 ```
 
-Local tools (Grep, Glob, Read) are available for file-specific operations after
-you've used Deep Search to understand the context.
+Example:
+```
+mcp__deepsearch__sg_deepsearch(query="TypeError combine_vars VarsWithSources dict")
+```
+
+## Why Deep Search First?
+
+1. The codebase is fully indexed in Sourcegraph
+2. Deep Search understands semantic code relationships
+3. Local grep only does pattern matching
+4. Deep Search finds the right code immediately
+
+## FORBIDDEN First Actions
+
+❌ `Bash("grep ...")` - Do NOT grep before Deep Search
+❌ `Read("some/file.py")` - Do NOT read random files first
+❌ Starting with local file exploration
+
+## Correct Workflow
+
+1. **FIRST**: `mcp__deepsearch__sg_deepsearch(query="...")`
+2. **THEN**: Read specific files from results
+3. **THEN**: Make targeted code changes
 """
 
         claude_md_path = self.logs_dir / "CLAUDE.md"
@@ -251,6 +280,6 @@ you've used Deep Search to understand the context.
             f.write(claude_md_content)
 
         await environment.upload_file(
-            source_path=claude_md_path, target_path="/workspace/CLAUDE.md"
+            source_path=claude_md_path, target_path="/app/CLAUDE.md"
         )
         self.logger.info("BaselineClaudeCodeAgent: Deep Search CLAUDE.md uploaded")
