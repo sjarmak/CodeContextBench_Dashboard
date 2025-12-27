@@ -359,10 +359,15 @@ class RunManager:
 
     @staticmethod
     def get(run_id: str) -> Optional[Dict]:
-        """Get run by ID."""
+        """Get run by ID with benchmark name included."""
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM evaluation_runs WHERE run_id = ?", (run_id,))
+            cursor.execute("""
+                SELECT e.*, b.name as benchmark_name, b.folder_name as benchmark_folder
+                FROM evaluation_runs e
+                LEFT JOIN benchmarks b ON e.benchmark_id = b.id
+                WHERE e.run_id = ?
+            """, (run_id,))
             row = cursor.fetchone()
             if row:
                 result = dict(row)
@@ -375,14 +380,23 @@ class RunManager:
 
     @staticmethod
     def list_all(status: Optional[str] = None) -> List[Dict]:
-        """List all runs, optionally filtered by status."""
+        """List all runs, optionally filtered by status.
+
+        Joins with benchmarks table to include benchmark_name in results.
+        """
         with get_db() as conn:
             cursor = conn.cursor()
+            # Join with benchmarks to get benchmark_name
+            base_query = """
+                SELECT e.*, b.name as benchmark_name, b.folder_name as benchmark_folder
+                FROM evaluation_runs e
+                LEFT JOIN benchmarks b ON e.benchmark_id = b.id
+            """
             if status:
-                cursor.execute("SELECT * FROM evaluation_runs WHERE status = ? ORDER BY created_at DESC",
+                cursor.execute(f"{base_query} WHERE e.status = ? ORDER BY e.created_at DESC",
                              (status,))
             else:
-                cursor.execute("SELECT * FROM evaluation_runs ORDER BY created_at DESC")
+                cursor.execute(f"{base_query} ORDER BY e.created_at DESC")
 
             results = []
             for row in cursor.fetchall():

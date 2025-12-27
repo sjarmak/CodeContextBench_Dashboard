@@ -148,7 +148,10 @@ mcp__sourcegraph__sg_deepsearch(query="TypeError combine_vars VarsWithSources im
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
         """Override to enable implementation mode with strategic Deep Search."""
         parent_commands = super().create_run_agent_commands(instruction)
-        allowed_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        # Include MCP tools for Sourcegraph integration
+        base_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        mcp_tools = "mcp__sourcegraph__sg_deepsearch,mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file,mcp__deepsearch__deepsearch"
+        allowed_tools = f"{base_tools},{mcp_tools}"
 
         result = []
         for cmd in parent_commands:
@@ -349,7 +352,10 @@ Remember: Deep Search saves tokens by finding the right code faster.
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
         """Override to enable implementation mode with Deep Search emphasis."""
         parent_commands = super().create_run_agent_commands(instruction)
-        allowed_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        # Include MCP tools for Sourcegraph integration
+        base_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        mcp_tools = "mcp__sourcegraph__sg_deepsearch,mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file,mcp__deepsearch__deepsearch"
+        allowed_tools = f"{base_tools},{mcp_tools}"
 
         result = []
         for cmd in parent_commands:
@@ -478,11 +484,11 @@ class MCPNonDeepSearchAgent(ClaudeCode):
 You have Sourcegraph MCP with these search tools:
 
 **USE THESE:**
-- `sg_keyword_search` - Fast exact string matching across the codebase
-- `sg_nls_search` - Natural language semantic search
+- `mcp__sourcegraph__sg_keyword_search` - Fast exact string matching across the codebase
+- `mcp__sourcegraph__sg_nls_search` - Natural language semantic search
 
 **DO NOT USE:**
-- `sg_deepsearch` - This tool is disabled for this benchmark variant
+- `mcp__sourcegraph__sg_deepsearch` - This tool is disabled for this benchmark variant
 
 ## Search Strategy
 
@@ -510,19 +516,19 @@ CRITICAL: You must make actual code modifications. The task is complete only whe
 
 ## Available Tools
 
-✅ `sg_keyword_search` - Exact string matching
-✅ `sg_nls_search` - Natural language queries
+✅ `mcp__sourcegraph__sg_keyword_search` - Exact string matching
+✅ `mcp__sourcegraph__sg_nls_search` - Natural language queries
 ✅ Local Grep/Glob for directory-scoped searches
 
 ## NOT Available
 
-❌ `sg_deepsearch` - Disabled for this benchmark variant
+❌ `mcp__sourcegraph__sg_deepsearch` - Disabled for this benchmark variant
 
 ## Usage Patterns
 
 ```
-sg_keyword_search: "AuthenticationError"
-sg_nls_search: "how does user login work"
+mcp__sourcegraph__sg_keyword_search(query="AuthenticationError")
+mcp__sourcegraph__sg_nls_search(query="how does user login work")
 ```
 
 Use keyword search for:
@@ -540,7 +546,10 @@ Use NLS search for:
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
         """Override to enable implementation mode."""
         parent_commands = super().create_run_agent_commands(instruction)
-        allowed_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        # Include MCP tools for Sourcegraph integration (excluding deep search)
+        base_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        mcp_tools = "mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file"
+        allowed_tools = f"{base_tools},{mcp_tools}"
 
         result = []
         for cmd in parent_commands:
@@ -702,7 +711,10 @@ Choose the best tool for your task. All tools are available and equally valid ch
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
         """Override to enable implementation mode."""
         parent_commands = super().create_run_agent_commands(instruction)
-        allowed_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        # Include all MCP tools for Sourcegraph integration
+        base_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        mcp_tools = "mcp__sourcegraph__sg_deepsearch,mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file,mcp__deepsearch__deepsearch"
+        allowed_tools = f"{base_tools},{mcp_tools}"
 
         result = []
         for cmd in parent_commands:

@@ -347,6 +347,29 @@ class EvaluationOrchestrator:
         }
 
 
+def _extract_agent_short_name(agent_path: str) -> str:
+    """Extract a short name from agent import path.
+
+    Examples:
+        'agents.mcp_variants:StrategicDeepSearchAgent' -> 'StrategicDeepSearch'
+        'agents.claude_baseline_agent:BaselineClaudeCodeAgent' -> 'Baseline'
+        'agents.mcp_variants:DeepSearchFocusedAgent' -> 'DeepSearchFocused'
+    """
+    # Extract class name from path like 'module:ClassName'
+    if ':' in agent_path:
+        class_name = agent_path.split(':')[-1]
+    else:
+        class_name = agent_path.split('.')[-1]
+
+    # Remove common suffixes
+    for suffix in ['ClaudeCodeAgent', 'Agent', 'Claude']:
+        if class_name.endswith(suffix):
+            class_name = class_name[:-len(suffix)]
+            break
+
+    return class_name or 'Unknown'
+
+
 def create_evaluation_run(
     benchmark_name: str,
     agents: List[str],
@@ -372,9 +395,14 @@ def create_evaluation_run(
     if not benchmark:
         raise ValueError(f"Benchmark not found: {benchmark_name}")
 
-    # Generate run_id
+    # Extract agent short names for run_id
+    agent_names = [_extract_agent_short_name(a) for a in agents]
+    # Use first agent name if single, otherwise 'multi'
+    agent_suffix = agent_names[0] if len(agent_names) == 1 else f"multi_{len(agent_names)}"
+
+    # Generate run_id with agent config
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    run_id = f"{benchmark_name}_{timestamp}"
+    run_id = f"{benchmark_name}_{agent_suffix}_{timestamp}"
 
     # Create output directory
     output_dir = f"jobs/{run_id}"

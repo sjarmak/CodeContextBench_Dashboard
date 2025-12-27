@@ -56,7 +56,10 @@ class BaselineClaudeCodeAgent(ClaudeCode):
         parent_commands = super().create_run_agent_commands(instruction)
         
         # All tools Claude needs for implementation
-        allowed_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        # Include MCP tools for Sourcegraph integration (mcp__<server>__<tool>)
+        base_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
+        mcp_tools = "mcp__sourcegraph__sg_deepsearch,mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file,mcp__deepsearch__deepsearch"
+        allowed_tools = f"{base_tools},{mcp_tools}"
         
         # Modify the Claude command to enable implementation mode with full tool access
         result = []
@@ -241,18 +244,18 @@ You have Sourcegraph Deep Search MCP configured. **Call it before any local tool
 
 ## MCP Tool Name (use exactly this)
 
-- `mcp__deepsearch__sg_deepsearch` - **CALL THIS FIRST** - Deep semantic search
+- `mcp__deepsearch__deepsearch` - **CALL THIS FIRST** - Deep semantic search
 
 ## First Action
 
 Before using Bash/Grep/Read, you MUST call:
 ```
-mcp__deepsearch__sg_deepsearch(query="<describe the issue>")
+mcp__deepsearch__deepsearch(query="<describe the issue>")
 ```
 
 Example:
 ```
-mcp__deepsearch__sg_deepsearch(query="TypeError combine_vars VarsWithSources dict")
+mcp__deepsearch__deepsearch(query="TypeError combine_vars VarsWithSources dict")
 ```
 
 ## Why Deep Search First?
@@ -270,7 +273,7 @@ mcp__deepsearch__sg_deepsearch(query="TypeError combine_vars VarsWithSources dic
 
 ## Correct Workflow
 
-1. **FIRST**: `mcp__deepsearch__sg_deepsearch(query="...")`
+1. **FIRST**: `mcp__deepsearch__deepsearch(query="...")`
 2. **THEN**: Read specific files from results
 3. **THEN**: Make targeted code changes
 """
