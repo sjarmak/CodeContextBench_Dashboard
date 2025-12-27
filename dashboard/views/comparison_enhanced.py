@@ -1,12 +1,13 @@
 """
-Enhanced Comparison Table
+Enhanced Comparison Table with A/B Analysis
 
 Comprehensive comparison of evaluation runs including:
-- Agent type
+- Agent type comparison (baseline vs MCP variants)
+- Paired A/B analysis (same task across tool stacks)
 - Benchmark (full vs subset)
 - Tokens, time, pass/fail
-- Tool usage
-- LLM evaluation summary
+- Visualizations (bar charts, radar charts)
+- Tool stack comparison
 """
 
 import streamlit as st
@@ -16,10 +17,17 @@ import sys
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from benchmark.database import RunManager, TaskManager, BenchmarkRegistry
+from benchmark.database import RunManager, TaskManager, BenchmarkRegistry, ToolStackRegistry
 from benchmark.cost_calculator import calculate_cost
 import pandas as pd
 import json
+
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
 
 
 def load_comparison_data():
@@ -117,10 +125,178 @@ def load_comparison_data():
     return comparison_data
 
 
+def create_paired_comparison(df):
+    """Create paired comparison data for same tasks across agents."""
+    # Group by benchmark and task to find paired runs
+    paired_data = []
+
+    # Get unique benchmarks
+    benchmarks = df["Benchmark"].unique()
+
+    for benchmark in benchmarks:
+        benchmark_df = df[df["Benchmark"] == benchmark]
+        agents = benchmark_df["Agent"].unique()
+
+        if len(agents) < 2:
+            continue
+
+        # Compare each pair of agents
+        for i, agent_a in enumerate(agents):
+            for agent_b in agents[i+1:]:
+                a_data = benchmark_df[benchmark_df["Agent"] == agent_a].iloc[0] if len(benchmark_df[benchmark_df["Agent"] == agent_a]) > 0 else None
+                b_data = benchmark_df[benchmark_df["Agent"] == agent_b].iloc[0] if len(benchmark_df[benchmark_df["Agent"] == agent_b]) > 0 else None
+
+                if a_data is not None and b_data is not None:
+                    # Parse pass rates
+                    a_pass = float(a_data["Pass Rate"].replace("%", "")) if isinstance(a_data["Pass Rate"], str) else a_data["Pass Rate"]
+                    b_pass = float(b_data["Pass Rate"].replace("%", "")) if isinstance(b_data["Pass Rate"], str) else b_data["Pass Rate"]
+
+                    # Parse costs
+                    a_cost = float(a_data["Cost (USD)"].replace("$", "")) if isinstance(a_data["Cost (USD)"], str) else a_data["Cost (USD)"]
+                    b_cost = float(b_data["Cost (USD)"].replace("$", "")) if isinstance(b_data["Cost (USD)"], str) else b_data["Cost (USD)"]
+
+                    paired_data.append({
+                        "Benchmark": benchmark,
+                        "Agent A": agent_a,
+                        "Agent B": agent_b,
+                        "A Pass Rate": a_pass,
+                        "B Pass Rate": b_pass,
+                        "Pass Rate Delta": b_pass - a_pass,
+                        "A Cost": a_cost,
+                        "B Cost": b_cost,
+                        "Cost Delta": b_cost - a_cost,
+                        "A Tasks": a_data["Tasks"],
+                        "B Tasks": b_data["Tasks"],
+                    })
+
+    return pd.DataFrame(paired_data) if paired_data else pd.DataFrame()
+
+
+def show_comparison_charts(df):
+    """Show comparison charts using Plotly."""
+    if not PLOTLY_AVAILABLE:
+        st.warning("Plotly not installed. Run `pip install plotly` for charts.")
+        return
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Success rate by agent
+        st.subheader("Pass Rate by Agent")
+
+        # Parse pass rate
+        df_chart = df.copy()
+        df_chart["Pass Rate Value"] = df_chart["Pass Rate"].apply(
+            lambda x: float(x.replace("%", "")) if isinstance(x, str) else x
+        )
+
+        fig = px.bar(
+            df_chart,
+            x="Agent",
+            y="Pass Rate Value",
+            color="Benchmark",
+            barmode="group",
+            title="Pass Rate by Agent and Benchmark"
+        )
+        fig.update_yaxes(title="Pass Rate (%)", range=[0, 100])
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        # Token usage comparison
+        st.subheader("Token Usage by Agent")
+
+        # Parse token values
+        df_chart = df.copy()
+        for col in ["Input Tokens", "Output Tokens", "Cached Tokens"]:
+            df_chart[f"{col} Value"] = df_chart[col].apply(
+                lambda x: int(x.replace(",", "")) if isinstance(x, str) else x
+            )
+
+        # Aggregate by agent
+        agent_tokens = df_chart.groupby("Agent").agg({
+            "Input Tokens Value": "sum",
+            "Output Tokens Value": "sum",
+            "Cached Tokens Value": "sum"
+        }).reset_index()
+
+        fig = go.Figure()
+        fig.add_trace(go.Bar(name="Input", x=agent_tokens["Agent"], y=agent_tokens["Input Tokens Value"]))
+        fig.add_trace(go.Bar(name="Output", x=agent_tokens["Agent"], y=agent_tokens["Output Tokens Value"]))
+        fig.add_trace(go.Bar(name="Cached", x=agent_tokens["Agent"], y=agent_tokens["Cached Tokens Value"]))
+        fig.update_layout(barmode="stack", title="Token Usage by Agent (Stacked)")
+        fig.update_yaxes(title="Tokens")
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Cost comparison
+    st.subheader("Cost Comparison")
+    df_chart = df.copy()
+    df_chart["Cost Value"] = df_chart["Cost (USD)"].apply(
+        lambda x: float(x.replace("$", "")) if isinstance(x, str) else x
+    )
+
+    fig = px.bar(
+        df_chart,
+        x="Agent",
+        y="Cost Value",
+        color="Benchmark",
+        barmode="group",
+        title="Cost by Agent and Benchmark (USD)"
+    )
+    fig.update_yaxes(title="Cost (USD)")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def show_paired_analysis(df):
+    """Show paired A/B analysis."""
+    paired_df = create_paired_comparison(df)
+
+    if paired_df.empty:
+        st.info("Need at least 2 agents on the same benchmark for paired comparison.")
+        return
+
+    st.subheader("Paired Agent Comparison")
+    st.write("Compare performance between agent pairs on the same benchmark")
+
+    # Show paired comparison table
+    st.dataframe(
+        paired_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Pass Rate Delta": st.column_config.NumberColumn(
+                "Pass Rate Delta (%)",
+                format="%.1f",
+                help="Positive = Agent B better, Negative = Agent A better"
+            ),
+            "Cost Delta": st.column_config.NumberColumn(
+                "Cost Delta ($)",
+                format="%.4f",
+                help="Positive = Agent B more expensive"
+            )
+        }
+    )
+
+    # Delta visualization
+    if PLOTLY_AVAILABLE and len(paired_df) > 0:
+        st.subheader("Pass Rate Delta (Agent B - Agent A)")
+
+        fig = px.bar(
+            paired_df,
+            x="Benchmark",
+            y="Pass Rate Delta",
+            color="Agent B",
+            title="Pass Rate Improvement (Positive = B Better)",
+            hover_data=["Agent A", "Agent B", "A Pass Rate", "B Pass Rate"]
+        )
+        fig.add_hline(y=0, line_dash="dash", line_color="gray")
+        fig.update_yaxes(title="Pass Rate Delta (%)")
+        st.plotly_chart(fig, use_container_width=True)
+
+
 def show_comparison_enhanced():
     """Main enhanced comparison page."""
-    st.title("Evaluation Comparison Table")
-    st.write("Comprehensive comparison of all evaluation runs")
+    st.title("Evaluation Comparison")
+    st.write("Compare evaluation runs across agents, benchmarks, and tool stacks")
 
     # Load data
     comparison_data = load_comparison_data()
@@ -132,22 +308,21 @@ def show_comparison_enhanced():
     # Create dataframe
     df = pd.DataFrame(comparison_data)
 
-    # Filters
-    st.subheader("Filters")
+    # Filters in sidebar-style expander
+    with st.expander("Filters", expanded=True):
+        col1, col2, col3 = st.columns(3)
 
-    col1, col2, col3 = st.columns(3)
+        with col1:
+            benchmarks = df["Benchmark"].unique().tolist()
+            selected_benchmarks = st.multiselect("Benchmarks", benchmarks, default=benchmarks, key="cmp_bench")
 
-    with col1:
-        benchmarks = df["Benchmark"].unique().tolist()
-        selected_benchmarks = st.multiselect("Benchmarks", benchmarks, default=benchmarks)
+        with col2:
+            agents = df["Agent"].unique().tolist()
+            selected_agents = st.multiselect("Agents", agents, default=agents, key="cmp_agent")
 
-    with col2:
-        agents = df["Agent"].unique().tolist()
-        selected_agents = st.multiselect("Agents", agents, default=agents)
-
-    with col3:
-        run_types = df["Run Type"].unique().tolist()
-        selected_run_types = st.multiselect("Run Type", run_types, default=run_types)
+        with col3:
+            run_types = df["Run Type"].unique().tolist()
+            selected_run_types = st.multiselect("Run Type", run_types, default=run_types, key="cmp_type")
 
     # Filter dataframe
     filtered_df = df[
@@ -156,36 +331,16 @@ def show_comparison_enhanced():
         (df["Run Type"].isin(selected_run_types))
     ]
 
-    # Display table
-    st.subheader(f"Comparison Table ({len(filtered_df)} runs)")
+    if filtered_df.empty:
+        st.warning("No runs match the selected filters.")
+        return
 
-    st.dataframe(
-        filtered_df,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    # Add note about cached tokens
-    st.caption("💡 **Note on Cached Tokens:** Anthropic charges for cached tokens at ~10% of regular input token rates (e.g., Haiku 4.5: $0.08 vs $0.80 per million). The cost shown includes this discounted rate.")
-
-    # Download option
-    csv = filtered_df.to_csv(index=False)
-    st.download_button(
-        "Download as CSV",
-        csv,
-        "evaluation_comparison.csv",
-        "text/csv",
-    )
-
-    # Summary statistics
-    st.markdown("---")
-    st.subheader("Summary Statistics")
-
+    # Summary metrics at top
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         avg_pass_rate = filtered_df["Passed"].sum() / filtered_df["Tasks"].sum() * 100 if filtered_df["Tasks"].sum() > 0 else 0
-        st.metric("Average Pass Rate", f"{avg_pass_rate:.1f}%")
+        st.metric("Avg Pass Rate", f"{avg_pass_rate:.1f}%")
 
     with col2:
         total_cost = filtered_df["Cost (USD)"].str.replace("$", "").astype(float).sum()
@@ -196,8 +351,43 @@ def show_comparison_enhanced():
         st.metric("Total Tasks", total_tasks)
 
     with col4:
-        unique_benchmarks = filtered_df["Benchmark"].nunique()
-        st.metric("Benchmarks", unique_benchmarks)
+        unique_agents = filtered_df["Agent"].nunique()
+        st.metric("Agents", unique_agents)
+
+    st.markdown("---")
+
+    # Tabs for different views
+    tab_table, tab_charts, tab_paired = st.tabs(["Table", "Charts", "A/B Comparison"])
+
+    with tab_table:
+        st.subheader(f"Comparison Table ({len(filtered_df)} runs)")
+
+        st.dataframe(
+            filtered_df,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.caption("💡 **Cached Tokens:** Charged at ~10% of regular input rates.")
+
+        # Download option
+        csv = filtered_df.to_csv(index=False)
+        st.download_button(
+            "Download as CSV",
+            csv,
+            "evaluation_comparison.csv",
+            "text/csv",
+        )
+
+    with tab_charts:
+        show_comparison_charts(filtered_df)
+
+    with tab_paired:
+        show_paired_analysis(filtered_df)
+
+    # Tool stack legend
+    st.markdown("---")
+    st.caption("**Tool Stacks:** Baseline (no MCP) | Sourcegraph MCP (full toolkit) | Deep Search MCP (semantic search only)")
 
 
 if __name__ == "__main__":

@@ -89,29 +89,56 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
-    # Navigation items
+    # Navigation items - organized by workflow
+    # Primary workflow
     nav_items = [
         "Home",
         "Benchmark Manager",
+        "Add Benchmark",
         "Evaluation Runner",
         "Run Results",
-        "Comparison Table",
     ]
 
-    # Create navigation buttons
-    for item in nav_items:
-        # Highlight current page with different styling
-        if item == st.session_state.current_page:
+    # Analysis & comparison
+    nav_items_analysis = [
+        "Comparison Table",
+        "Agent Comparison",
+        "Deep Search Analytics",
+    ]
+
+    # Advanced views
+    nav_items_advanced = [
+        "Experiment Results",
+        "Manifests",
+        "Agent Versions",
+    ]
+
+    def render_nav_section(items, section_label=None):
+        """Render a navigation section with optional label."""
+        if section_label:
             st.sidebar.markdown(
-                f'<div style="background-color: rgba(74, 158, 255, 0.1); '
-                f'border-left: 3px solid #4a9eff; padding: 12px 13px; '
-                f'border-bottom: 1px solid #333; font-weight: 500;">{item}</div>',
+                f'<div style="padding: 8px 16px; font-size: 0.75em; '
+                f'color: #888; text-transform: uppercase; letter-spacing: 0.05em;">'
+                f'{section_label}</div>',
                 unsafe_allow_html=True
             )
-        else:
-            if st.sidebar.button(item, key=f"nav_{item}"):
-                st.session_state.current_page = item
-                st.rerun()
+        for item in items:
+            if item == st.session_state.current_page:
+                st.sidebar.markdown(
+                    f'<div style="background-color: rgba(74, 158, 255, 0.1); '
+                    f'border-left: 3px solid #4a9eff; padding: 12px 13px; '
+                    f'border-bottom: 1px solid #333; font-weight: 500;">{item}</div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                if st.sidebar.button(item, key=f"nav_{item}"):
+                    st.session_state.current_page = item
+                    st.rerun()
+
+    # Render navigation sections
+    render_nav_section(nav_items, "Benchmarks")
+    render_nav_section(nav_items_analysis, "Analysis")
+    render_nav_section(nav_items_advanced, "Advanced")
 
     st.sidebar.markdown("---")
     st.sidebar.caption(f"Project: {PROJECT_ROOT.name}")
@@ -132,12 +159,24 @@ def main():
         show_home()
     elif page == "Benchmark Manager":
         show_benchmark_manager()
+    elif page == "Add Benchmark":
+        show_add_benchmark()
     elif page == "Evaluation Runner":
         show_evaluation_runner()
     elif page == "Run Results":
         show_run_results()
     elif page == "Comparison Table":
         show_comparison_enhanced()
+    elif page == "Agent Comparison":
+        show_agent_comparison()
+    elif page == "Deep Search Analytics":
+        show_deep_search()
+    elif page == "Experiment Results":
+        show_experiment_results()
+    elif page == "Manifests":
+        show_manifests()
+    elif page == "Agent Versions":
+        show_agent_versions()
 
 
 def show_home():
@@ -257,6 +296,42 @@ def show_comparison_enhanced():
     """Enhanced comparison table."""
     from views.comparison_enhanced import show_comparison_enhanced as show_enhanced
     show_enhanced()
+
+
+def show_add_benchmark():
+    """Add benchmark page."""
+    from views.add_benchmark import show_add_benchmark as show_add
+    show_add()
+
+
+def show_agent_comparison():
+    """Agent comparison charts page."""
+    from views.comparison import show_comparison_view as show_compare
+    show_compare()
+
+
+def show_deep_search():
+    """Deep Search analytics page."""
+    from views.deep_search import show_deep_search_analytics as show_ds
+    show_ds()
+
+
+def show_experiment_results():
+    """Experiment results browser page."""
+    from views.results import show_results_browser as show_exp
+    show_exp()
+
+
+def show_manifests():
+    """Manifests viewer page."""
+    from views.manifests import show_manifest_viewer as show_mf
+    show_mf()
+
+
+def show_agent_versions():
+    """Agent versions management page."""
+    from views.agent_versions import show_agent_versions as show_av
+    show_av()
 
 
 if __name__ == "__main__":

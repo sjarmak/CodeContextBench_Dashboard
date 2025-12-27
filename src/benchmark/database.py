@@ -161,6 +161,95 @@ def init_database():
             )
         """)
 
+        # Reference bundles (excerpt packs for grounded evaluation)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ref_bundles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bundle_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                sources TEXT,
+                excerpts TEXT,
+                excerpt_count INTEGER DEFAULT 0,
+                source_hash TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Versioned checklists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS checklists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                checklist_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                ref_bundle_id TEXT,
+                yaml_content TEXT NOT NULL,
+                item_count INTEGER DEFAULT 0,
+                categories TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (ref_bundle_id) REFERENCES ref_bundles(bundle_id)
+            )
+        """)
+
+        # Checklist evaluations per task
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS checklist_evaluations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                task_name TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                checklist_id TEXT NOT NULL,
+                covered_items TEXT,
+                coverage_score REAL,
+                accuracy_score REAL,
+                contradiction_count INTEGER DEFAULT 0,
+                weighted_score REAL,
+                evaluation_details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (run_id) REFERENCES evaluation_runs(run_id),
+                FOREIGN KEY (checklist_id) REFERENCES checklists(checklist_id),
+                UNIQUE(run_id, task_name, agent_name, checklist_id)
+            )
+        """)
+
+        # Grounding anchor validations
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS grounding_validations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                task_name TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                anchors_total INTEGER DEFAULT 0,
+                anchors_valid INTEGER DEFAULT 0,
+                anchors_invalid INTEGER DEFAULT 0,
+                required_areas TEXT,
+                missing_areas TEXT,
+                valid_anchors TEXT,
+                invalid_anchors TEXT,
+                grounding_score REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (run_id) REFERENCES evaluation_runs(run_id),
+                UNIQUE(run_id, task_name, agent_name)
+            )
+        """)
+
+        # Tool stacks for A/B comparison
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tool_stacks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                stack_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                tools_enabled TEXT,
+                mcp_config TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Indexes for performance
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_status ON evaluation_runs(status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_run_tasks_run_id ON run_tasks(run_id)")
@@ -169,6 +258,9 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_judge_run_id ON judge_evaluations(run_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_judge_task ON judge_evaluations(run_id, task_name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_run_id ON evaluation_reports(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_checklist_eval_run ON checklist_evaluations(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_grounding_run ON grounding_validations(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tool_stacks_active ON tool_stacks(is_active)")
 
         conn.commit()
 
@@ -670,5 +762,438 @@ class EvaluationReportRegistry:
             return results
 
 
+class RefBundleRegistry:
+    """Manage reference excerpt bundles for grounded evaluation."""
+
+    @staticmethod
+    def add(bundle_id: str, name: str, sources: List[Dict], excerpts: List[Dict],
+            description: Optional[str] = None, source_hash: Optional[str] = None) -> int:
+        """Add a reference bundle."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO ref_bundles
+                (bundle_id, name, description, sources, excerpts, excerpt_count, source_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (bundle_id, name, description,
+                  json.dumps(sources), json.dumps(excerpts),
+                  len(excerpts), source_hash))
+            return cursor.lastrowid
+
+    @staticmethod
+    def get(bundle_id: str) -> Optional[Dict]:
+        """Get reference bundle by ID."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM ref_bundles WHERE bundle_id = ?", (bundle_id,))
+            row = cursor.fetchone()
+            if row:
+                result = dict(row)
+                for field in ['sources', 'excerpts']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                return result
+            return None
+
+    @staticmethod
+    def list_all() -> List[Dict]:
+        """List all reference bundles."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM ref_bundles ORDER BY created_at DESC")
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                for field in ['sources', 'excerpts']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                results.append(result)
+            return results
+
+    @staticmethod
+    def update(bundle_id: str, **kwargs):
+        """Update reference bundle."""
+        valid_fields = {'name', 'description', 'sources', 'excerpts', 'source_hash'}
+        updates = {k: v for k, v in kwargs.items() if k in valid_fields}
+
+        for field in ['sources', 'excerpts']:
+            if field in updates and isinstance(updates[field], (list, dict)):
+                updates[field] = json.dumps(updates[field])
+
+        if 'excerpts' in updates:
+            excerpts = kwargs.get('excerpts', [])
+            updates['excerpt_count'] = len(excerpts) if isinstance(excerpts, list) else 0
+
+        updates['updated_at'] = datetime.utcnow().isoformat()
+
+        if not updates:
+            return
+
+        set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
+        values = list(updates.values()) + [bundle_id]
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE ref_bundles SET {set_clause} WHERE bundle_id = ?", values)
+
+
+class ChecklistRegistry:
+    """Manage versioned checklists."""
+
+    @staticmethod
+    def add(checklist_id: str, name: str, yaml_content: str,
+            ref_bundle_id: Optional[str] = None, description: Optional[str] = None,
+            categories: Optional[List[str]] = None, item_count: int = 0) -> int:
+        """Add a checklist."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO checklists
+                (checklist_id, name, description, ref_bundle_id, yaml_content, item_count, categories)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (checklist_id, name, description, ref_bundle_id, yaml_content,
+                  item_count, json.dumps(categories) if categories else None))
+            return cursor.lastrowid
+
+    @staticmethod
+    def get(checklist_id: str) -> Optional[Dict]:
+        """Get checklist by ID."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM checklists WHERE checklist_id = ?", (checklist_id,))
+            row = cursor.fetchone()
+            if row:
+                result = dict(row)
+                if result.get('categories'):
+                    result['categories'] = json.loads(result['categories'])
+                return result
+            return None
+
+    @staticmethod
+    def list_all() -> List[Dict]:
+        """List all checklists."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM checklists ORDER BY created_at DESC")
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                if result.get('categories'):
+                    result['categories'] = json.loads(result['categories'])
+                results.append(result)
+            return results
+
+    @staticmethod
+    def list_for_bundle(ref_bundle_id: str) -> List[Dict]:
+        """List checklists for a reference bundle."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM checklists WHERE ref_bundle_id = ?
+                ORDER BY created_at DESC
+            """, (ref_bundle_id,))
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                if result.get('categories'):
+                    result['categories'] = json.loads(result['categories'])
+                results.append(result)
+            return results
+
+
+class ChecklistEvaluationRegistry:
+    """Manage checklist evaluations per task."""
+
+    @staticmethod
+    def add(run_id: str, task_name: str, agent_name: str, checklist_id: str,
+            covered_items: Optional[List[Dict]] = None,
+            coverage_score: Optional[float] = None,
+            accuracy_score: Optional[float] = None,
+            contradiction_count: int = 0,
+            weighted_score: Optional[float] = None,
+            evaluation_details: Optional[Dict] = None) -> int:
+        """Add or update checklist evaluation."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            # Try to update existing
+            cursor.execute("""
+                UPDATE checklist_evaluations
+                SET covered_items = ?, coverage_score = ?, accuracy_score = ?,
+                    contradiction_count = ?, weighted_score = ?, evaluation_details = ?,
+                    created_at = CURRENT_TIMESTAMP
+                WHERE run_id = ? AND task_name = ? AND agent_name = ? AND checklist_id = ?
+            """, (json.dumps(covered_items) if covered_items else None,
+                  coverage_score, accuracy_score, contradiction_count, weighted_score,
+                  json.dumps(evaluation_details) if evaluation_details else None,
+                  run_id, task_name, agent_name, checklist_id))
+
+            if cursor.rowcount == 0:
+                cursor.execute("""
+                    INSERT INTO checklist_evaluations
+                    (run_id, task_name, agent_name, checklist_id, covered_items,
+                     coverage_score, accuracy_score, contradiction_count, weighted_score,
+                     evaluation_details)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (run_id, task_name, agent_name, checklist_id,
+                      json.dumps(covered_items) if covered_items else None,
+                      coverage_score, accuracy_score, contradiction_count, weighted_score,
+                      json.dumps(evaluation_details) if evaluation_details else None))
+                return cursor.lastrowid
+            return cursor.lastrowid
+
+    @staticmethod
+    def get(run_id: str, task_name: str, agent_name: str,
+            checklist_id: str) -> Optional[Dict]:
+        """Get checklist evaluation."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM checklist_evaluations
+                WHERE run_id = ? AND task_name = ? AND agent_name = ? AND checklist_id = ?
+            """, (run_id, task_name, agent_name, checklist_id))
+            row = cursor.fetchone()
+            if row:
+                result = dict(row)
+                for field in ['covered_items', 'evaluation_details']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                return result
+            return None
+
+    @staticmethod
+    def list_for_run(run_id: str) -> List[Dict]:
+        """List all checklist evaluations for a run."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM checklist_evaluations
+                WHERE run_id = ?
+                ORDER BY task_name, agent_name
+            """, (run_id,))
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                for field in ['covered_items', 'evaluation_details']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                results.append(result)
+            return results
+
+
+class GroundingValidationRegistry:
+    """Manage grounding anchor validations."""
+
+    @staticmethod
+    def add(run_id: str, task_name: str, agent_name: str,
+            anchors_total: int = 0, anchors_valid: int = 0, anchors_invalid: int = 0,
+            required_areas: Optional[List[str]] = None,
+            missing_areas: Optional[List[str]] = None,
+            valid_anchors: Optional[List[Dict]] = None,
+            invalid_anchors: Optional[List[Dict]] = None,
+            grounding_score: Optional[float] = None) -> int:
+        """Add or update grounding validation."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            # Try to update existing
+            cursor.execute("""
+                UPDATE grounding_validations
+                SET anchors_total = ?, anchors_valid = ?, anchors_invalid = ?,
+                    required_areas = ?, missing_areas = ?, valid_anchors = ?,
+                    invalid_anchors = ?, grounding_score = ?,
+                    created_at = CURRENT_TIMESTAMP
+                WHERE run_id = ? AND task_name = ? AND agent_name = ?
+            """, (anchors_total, anchors_valid, anchors_invalid,
+                  json.dumps(required_areas) if required_areas else None,
+                  json.dumps(missing_areas) if missing_areas else None,
+                  json.dumps(valid_anchors) if valid_anchors else None,
+                  json.dumps(invalid_anchors) if invalid_anchors else None,
+                  grounding_score, run_id, task_name, agent_name))
+
+            if cursor.rowcount == 0:
+                cursor.execute("""
+                    INSERT INTO grounding_validations
+                    (run_id, task_name, agent_name, anchors_total, anchors_valid,
+                     anchors_invalid, required_areas, missing_areas, valid_anchors,
+                     invalid_anchors, grounding_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (run_id, task_name, agent_name, anchors_total, anchors_valid,
+                      anchors_invalid,
+                      json.dumps(required_areas) if required_areas else None,
+                      json.dumps(missing_areas) if missing_areas else None,
+                      json.dumps(valid_anchors) if valid_anchors else None,
+                      json.dumps(invalid_anchors) if invalid_anchors else None,
+                      grounding_score))
+                return cursor.lastrowid
+            return cursor.lastrowid
+
+    @staticmethod
+    def get(run_id: str, task_name: str, agent_name: str) -> Optional[Dict]:
+        """Get grounding validation."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM grounding_validations
+                WHERE run_id = ? AND task_name = ? AND agent_name = ?
+            """, (run_id, task_name, agent_name))
+            row = cursor.fetchone()
+            if row:
+                result = dict(row)
+                for field in ['required_areas', 'missing_areas', 'valid_anchors', 'invalid_anchors']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                return result
+            return None
+
+    @staticmethod
+    def list_for_run(run_id: str) -> List[Dict]:
+        """List all grounding validations for a run."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM grounding_validations
+                WHERE run_id = ?
+                ORDER BY task_name, agent_name
+            """, (run_id,))
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                for field in ['required_areas', 'missing_areas', 'valid_anchors', 'invalid_anchors']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                results.append(result)
+            return results
+
+
+class ToolStackRegistry:
+    """Manage tool stack configurations."""
+
+    @staticmethod
+    def add(stack_id: str, name: str, tools_enabled: List[str],
+            mcp_config: Optional[Dict] = None,
+            description: Optional[str] = None) -> int:
+        """Add a tool stack."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO tool_stacks
+                (stack_id, name, description, tools_enabled, mcp_config)
+                VALUES (?, ?, ?, ?, ?)
+            """, (stack_id, name, description,
+                  json.dumps(tools_enabled),
+                  json.dumps(mcp_config) if mcp_config else None))
+            return cursor.lastrowid
+
+    @staticmethod
+    def get(stack_id: str) -> Optional[Dict]:
+        """Get tool stack by ID."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM tool_stacks WHERE stack_id = ?", (stack_id,))
+            row = cursor.fetchone()
+            if row:
+                result = dict(row)
+                for field in ['tools_enabled', 'mcp_config']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                return result
+            return None
+
+    @staticmethod
+    def list_all(active_only: bool = False) -> List[Dict]:
+        """List all tool stacks."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            if active_only:
+                cursor.execute("SELECT * FROM tool_stacks WHERE is_active = 1 ORDER BY name")
+            else:
+                cursor.execute("SELECT * FROM tool_stacks ORDER BY name")
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                for field in ['tools_enabled', 'mcp_config']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                results.append(result)
+            return results
+
+    @staticmethod
+    def update(stack_id: str, **kwargs):
+        """Update tool stack."""
+        valid_fields = {'name', 'description', 'tools_enabled', 'mcp_config', 'is_active'}
+        updates = {k: v for k, v in kwargs.items() if k in valid_fields}
+
+        for field in ['tools_enabled', 'mcp_config']:
+            if field in updates and isinstance(updates[field], (list, dict)):
+                updates[field] = json.dumps(updates[field])
+
+        updates['updated_at'] = datetime.utcnow().isoformat()
+
+        if not updates:
+            return
+
+        set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
+        values = list(updates.values()) + [stack_id]
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE tool_stacks SET {set_clause} WHERE stack_id = ?", values)
+
+    @staticmethod
+    def deactivate(stack_id: str):
+        """Deactivate tool stack."""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE tool_stacks SET is_active = 0 WHERE stack_id = ?", (stack_id,))
+
+
+def seed_default_tool_stacks():
+    """Seed default tool stack configurations."""
+    stacks = [
+        {
+            "stack_id": "baseline",
+            "name": "Baseline",
+            "description": "No MCP tools - pure Claude Code",
+            "tools_enabled": ["bash", "read", "edit", "write", "grep", "glob"],
+            "mcp_config": None
+        },
+        {
+            "stack_id": "sourcegraph",
+            "name": "Sourcegraph MCP",
+            "description": "Full Sourcegraph MCP toolkit",
+            "tools_enabled": ["bash", "read", "edit", "write", "grep", "glob",
+                            "sg_keyword_search", "sg_nls_search", "sg_deepsearch"],
+            "mcp_config": {
+                "server": "@sourcegraph/mcp-server",
+                "endpoints": ["keyword_search", "nls_search", "deep_search"]
+            }
+        },
+        {
+            "stack_id": "deepsearch",
+            "name": "Deep Search MCP",
+            "description": "Deep Search MCP only",
+            "tools_enabled": ["bash", "read", "edit", "write", "grep", "glob", "sg_deepsearch"],
+            "mcp_config": {
+                "server": "@sourcegraph/mcp-server",
+                "endpoints": ["deep_search"]
+            }
+        }
+    ]
+
+    for stack in stacks:
+        existing = ToolStackRegistry.get(stack["stack_id"])
+        if not existing:
+            ToolStackRegistry.add(
+                stack_id=stack["stack_id"],
+                name=stack["name"],
+                description=stack["description"],
+                tools_enabled=stack["tools_enabled"],
+                mcp_config=stack["mcp_config"]
+            )
+
+
 # Initialize database on import
 init_database()
+# Seed default tool stacks
+seed_default_tool_stacks()
