@@ -34,9 +34,15 @@ def show_run_configuration():
         return None
 
     benchmark_names = [b["name"] for b in benchmarks]
-    selected_benchmark_name = st.selectbox("Select Benchmark", benchmark_names)
+    selected_benchmark_name = st.selectbox("Select Benchmark", benchmark_names, key="eval_benchmark_selector")
 
     selected_benchmark = next(b for b in benchmarks if b["name"] == selected_benchmark_name)
+    
+    # Clear selected tasks if benchmark changed
+    prev_benchmark = st.session_state.get("eval_prev_benchmark")
+    if prev_benchmark != selected_benchmark_name:
+        st.session_state["eval_selected_tasks"] = []
+        st.session_state["eval_prev_benchmark"] = selected_benchmark_name
 
     # Check if this is a Harbor dataset
     is_harbor_dataset = selected_benchmark.get("adapter_type") == "harbor_dataset"
@@ -71,10 +77,14 @@ def show_run_configuration():
                 st.session_state["eval_selected_tasks"] = []
                 st.rerun()
 
+        # Filter defaults to only include valid options for this benchmark
+        stored_tasks = st.session_state.get("eval_selected_tasks", [])
+        valid_defaults = [t for t in stored_tasks if t in tasks]
+        
         selected_tasks = st.multiselect(
             "Tasks to Run",
             tasks,
-            default=st.session_state.get("eval_selected_tasks", []),
+            default=valid_defaults,
             key="task_selection_multiselect"
         )
 
@@ -114,10 +124,14 @@ def show_run_configuration():
                 st.session_state["eval_selected_tasks"] = []
                 st.rerun()
 
+        # Filter defaults to only include valid options for this benchmark
+        stored_tasks = st.session_state.get("eval_selected_tasks", [])
+        valid_defaults = [t for t in stored_tasks if t in tasks]
+        
         selected_tasks = st.multiselect(
             "Tasks to Run",
             tasks,
-            default=st.session_state.get("eval_selected_tasks", []),
+            default=valid_defaults,
             key="task_selection_multiselect"
         )
 

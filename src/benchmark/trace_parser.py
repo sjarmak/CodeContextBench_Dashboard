@@ -68,7 +68,9 @@ class TraceParser:
     def _parse_step(cls, step_data: Dict) -> TraceStep:
         """Parse a single step from trajectory data."""
         message = step_data.get("message", "")
-        tool_calls = cls._extract_tool_calls(message)
+        
+        # Extract tool calls from both structured format and XML in message
+        tool_calls = cls._extract_tool_calls_from_step(step_data)
 
         return TraceStep(
             step_id=step_data.get("step_id", 0),
@@ -81,8 +83,41 @@ class TraceParser:
         )
 
     @classmethod
+    def _extract_tool_calls_from_step(cls, step_data: Dict) -> List[ToolCall]:
+        """Extract tool calls from step data - handles both structured and XML formats."""
+        tool_calls = []
+        
+        # First, check for structured tool_calls array (new Claude Code format)
+        structured_calls = step_data.get("tool_calls", [])
+        for tc in structured_calls:
+            tool_name = tc.get("function_name", tc.get("name", "unknown"))
+            arguments = tc.get("arguments", {})
+            tool_call_id = tc.get("tool_call_id", "")
+            
+            # Convert arguments dict to parameters format
+            parameters = {}
+            for key, value in arguments.items():
+                if isinstance(value, (dict, list)):
+                    parameters[key] = json.dumps(value, indent=2)
+                else:
+                    parameters[key] = str(value)
+            
+            tool_calls.append(ToolCall(
+                tool_name=tool_name,
+                parameters=parameters,
+                raw_xml=f"<tool_call id='{tool_call_id}'>{tool_name}({arguments})</tool_call>"
+            ))
+        
+        # Also extract XML-formatted tool calls from message text (legacy format)
+        message = step_data.get("message", "")
+        xml_calls = cls._extract_tool_calls(message)
+        tool_calls.extend(xml_calls)
+        
+        return tool_calls
+
+    @classmethod
     def _extract_tool_calls(cls, message: str) -> List[ToolCall]:
-        """Extract tool calls from message text."""
+        """Extract tool calls from message text (XML format)."""
         tool_calls = []
 
         for match in cls.FUNCTION_CALL_PATTERN.finditer(message):

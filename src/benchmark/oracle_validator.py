@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
 import json
+import os
+
+
+# Get project root (where harbor venv is)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
 def run_oracle_validation(
@@ -49,15 +54,33 @@ def run_oracle_validation(
         result["error"] = "No task.toml found"
         return result
 
+    # Get absolute path to task
+    task_path_abs = task_path.resolve()
+    
+    # Use harbor from the venv
+    harbor_bin = PROJECT_ROOT / "harbor" / "bin" / "harbor"
+    if not harbor_bin.exists():
+        # Fallback to PATH
+        harbor_bin = "harbor"
+    else:
+        harbor_bin = str(harbor_bin)
+
     # Run Harbor with oracle agent
     # harbor run --path <task-path> --agent oracle -n 1
     cmd = [
-        "harbor",
+        harbor_bin,
         "run",
-        "--path", str(task_path),
+        "--path", str(task_path_abs),
         "--agent", "oracle",
         "-n", "1",  # Run once
     ]
+    
+    # Set up environment with venv activated
+    env = os.environ.copy()
+    venv_path = PROJECT_ROOT / "harbor"
+    if venv_path.exists():
+        env["PATH"] = f"{venv_path}/bin:{env.get('PATH', '')}"
+        env["VIRTUAL_ENV"] = str(venv_path)
 
     try:
         proc = subprocess.run(
@@ -65,7 +88,8 @@ def run_oracle_validation(
             capture_output=True,
             text=True,
             timeout=timeout_sec + 30,  # Add buffer to subprocess timeout
-            cwd=str(task_path.parent.parent)  # Run from benchmarks root
+            cwd=str(PROJECT_ROOT),  # Run from project root
+            env=env,
         )
 
         result["output"] = proc.stdout + "\n" + proc.stderr
@@ -76,8 +100,8 @@ def run_oracle_validation(
             result["reward"] = 1.0
 
             # Try to parse result.json if available
-            # Harbor oracle runs may output results
-            result_json_pattern = task_path.parent.parent / "jobs" / "*" / "result.json"
+            # Harbor creates jobs in PROJECT_ROOT/jobs/
+            result_json_pattern = PROJECT_ROOT / "jobs" / "*" / "result.json"
             import glob
             result_files = sorted(glob.glob(str(result_json_pattern)), key=lambda x: Path(x).stat().st_mtime, reverse=True)
 
