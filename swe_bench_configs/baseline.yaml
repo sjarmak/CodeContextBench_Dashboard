@@ -1,0 +1,18 @@
+# Mini SWE Agent - Baseline Configuration (No MCP)
+# This is the baseline for ablation studies - no additional context provided
+
+task:
+  path: "path/to/swe-bench/task"  # Will be overridden by CLI
+
+agent:
+  import_path: "mini_swe_agent_mcp:MiniSweAgentMCP"
+  model_name: "anthropic/claude-sonnet-4"
+  # No mcp_servers kwarg - this is the baseline
+
+environment:
+  type: docker
+  delete: true
+  kwargs:
+    platform: "linux/arm64"
+
+trials_dir: "trials"

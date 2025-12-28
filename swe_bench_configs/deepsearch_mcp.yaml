@@ -1,0 +1,26 @@
+# Mini SWE Agent + Deep Search MCP Configuration
+# Provides web search capabilities via Deep Search MCP server
+
+task:
+  path: "path/to/swe-bench/task"  # Will be overridden by CLI
+
+agent:
+  import_path: "mini_swe_agent_mcp:MiniSweAgentMCP"
+  model_name: "anthropic/claude-sonnet-4"
+  kwargs:
+    mcp_servers:
+      deepsearch:
+        command: "uvx"
+        args:
+          - "mcp-server-fetch"
+        # Add env vars if needed:
+        # env:
+        #   SEARCH_API_KEY: "${SEARCH_API_KEY}"
+
+environment:
+  type: docker
+  delete: true
+  kwargs:
+    platform: "linux/arm64"
+
+trials_dir: "trials"
