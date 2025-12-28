@@ -37,26 +37,64 @@ echo "Virtual environment Python version: $VENV_PYTHON_VERSION"
 # Install mini-swe-agent using pip inside the venv
 echo "Installing mini-swe-agent..."
 {% if version %}
-pip install --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git@{{ version }}
+if ! pip install --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git@{{ version }}; then
+    echo "ERROR: pip install failed"
+    exit 1
+fi
 {% else %}
-pip install --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git
+if ! pip install --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git; then
+    echo "ERROR: pip install failed"
+    exit 1
+fi
 {% endif %}
 
-# Verify installation succeeded
-if ! /opt/mini-swe-agent-venv/bin/mini-swe-agent --version &>/dev/null; then
-    echo "ERROR: mini-swe-agent installation failed - binary not found or not executable"
+# List installed binaries for debugging
+echo "Installed binaries in venv:"
+ls -la /opt/mini-swe-agent-venv/bin/ | grep -E '(mini|swe)' || echo "No mini/swe binaries found"
+
+# Try to find the actual command name (could be mini-swe-agent, mini, mswea, etc.)
+AGENT_CMD=""
+for cmd in mini-swe-agent mini mswea; do
+    if [ -f "/opt/mini-swe-agent-venv/bin/$cmd" ]; then
+        AGENT_CMD="$cmd"
+        echo "Found agent command: $cmd"
+        break
+    fi
+done
+
+if [ -z "$AGENT_CMD" ]; then
+    echo "ERROR: No mini-swe-agent binary found in venv/bin/"
+    echo "Contents of /opt/mini-swe-agent-venv/bin/:"
+    ls -la /opt/mini-swe-agent-venv/bin/
     exit 1
 fi
 
-# Create a symlink to the binary in /usr/local/bin so it is in the PATH
-ln -sf /opt/mini-swe-agent-venv/bin/mini-swe-agent /usr/local/bin/mini-swe-agent
+# Verify the command works
+if ! /opt/mini-swe-agent-venv/bin/$AGENT_CMD --version &>/dev/null; then
+    echo "ERROR: $AGENT_CMD binary found but not executable"
+    exit 1
+fi
 
-# Also symlink 'mini' just in case anything still expects the old name
-ln -sf /opt/mini-swe-agent-venv/bin/mini-swe-agent /usr/local/bin/mini
+echo "Agent command '$AGENT_CMD' verified successfully"
+
+# Create symlinks to the binary in /usr/local/bin so it is in the PATH
+# Always create 'mini-swe-agent' symlink (standard name)
+ln -sf /opt/mini-swe-agent-venv/bin/$AGENT_CMD /usr/local/bin/mini-swe-agent
+
+# Also create symlink with the actual command name if different
+if [ "$AGENT_CMD" != "mini-swe-agent" ]; then
+    ln -sf /opt/mini-swe-agent-venv/bin/$AGENT_CMD /usr/local/bin/$AGENT_CMD
+fi
+
+# Also symlink 'mini' for backwards compatibility
+ln -sf /opt/mini-swe-agent-venv/bin/$AGENT_CMD /usr/local/bin/mini
 
 # Verify symlink works
 if ! mini-swe-agent --version &>/dev/null; then
     echo "ERROR: mini-swe-agent symlink failed - command not accessible from PATH"
+    echo "Attempting to diagnose..."
+    which mini-swe-agent || echo "mini-swe-agent not in PATH"
+    ls -la /usr/local/bin/ | grep -E '(mini|swe)'
     exit 1
 fi
 
