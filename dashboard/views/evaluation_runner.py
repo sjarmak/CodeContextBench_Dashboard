@@ -327,12 +327,9 @@ def show_run_configuration():
             )
 
             st.session_state["current_run_id"] = run_id
-            st.session_state["show_monitoring"] = True
-            st.success(f"✅ Evaluation started in background! Run ID: {run_id}")
+            st.success(f"✅ Evaluation started in background! Run ID: `{run_id}`")
+            st.info("Navigate to the **'Current Runs'** tab to monitor progress and view live logs.")
             
-            time.sleep(1)
-            st.rerun()
-
         except Exception as e:
             st.error(f"Failed to create run: {e}")
             import traceback
@@ -1098,37 +1095,25 @@ def show_evaluation_runner():
     st.title("Evaluation Runner")
     st.write("Run and monitor benchmark evaluations")
 
-    # Check if we're monitoring a run (legacy support)
-    if st.session_state.get("show_monitoring"):
-        show_run_monitoring()
+    # Add tabs for single run, profile run, and current runs
+    tab1, tab2, tab3 = st.tabs(["Single Run", "Profile Run", "Current Runs"])
 
-        st.markdown("---")
+    with tab1:
+        # Show configuration form for single run
+        show_run_configuration()
 
-        if st.button("Start New Run"):
-            del st.session_state["current_run_id"]
-            del st.session_state["show_monitoring"]
-            st.rerun()
+    with tab2:
+        # Show profile runner
+        show_profile_runner()
 
-    else:
-        # Add tabs for single run, profile run, and current runs
-        tab1, tab2, tab3 = st.tabs(["Single Run", "Profile Run", "Current Runs"])
+    with tab3:
+        # Show current background runs
+        show_current_runs()
 
-        with tab1:
-            # Show configuration form for single run
-            show_run_configuration()
+    st.markdown("---")
 
-        with tab2:
-            # Show profile runner
-            show_profile_runner()
-
-        with tab3:
-            # Show current background runs
-            show_current_runs()
-
-        st.markdown("---")
-
-        # Show recent runs
-        show_recent_runs()
+    # Show recent runs
+    show_recent_runs()
 
 
 if __name__ == "__main__":

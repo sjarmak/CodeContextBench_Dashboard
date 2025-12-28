@@ -348,6 +348,8 @@ class EvaluationOrchestrator:
 
     def get_progress(self) -> Dict[str, Any]:
         """Get current run progress."""
+        # Refresh run data to get latest status
+        self.run_data = RunManager.get(self.run_id)
         tasks = TaskManager.get_tasks(self.run_id)
 
         total = len(tasks)
