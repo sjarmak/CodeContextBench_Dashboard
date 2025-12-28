@@ -162,6 +162,22 @@ class MiniSweAgentMCP(BaseInstalledAgent):
             print(f"Failed to load mini-swe-agent trajectory: {e}")
             return
 
+        # Read the git diff patch if it exists and populate trajectory submission field
+        patch_path = self.logs_dir / "patch.diff"
+        if patch_path.exists():
+            try:
+                patch_content = patch_path.read_text()
+                # Update the trajectory's submission field with the patch
+                if mini_trajectory.get("info"):
+                    mini_trajectory["info"]["submission"] = patch_content
+                    # Write back the updated trajectory
+                    mini_trajectory_path.write_text(json.dumps(mini_trajectory, indent=2))
+                    print(f"Updated trajectory with patch ({len(patch_content)} bytes)")
+            except Exception as e:
+                print(f"Failed to read/update patch: {e}")
+        else:
+            print(f"Warning: No patch file found at {patch_path}")
+
         # Extract token usage from mini-swe-agent format
         n_input_tokens = 0
         n_output_tokens = 0
@@ -264,6 +280,18 @@ class MiniSweAgentMCP(BaseInstalledAgent):
                     f"mini-swe-agent -m {self.model_name} -t {escaped_instruction} -y "
                     f"-o {EnvironmentPaths.agent_dir / 'mini-swe-agent.trajectory.json'} -l 0 "
                     f"--exit-immediately 2>&1 </dev/null | tee /logs/agent/mini-swe-agent.txt"
+                ),
+                env=env,
+            )
+        )
+
+        # Capture git diff after agent completes
+        # This is critical for SWE-bench evaluation which requires a patch
+        commands.append(
+            ExecInput(
+                command=(
+                    f"cd /testbed && git add -A && git diff --cached > {EnvironmentPaths.agent_dir / 'patch.diff'} && "
+                    f"echo 'Captured git diff: ' && wc -l {EnvironmentPaths.agent_dir / 'patch.diff'}"
                 ),
                 env=env,
             )
