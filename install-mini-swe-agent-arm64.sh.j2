@@ -1,15 +1,37 @@
 #!/bin/bash
+set -e
 
-# Install curl, build tools, and python3-pip
+# Install basic dependencies
 apt-get update
-apt-get install -y curl build-essential git python3-pip python3-venv
+apt-get install -y curl build-essential git software-properties-common
+
+# Check Python version (mini-swe-agent requires Python >=3.10)
+PYTHON_VERSION=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
+PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+
+echo "Detected Python version: $PYTHON_VERSION"
+
+# Install Python 3.10+ if system Python is older
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]); then
+    echo "Python $PYTHON_VERSION is too old for mini-swe-agent (requires >=3.10). Installing Python 3.10..."
+    add-apt-repository -y ppa:deadsnakes/ppa
+    apt-get update
+    apt-get install -y python3.10 python3.10-pip python3.10-venv python3.10-dev
+    PYTHON_CMD=python3.10
+    echo "Installed Python 3.10"
+else
+    echo "Python $PYTHON_VERSION is compatible, using system Python"
+    apt-get install -y python3-pip python3-venv
+    PYTHON_CMD=python3
+fi
 
 # Install mini-swe-agent using pip (avoids uv segfault on ARM64/QEMU)
-# Use --index-url to override any local mirror configuration
+echo "Installing mini-swe-agent with $PYTHON_CMD..."
 {% if version %}
-python3 -m pip install --break-system-packages --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git@{{ version }}
+$PYTHON_CMD -m pip install --break-system-packages --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git@{{ version }}
 {% else %}
-python3 -m pip install --break-system-packages --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git
+$PYTHON_CMD -m pip install --break-system-packages --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git
 {% endif %}
 
 echo "INSTALL_SUCCESS"
