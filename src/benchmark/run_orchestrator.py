@@ -308,12 +308,23 @@ class EvaluationOrchestrator:
                     )
             else:
                 # Extract key error info from stdout
-                error_lines = [line for line in stdout.split('\n') if 'error' in line.lower() or 'failed' in line.lower()]
-                error_snippet = '\n'.join(error_lines[:3]) if error_lines else stdout[:200]
+                # capture the last 20 lines to get the traceback
+                output_lines = stdout.split('\n')
+                tail = '\n'.join(output_lines[-20:])
+                
+                error_lines = [line for line in output_lines if 'error' in line.lower() or 'failed' in line.lower()]
+                error_summary = '\n'.join(error_lines[:3]) if error_lines else "See log for details"
+
+                error_message = (
+                    f"Harbor exited with code {self.current_process.returncode}.\n"
+                    f"Log: {log_file}\n"
+                    f"Summary: {error_summary}\n"
+                    f"Tail:\n{tail}"
+                )
 
                 TaskManager.update_status(
                     self.run_id, task_name, agent, "failed",
-                    error_message=f"Harbor exited with code {self.current_process.returncode}. Log: {log_file}. Error: {error_snippet}"
+                    error_message=error_message
                 )
 
         except Exception as e:

@@ -365,6 +365,7 @@ def show_run_monitoring():
     tasks = TaskManager.get_tasks(run_id)
 
     if tasks:
+        # Show tasks in a table
         task_data = []
         for task in tasks:
             task_data.append({
@@ -377,6 +378,18 @@ def show_run_monitoring():
 
         df = pd.DataFrame(task_data)
         st.dataframe(df, use_container_width=True, hide_index=True)
+
+        # Show detailed errors for failed tasks
+        failed_tasks = [t for t in tasks if t["status"] == "failed"]
+        if failed_tasks:
+            st.markdown("#### Failed Task Details")
+            for task in failed_tasks:
+                with st.expander(f"❌ Failure: {task['task_name']} ({task['agent_name'].split(':')[-1]})"):
+                    if "error_message" in task and task["error_message"]:
+                        st.code(task["error_message"], language="text")
+                    else:
+                        st.info("No error message captured.")
+
 
     # Auto-refresh if running
     if progress["status"] == "running":
