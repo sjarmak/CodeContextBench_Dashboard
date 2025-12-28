@@ -500,8 +500,12 @@ def show_run_monitoring():
 
 
     # Auto-refresh if running or pending (for auto-start)
+    # Use longer interval to reduce annoying page greying
     if progress["status"] in ("running", "pending"):
-        time.sleep(2)
+        import datetime
+        now = datetime.datetime.now()
+        st.caption(f"Last updated: {now.strftime('%H:%M:%S')} - Auto-refreshing every 5 seconds")
+        time.sleep(5)
         st.rerun()
 
     # Completion actions
@@ -1072,26 +1076,42 @@ def show_run_monitor_compact(run: dict, tracker):
         st.info("Waiting for output...")
 
     # Control buttons
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        if st.button("Refresh", key=f"refresh_{run['run_id']}"):
+        if st.button("🔄 Refresh Now", key=f"refresh_{run['run_id']}"):
             st.rerun()
     with col2:
+        # Toggle auto-refresh
+        auto_refresh_key = f"auto_refresh_{run['run_id']}"
+        if auto_refresh_key not in st.session_state:
+            st.session_state[auto_refresh_key] = True
+
+        auto_refresh = st.checkbox(
+            "Auto-refresh",
+            value=st.session_state[auto_refresh_key],
+            key=f"auto_refresh_checkbox_{run['run_id']}"
+        )
+        st.session_state[auto_refresh_key] = auto_refresh
+    with col3:
         if st.button("Stop", key=f"stop_{run['run_id']}", type="secondary"):
             if tracker.terminate_run(run["run_id"]):
                 st.warning("Run terminated")
                 time.sleep(1)
                 st.rerun()
-    with col3:
+    with col4:
         if st.button("Remove", key=f"remove_{run['run_id']}"):
             tracker.remove_run(run["run_id"])
             st.success("Run removed from tracking")
             time.sleep(1)
             st.rerun()
 
-    # Auto-refresh if running (and expanded)
-    if run["status"] == "running":
-        time.sleep(2)
+    # Auto-refresh if running and enabled
+    auto_refresh_key = f"auto_refresh_{run['run_id']}"
+    if run["status"] == "running" and st.session_state.get(auto_refresh_key, True):
+        import datetime
+        now = datetime.datetime.now()
+        st.caption(f"Last updated: {now.strftime('%H:%M:%S')} - Auto-refreshing every 5 seconds")
+        time.sleep(5)
         st.rerun()
 
 

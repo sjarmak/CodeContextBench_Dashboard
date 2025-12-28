@@ -247,9 +247,12 @@ class EvaluationOrchestrator:
 
         # Prepare environment variables
         env = os.environ.copy()
-        
+
         # Force Harbor to use our local fixed registry (env var as fallback)
         env["HARBOR_REGISTRY_PATH"] = registry_path
+
+        # Force unbuffered output for real-time streaming
+        env["PYTHONUNBUFFERED"] = "1"
 
         # Add any custom environment variables from config
         if "env" in self.run_data.get("config", {}):
@@ -277,29 +280,55 @@ class EvaluationOrchestrator:
             import time
             start_time = time.time()
 
-            # Use PIPE to capture output and stream it in real-time
+            # Start Harbor with output to log file
+            log_fd = open(log_file, "w", buffering=1)
             self.current_process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
+                stdout=log_fd,
                 stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=1,  # Line buffering
-                cwd=str(project_root),  # Run from project root
+                cwd=str(project_root),
                 env=env
             )
 
-            # Stream output to both log file AND stdout (for dashboard visibility)
+            # Stream log file to stdout in a separate thread for dashboard visibility
+            last_size = 0
             stdout_lines = []
-            with open(log_file, "w", buffering=1) as log_fd:
-                for line in self.current_process.stdout:
-                    # Write to log file
-                    log_fd.write(line)
-                    # Write to stdout so parent process captures it
-                    print(line, end='', flush=True)
-                    stdout_lines.append(line)
 
-                # Wait for process to complete
-                self.current_process.wait()
+            while self.current_process.poll() is None:
+                # Check if log file has grown
+                try:
+                    if log_file.exists():
+                        current_size = log_file.stat().st_size
+                        if current_size > last_size:
+                            with open(log_file, 'r') as f:
+                                f.seek(last_size)
+                                new_content = f.read()
+                                if new_content:
+                                    print(new_content, end='', flush=True)
+                                    stdout_lines.append(new_content)
+                                    last_size = current_size
+                except Exception as e:
+                    # Ignore read errors during polling
+                    pass
+
+                # Poll every 0.5 seconds
+                time.sleep(0.5)
+
+            # Get any remaining output
+            try:
+                if log_file.exists():
+                    with open(log_file, 'r') as f:
+                        f.seek(last_size)
+                        remaining = f.read()
+                        if remaining:
+                            print(remaining, end='', flush=True)
+                            stdout_lines.append(remaining)
+            except Exception:
+                pass
+
+            # Close the log file descriptor
+            log_fd.close()
 
             elapsed_time = time.time() - start_time
             print(f"\nHarbor execution completed in {elapsed_time:.1f} seconds", flush=True)
