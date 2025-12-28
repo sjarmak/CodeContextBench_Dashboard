@@ -205,10 +205,13 @@ class EvaluationOrchestrator:
         task_output_dir = output_dir / f"{task_name}_{safe_agent_name}"
 
         # Build Harbor command
+        registry_path = "configs/harbor/registry.json"
+        
         if is_harbor_dataset:
             # Use Harbor dataset command
             cmd = [
                 "harbor", "run",
+                "--registry-path", registry_path,
                 "--dataset", benchmark["folder_name"],  # e.g., "swebench_verified"
                 "--task-name", task_name,               # Specific task to run from dataset
                 "--agent-import-path", agent,
@@ -220,6 +223,7 @@ class EvaluationOrchestrator:
             # Use local benchmark path
             cmd = [
                 "harbor", "run",
+                "--registry-path", registry_path,
                 "--path", str(benchmark_path),  # Point to benchmark directory, not task
                 "--task-name", task_name,       # Specify which task to run
                 "--agent-import-path", agent,
@@ -308,9 +312,9 @@ class EvaluationOrchestrator:
                     )
             else:
                 # Extract key error info from stdout
-                # capture the last 20 lines to get the traceback
+                # capture the last 100 lines to get the traceback (especially if rich formatting is used)
                 output_lines = stdout.split('\n')
-                tail = '\n'.join(output_lines[-20:])
+                tail = '\n'.join(output_lines[-100:])
                 
                 error_lines = [line for line in output_lines if 'error' in line.lower() or 'failed' in line.lower()]
                 error_summary = '\n'.join(error_lines[:3]) if error_lines else "See log for details"

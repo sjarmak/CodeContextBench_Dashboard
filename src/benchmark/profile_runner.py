@@ -354,6 +354,8 @@ class BenchmarkProfileRunner:
         cmd = [
             "harbor",
             "run",
+            "--registry-path",
+            "configs/harbor/registry.json",
             "--path",
             str(task_path),
             "--agent-import-path",
