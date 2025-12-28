@@ -1011,6 +1011,9 @@ def show_run_monitor_compact(run: dict, tracker):
     else:
         st.error(f"Log file missing: {log_file}")
 
+    # Get latest output for logs and parsing
+    output = tracker.get_process_output(run["run_id"], tail_lines=50)
+
     # Parse for current agent/task
     current_agent = run.get("agent_name", "Starting...")
     current_task = run.get("benchmark_name", "Initializing...")
@@ -1031,9 +1034,6 @@ def show_run_monitor_compact(run: dict, tracker):
             current_task = running_tasks[0]["task_name"]
         elif run_db.get("task_selection"):
             current_task = run_db["task_selection"][0]
-
-    # Get latest output for logs and fallback parsing
-    output = tracker.get_process_output(run["run_id"], tail_lines=50)
 
     # 2. Fallback to regex parsing if DB info is sparse
     if current_agent == "Starting..." or current_task == "Initializing...":
