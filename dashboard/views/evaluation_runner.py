@@ -380,6 +380,30 @@ def show_run_monitoring():
 
     # Task details
     st.markdown("---")
+    
+    # Live Log Section for active task
+    running_tasks = [t for t in tasks if t["status"] == "running"]
+    if running_tasks:
+        active_task = running_tasks[0]
+        st.markdown(f"#### 🔄 Live Log: {active_task['task_name']}")
+        
+        # Determine log path
+        # Output dir logic matches run_orchestrator.py
+        safe_agent_name = active_task["agent_name"].replace(":", "__").replace("/", "_")
+        log_file = Path(f"jobs/{run_id}/{active_task['task_name']}_{safe_agent_name}_harbor.log")
+        
+        if log_file.exists():
+            try:
+                with open(log_file, "r") as f:
+                    log_lines = f.readlines()
+                    display_log = "".join(log_lines[-100:]) # Show last 100 lines
+                    st.text_area("Harbor Output", display_log, height=300, key=f"live_log_{active_task['task_name']}")
+                    st.caption(f"Log: `{log_file}` ({log_file.stat().st_size} bytes)")
+            except Exception as e:
+                st.error(f"Error reading log: {e}")
+        else:
+            st.info("Log file initializing...")
+
     st.markdown("#### Task Status")
 
     tasks = TaskManager.get_tasks(run_id)

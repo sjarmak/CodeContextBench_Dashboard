@@ -262,21 +262,24 @@ class EvaluationOrchestrator:
             # Run from project root so relative paths work correctly
             project_root = Path.cwd()
 
-            self.current_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                cwd=str(project_root),  # Run from project root
-                env=env
-            )
-
-            # Wait for completion
-            stdout, _ = self.current_process.communicate()
-
-            # Save Harbor output for debugging
+            # Save Harbor output for debugging (Live streaming)
             log_file = output_dir / f"{task_name}_{safe_agent_name}_harbor.log"
-            log_file.write_text(stdout)
+            
+            with open(log_file, "w", buffering=1) as log_fd:
+                self.current_process = subprocess.Popen(
+                    cmd,
+                    stdout=log_fd,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    cwd=str(project_root),  # Run from project root
+                    env=env
+                )
+
+                # Wait for completion without communicate (which buffers)
+                self.current_process.wait()
+
+            # Read stdout for error parsing if it failed
+            stdout = log_file.read_text()
 
             # Check result
             if self.current_process.returncode == 0:
