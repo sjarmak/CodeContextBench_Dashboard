@@ -205,9 +205,12 @@ class EvaluationOrchestrator:
         task_output_dir = output_dir / f"{task_name}_{safe_agent_name}"
 
         # Build Harbor command
-        registry_path = "configs/harbor/registry.json"
-        # Using a stable fixed Gist as fallback because file:// is not supported by Harbor's requests client
-        registry_url = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/registry.json"
+        # Use absolute path for local registry
+        project_root = Path.cwd().resolve()
+        registry_path = str(project_root / "configs/harbor/registry.json")
+        
+        # Using a verified fixed Gist URL
+        registry_url = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/68bc000df990cf069007606603de599c8923fd13/registry.json"
         
         if is_harbor_dataset:
             # Use Harbor dataset command

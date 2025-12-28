@@ -351,12 +351,13 @@ class BenchmarkProfileRunner:
             job_name_parts.append(self._slugify(task_name))
         job_name = "-".join(part for part in job_name_parts if part)
 
-        registry_url = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/registry.json"
+        registry_url = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/68bc000df990cf069007606603de599c8923fd13/registry.json"
+        registry_path = str(self.project_root / "configs/harbor/registry.json")
         cmd = [
             "harbor",
             "run",
             "--registry-url", registry_url,
-            "--registry-path", "configs/harbor/registry.json",
+            "--registry-path", registry_path,
             "--path",
             str(task_path),
             "--agent-import-path",
