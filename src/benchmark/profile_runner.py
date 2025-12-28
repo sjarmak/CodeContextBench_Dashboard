@@ -355,6 +355,7 @@ class BenchmarkProfileRunner:
         cmd = [
             "harbor",
             "run",
+            "--registry-path", registry_path,
             "--path",
             str(task_path),
             "--agent-import-path",
@@ -383,19 +384,18 @@ class BenchmarkProfileRunner:
         log_path = logs_dir / f"{'-'.join(filter(None, log_name_parts))}.log"
 
         env = os.environ.copy()
-        # Force Harbor to use our local fixed registry
+        # Force Harbor to use our local fixed registry (env var as fallback)
         env["HARBOR_REGISTRY_PATH"] = registry_path
         
         agent_env = agent.get("env") or {}
         env.update({k: str(self._resolve_value(v)) for k, v in agent_env.items()})
 
-        # CRITICAL: Clean the cmd list of any accidental stale flags
-        for flag in ["--registry-url", "--registry-path"]:
-            while flag in cmd:
-                idx = cmd.index(flag)
+        # CRITICAL: Strip any problematic registry-url flags
+        while "--registry-url" in cmd:
+            idx = cmd.index("--registry-url")
+            cmd.pop(idx)
+            if idx < len(cmd):
                 cmd.pop(idx)
-                if idx < len(cmd):
-                    cmd.pop(idx)
 
         command_str = " ".join(shlex.quote(part) for part in cmd)
         if self.dry_run:

@@ -213,6 +213,7 @@ class EvaluationOrchestrator:
             # Use Harbor dataset command
             cmd = [
                 "harbor", "run",
+                "--registry-path", registry_path,
                 "--dataset", benchmark["folder_name"],  # e.g., "swebench_verified"
                 "--task-name", task_name,               # Specific task to run from dataset
                 "--agent-import-path", agent,
@@ -224,6 +225,7 @@ class EvaluationOrchestrator:
             # Use local benchmark path
             cmd = [
                 "harbor", "run",
+                "--registry-path", registry_path,
                 "--path", str(benchmark_path),  # Point to benchmark directory, not task
                 "--task-name", task_name,       # Specify which task to run
                 "--agent-import-path", agent,
@@ -235,21 +237,19 @@ class EvaluationOrchestrator:
         # Prepare environment variables
         env = os.environ.copy()
         
-        # Force Harbor to use our local fixed registry
+        # Force Harbor to use our local fixed registry (env var as fallback)
         env["HARBOR_REGISTRY_PATH"] = registry_path
 
         # Add any custom environment variables from config
         if "env" in self.run_data.get("config", {}):
             env.update(self.run_data["config"]["env"])
 
-        # CRITICAL: Clean the cmd list of any accidental stale URL/path flags
-        # Harbor environment variables take precedence or work better than conflicting flags
-        for flag in ["--registry-url", "--registry-path"]:
-            while flag in cmd:
-                idx = cmd.index(flag)
-                cmd.pop(idx) # flag
-                if idx < len(cmd):
-                    cmd.pop(idx) # value
+        # CRITICAL: Strip any problematic registry-url flags
+        while "--registry-url" in cmd:
+            idx = cmd.index("--registry-url")
+            cmd.pop(idx) # --registry-url
+            if idx < len(cmd):
+                cmd.pop(idx) # value
 
         # Run from project root so relative paths work correctly
         project_root = Path.cwd().resolve()

@@ -369,16 +369,17 @@ def show_run_monitoring():
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("Status", progress["status"].upper())
+        status_label = progress["status"].capitalize()
+        st.write(f"**Status:** {status_label}")
 
     with col2:
-        st.metric("Progress", f"{progress['completed']}/{progress['total_tasks']}")
+        st.write(f"**Progress:** {progress['completed']}/{progress['total_tasks']}")
 
     with col3:
-        st.metric("Running", progress['running'])
+        st.write(f"**Running:** {progress['running']}")
 
     with col4:
-        st.metric("Pending", progress['pending'])
+        st.write(f"**Pending:** {progress['pending']}")
 
     # Progress bar
     st.progress(progress['progress_pct'] / 100)

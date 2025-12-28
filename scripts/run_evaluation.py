@@ -26,6 +26,9 @@ def main():
     print(f"Starting evaluation for Run ID: {args.run_id}")
     
     try:
+        # Mark run as running immediately
+        RunManager.update_status(args.run_id, "running")
+        
         orchestrator = get_orchestrator(args.run_id)
         
         # We define a simple callback to show progress in terminal
