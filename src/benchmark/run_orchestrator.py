@@ -209,15 +209,10 @@ class EvaluationOrchestrator:
         project_root = Path.cwd().resolve()
         registry_path = str(project_root / "configs/harbor/registry.json")
         
-        # Using a verified fixed Gist URL
-        registry_url = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/68bc000df990cf069007606603de599c8923fd13/registry.json"
-        
         if is_harbor_dataset:
             # Use Harbor dataset command
             cmd = [
                 "harbor", "run",
-                "--registry-path", registry_path, 
-                "--registry-url", registry_url,
                 "--dataset", benchmark["folder_name"],  # e.g., "swebench_verified"
                 "--task-name", task_name,               # Specific task to run from dataset
                 "--agent-import-path", agent,
@@ -229,8 +224,6 @@ class EvaluationOrchestrator:
             # Use local benchmark path
             cmd = [
                 "harbor", "run",
-                "--registry-path", registry_path, 
-                "--registry-url", registry_url,
                 "--path", str(benchmark_path),  # Point to benchmark directory, not task
                 "--task-name", task_name,       # Specify which task to run
                 "--agent-import-path", agent,
@@ -239,27 +232,25 @@ class EvaluationOrchestrator:
                 "-n", "1",
             ]
 
-        # CRITICAL: Clean the cmd list of any accidental stale URL flags
-        # This is a safety measure against memory/caching issues
-        if "--registry-url" in cmd:
-            # We keep the one we just added, but remove any DUPLICATES that might have been injected
-            indices = [i for i, x in enumerate(cmd) if x == "--registry-url"]
-            if len(indices) > 1:
-                # Remove extra ones (from the end to keep indices stable)
-                for idx in reversed(indices[1:]):
-                    cmd.pop(idx) # flag
-                    if idx < len(cmd):
-                        cmd.pop(idx) # value
-
         # Prepare environment variables
         env = os.environ.copy()
+        
+        # Force Harbor to use our local fixed registry
+        env["HARBOR_REGISTRY_PATH"] = registry_path
 
         # Add any custom environment variables from config
         if "env" in self.run_data.get("config", {}):
             env.update(self.run_data["config"]["env"])
 
-        # Run Harbor
-        try:
+        # CRITICAL: Clean the cmd list of any accidental stale URL/path flags
+        # Harbor environment variables take precedence or work better than conflicting flags
+        for flag in ["--registry-url", "--registry-path"]:
+            while flag in cmd:
+                idx = cmd.index(flag)
+                cmd.pop(idx) # flag
+                if idx < len(cmd):
+                    cmd.pop(idx) # value
+
             # Run from project root so relative paths work correctly
             project_root = Path.cwd()
 

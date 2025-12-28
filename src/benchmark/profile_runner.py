@@ -351,13 +351,10 @@ class BenchmarkProfileRunner:
             job_name_parts.append(self._slugify(task_name))
         job_name = "-".join(part for part in job_name_parts if part)
 
-        registry_url = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/68bc000df990cf069007606603de599c8923fd13/registry.json"
         registry_path = str(self.project_root / "configs/harbor/registry.json")
         cmd = [
             "harbor",
             "run",
-            "--registry-url", registry_url,
-            "--registry-path", registry_path,
             "--path",
             str(task_path),
             "--agent-import-path",
@@ -386,17 +383,19 @@ class BenchmarkProfileRunner:
         log_path = logs_dir / f"{'-'.join(filter(None, log_name_parts))}.log"
 
         env = os.environ.copy()
+        # Force Harbor to use our local fixed registry
+        env["HARBOR_REGISTRY_PATH"] = registry_path
+        
         agent_env = agent.get("env") or {}
         env.update({k: str(self._resolve_value(v)) for k, v in agent_env.items()})
 
-        # CRITICAL: Clean the cmd list of any accidental stale URL flags
-        if "--registry-url" in cmd:
-            indices = [i for i, x in enumerate(cmd) if x == "--registry-url"]
-            if len(indices) > 1:
-                for idx in reversed(indices[1:]):
+        # CRITICAL: Clean the cmd list of any accidental stale flags
+        for flag in ["--registry-url", "--registry-path"]:
+            while flag in cmd:
+                idx = cmd.index(flag)
+                cmd.pop(idx)
+                if idx < len(cmd):
                     cmd.pop(idx)
-                    if idx < len(cmd):
-                        cmd.pop(idx)
 
         command_str = " ".join(shlex.quote(part) for part in cmd)
         if self.dry_run:
