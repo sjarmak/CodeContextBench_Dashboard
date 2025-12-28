@@ -381,6 +381,8 @@ def show_run_monitoring():
     # Task details
     st.markdown("---")
     
+    tasks = TaskManager.get_tasks(run_id)
+    
     # Live Log Section for active task
     running_tasks = [t for t in tasks if t["status"] == "running"]
     if running_tasks:
@@ -405,8 +407,6 @@ def show_run_monitoring():
             st.info("Log file initializing...")
 
     st.markdown("#### Task Status")
-
-    tasks = TaskManager.get_tasks(run_id)
 
     if tasks:
         # Show tasks in a table
