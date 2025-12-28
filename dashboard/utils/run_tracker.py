@@ -65,8 +65,9 @@ class RunTracker:
         with open(tracker_file) as f:
             run_info = json.load(f)
 
-        # Update status based on process
-        run_info["status"] = self._check_process_status(run_info["pid"])
+        # Only check process if status is 'running'
+        if run_info.get("status") == "running":
+            run_info["status"] = self._check_process_status(run_info["pid"])
 
         return run_info
 
@@ -79,8 +80,9 @@ class RunTracker:
                 with open(tracker_file) as f:
                     run_info = json.load(f)
 
-                # Update status
-                run_info["status"] = self._check_process_status(run_info["pid"])
+                # Only check process if status is 'running'
+                if run_info.get("status") == "running":
+                    run_info["status"] = self._check_process_status(run_info["pid"])
 
                 # Filter by status if specified
                 if status is None or run_info["status"] == status:
@@ -164,15 +166,46 @@ class RunTracker:
             return f"Error reading log: {e}"
 
     def terminate_run(self, run_id: str) -> bool:
-        """Terminate a running process."""
+        """Terminate a running process and its children."""
         run_info = self.get_run(run_id)
 
         if not run_info or run_info["status"] != "running":
             return False
 
         try:
-            process = psutil.Process(run_info["pid"])
-            process.terminate()
+            parent = psutil.Process(run_info["pid"])
+            children = parent.children(recursive=True)
+            
+            # Terminate children first
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+            
+            # Wait for children to terminate
+            _, alive = psutil.wait_procs(children, timeout=3)
+            
+            # Force kill if still alive
+            for p in alive:
+                try:
+                    p.kill()
+                except psutil.NoSuchProcess:
+                    pass
+
+            # Terminate parent
+            try:
+                parent.terminate()
+                parent.wait(timeout=3)
+            except psutil.TimeoutExpired:
+                parent.kill()
+            except psutil.NoSuchProcess:
+                pass
+
+            self.update_run(run_id, status="terminated")
+            return True
+        except psutil.NoSuchProcess:
+            # Already dead
             self.update_run(run_id, status="terminated")
             return True
         except Exception as e:
