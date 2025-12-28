@@ -248,6 +248,12 @@ class EvaluationOrchestrator:
                     if idx < len(cmd):
                         cmd.pop(idx) # value
 
+        # Prepare environment variables
+        env = os.environ.copy()
+
+        # Add any custom environment variables from config
+        if "env" in self.run_data.get("config", {}):
+            env.update(self.run_data["config"]["env"])
 
         # Run Harbor
         try:
