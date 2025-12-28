@@ -103,21 +103,35 @@ class MiniSweAgentMCP(BaseInstalledAgent):
         return self._version
 
     def _create_mcp_config_file(self, config_path: Path) -> str:
-        """Create MCP configuration file and return the command to write it."""
+        """Create MCP configuration file and return the command to write it.
+
+        Supports both command-based and HTTP-based MCP servers:
+        - Command-based: {"command": "...", "args": [...], "env": {...}}
+        - HTTP-based: {"type": "http", "url": "...", "headers": {...}}
+        """
         if not self.mcp_servers:
             return ""
 
         mcp_config = {"mcpServers": {}}
 
         for server_name, server_config in self.mcp_servers.items():
-            mcp_config["mcpServers"][server_name] = {
-                "command": server_config.get("command", ""),
-                "args": server_config.get("args", []),
-            }
-
-            # Add env vars if specified
-            if "env" in server_config:
-                mcp_config["mcpServers"][server_name]["env"] = server_config["env"]
+            # Check if it's HTTP-based or command-based
+            if server_config.get("type") == "http":
+                # HTTP-based MCP server (e.g., Sourcegraph)
+                mcp_config["mcpServers"][server_name] = {
+                    "type": "http",
+                    "url": server_config.get("url", ""),
+                    "headers": server_config.get("headers", {}),
+                }
+            else:
+                # Command-based MCP server (e.g., npx)
+                mcp_config["mcpServers"][server_name] = {
+                    "command": server_config.get("command", ""),
+                    "args": server_config.get("args", []),
+                }
+                # Add env vars if specified
+                if "env" in server_config:
+                    mcp_config["mcpServers"][server_name]["env"] = server_config["env"]
 
         # Create the command to write the config file
         config_json = json.dumps(mcp_config, indent=2)
@@ -260,3 +274,80 @@ class MiniSweAgentMCP(BaseInstalledAgent):
 
 # Convenience: Also export a simpler baseline alias
 MiniSweAgentBaseline = MiniSweAgentMCP
+
+
+class MiniSweAgentSourcegraphMCP(MiniSweAgentMCP):
+    """Mini SWE Agent with Sourcegraph MCP (all tools: keyword, NLS, Deep Search).
+
+    Uses HTTP-based Sourcegraph MCP endpoint for full code intelligence.
+    Requires SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN environment variables.
+    """
+
+    def __init__(self, logs_dir: Path, *args, **kwargs):
+        # Get Sourcegraph credentials from environment
+        sg_url = os.environ.get("SOURCEGRAPH_URL", "")
+        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN", "")
+
+        if not sg_url or not sg_token:
+            raise ValueError(
+                "MiniSweAgentSourcegraphMCP requires SOURCEGRAPH_URL and "
+                "SOURCEGRAPH_ACCESS_TOKEN environment variables"
+            )
+
+        if not sg_url.startswith(("http://", "https://")):
+            sg_url = f"https://{sg_url}"
+        sg_url = sg_url.rstrip("/")
+
+        # Configure HTTP-based Sourcegraph MCP
+        mcp_servers = {
+            "sourcegraph": {
+                "type": "http",
+                "url": f"{sg_url}/.api/mcp/v1",
+                "headers": {"Authorization": f"token {sg_token}"},
+            }
+        }
+
+        super().__init__(logs_dir, mcp_servers=mcp_servers, *args, **kwargs)
+
+
+class MiniSweAgentDeepSearchMCP(MiniSweAgentMCP):
+    """Mini SWE Agent with Deep Search MCP only (focused semantic search).
+
+    Uses HTTP-based Deep Search MCP endpoint for semantic code search.
+    Requires SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN environment variables.
+    """
+
+    def __init__(self, logs_dir: Path, *args, **kwargs):
+        # Get Sourcegraph credentials from environment
+        sg_url = os.environ.get("SOURCEGRAPH_URL", "")
+        sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN", "")
+
+        if not sg_url or not sg_token:
+            raise ValueError(
+                "MiniSweAgentDeepSearchMCP requires SOURCEGRAPH_URL and "
+                "SOURCEGRAPH_ACCESS_TOKEN environment variables"
+            )
+
+        if not sg_url.startswith(("http://", "https://")):
+            sg_url = f"https://{sg_url}"
+        sg_url = sg_url.rstrip("/")
+
+        # Configure HTTP-based Deep Search MCP endpoint
+        mcp_servers = {
+            "deepsearch": {
+                "type": "http",
+                "url": f"{sg_url}/.api/mcp/deepsearch",
+                "headers": {"Authorization": f"token {sg_token}"},
+            }
+        }
+
+        super().__init__(logs_dir, mcp_servers=mcp_servers, *args, **kwargs)
+
+
+# Export all variants for easy discovery
+__all__ = [
+    "MiniSweAgentMCP",
+    "MiniSweAgentBaseline",
+    "MiniSweAgentSourcegraphMCP",
+    "MiniSweAgentDeepSearchMCP",
+]

@@ -5,9 +5,9 @@ task:
   path: "path/to/swe-bench/task"  # Will be overridden by CLI
 
 agent:
-  import_path: "mini_swe_agent_mcp:MiniSweAgentMCP"
-  model_name: "anthropic/claude-sonnet-4"
-  # No mcp_servers kwarg - this is the baseline
+  import_path: "mini_swe_agent_mcp:MiniSweAgentBaseline"
+  model_name: "anthropic/claude-haiku-4-5-20251001"
+  # No MCP - pure baseline with local tools only
 
 environment:
   type: docker

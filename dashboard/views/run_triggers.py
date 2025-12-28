@@ -126,16 +126,41 @@ def show_profile_runner_trigger():
 
     st.info(f"Using config: `{profiles_config}`")
 
-    # Manual profile selection (since we'd need yaml parser)
-    profile_name = st.text_input("Profile Name (e.g., repoqa_smoke)")
+    # Parse YAML to get available profiles
+    import yaml
+    try:
+        with open(profiles_config) as f:
+            config = yaml.safe_load(f)
+            available_profiles = list(config.get("profiles", {}).keys())
+
+        if not available_profiles:
+            st.warning("No profiles found in config")
+            profile_name = st.text_input("Profile Name (manual entry)")
+        else:
+            # Show dropdown with available profiles
+            profile_name = st.selectbox(
+                "Select Profile",
+                available_profiles,
+                help="Profile defined in configs/benchmark_profiles.yaml"
+            )
+
+            # Show profile description if available
+            if profile_name:
+                profile_desc = config["profiles"][profile_name].get("description", "")
+                if profile_desc:
+                    st.caption(f"📋 {profile_desc}")
+
+    except Exception as e:
+        st.error(f"Error loading profiles: {e}")
+        profile_name = st.text_input("Profile Name (e.g., repoqa_smoke)")
 
     dry_run = st.checkbox("Dry Run (preview commands only)", value=True, key="profile_dry")
 
     if st.button("Run Profile", key="profile_run"):
-        cmd_parts = ["python scripts/benchmark_profile_runner.py"]
+        cmd_parts = ["python", "scripts/benchmark_profile_runner.py"]
 
         if profile_name:
-            cmd_parts.append(f"--profiles {profile_name}")
+            cmd_parts.extend(["--profiles", profile_name])
 
         if dry_run:
             cmd_parts.append("--dry-run")

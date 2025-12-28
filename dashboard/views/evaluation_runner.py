@@ -883,6 +883,13 @@ def show_run_monitor_compact(run: dict, tracker):
     with col3:
         st.metric("PID", run["pid"])
 
+    # Debug info: Log file
+    log_file = tracker.tracker_dir / f"{run['run_id']}.log"
+    if log_file.exists():
+        st.caption(f"Log: `{log_file.name}` ({log_file.stat().st_size} bytes)")
+    else:
+        st.error(f"Log file missing: {log_file}")
+
     # Get latest output
     output = tracker.get_process_output(run["run_id"], tail_lines=50)
 
@@ -891,8 +898,9 @@ def show_run_monitor_compact(run: dict, tracker):
     current_task = "Unknown"
 
     if output:
-        # Look for agent (new format)
-        agent_matches = re.findall(r"Starting agent:\s*(\S+)", output)
+        # Look for agent (new format with optional timestamp)
+        # Matches: [10:00:00] Starting agent: name ...
+        agent_matches = re.findall(r"Starting agent:\s*([^\s]+)", output)
         if agent_matches:
             current_agent = agent_matches[-1]
         else:
@@ -903,7 +911,8 @@ def show_run_monitor_compact(run: dict, tracker):
                 current_agent = agent_path.split(":")[-1] if ":" in agent_path else agent_path
 
         # Look for task (new format)
-        task_matches = re.findall(r"on task:\s*(\S+)", output)
+        # Matches: ... on task: task-name
+        task_matches = re.findall(r"on task:\s*([^\s]+)", output)
         if task_matches:
             current_task = task_matches[-1]
         else:

@@ -1,130 +1,161 @@
 # SWE-Bench MCP Ablation Study Configurations
 
 This directory contains configurations for running ablation studies on SWE-bench tasks
-with and without MCP (Model Context Protocol) servers.
+with and without MCP (Model Context Protocol) servers using mini-swe-agent.
 
 ## Configurations
 
+All configurations use **HTTP-based MCP endpoints** (not command-based).
+
 ### 1. Baseline (No MCP)
 - **File**: `baseline.yaml`
-- **Description**: Pure mini-swe-agent with no additional context
+- **Agent**: `mini_swe_agent_mcp:MiniSweAgentBaseline`
+- **Tools**: Local tools only (bash, file I/O, etc.)
 - **Use case**: Baseline performance measurement
 
-### 2. Sourcegraph MCP
+### 2. Sourcegraph MCP (Full Code Intelligence)
 - **File**: `sourcegraph_mcp.yaml`
-- **Description**: Mini-swe-agent with Sourcegraph code search context
-- **Use case**: Measure impact of code search on SWE-bench performance
+- **Agent**: `mini_swe_agent_mcp:MiniSweAgentSourcegraphMCP`
+- **MCP Endpoint**: `{SOURCEGRAPH_URL}/.api/mcp/v1` (HTTP)
+- **Tools**: `sg_keyword_search`, `sg_nls_search`, `sg_deepsearch`, `sg_read_file`
+- **Use case**: Full code intelligence with all Sourcegraph tools
 
-### 3. Deep Search MCP
+### 3. Deep Search MCP (Focused Semantic Search)
 - **File**: `deepsearch_mcp.yaml`
-- **Description**: Mini-swe-agent with web search capabilities
-- **Use case**: Measure impact of documentation/web search on performance
+- **Agent**: `mini_swe_agent_mcp:MiniSweAgentDeepSearchMCP`
+- **MCP Endpoint**: `{SOURCEGRAPH_URL}/.api/mcp/deepsearch` (HTTP)
+- **Tools**: `deepsearch` (semantic code search only)
+- **Use case**: Focused semantic search ablation
 
 ## Usage
+
+### Prerequisites
+
+Set environment variables for MCP-enabled agents:
+
+```bash
+export SOURCEGRAPH_URL="https://sourcegraph.com"
+export SOURCEGRAPH_ACCESS_TOKEN="your-token-here"
+export ANTHROPIC_API_KEY="your-anthropic-key"
+```
 
 ### Command-Line (Quick Tests)
 
 ```bash
 # Baseline (no MCP)
 harbor trials start \
-  --agent-import-path mini_swe_agent_mcp:MiniSweAgentMCP \
-  -m anthropic/claude-sonnet-4 \
-  -p path/to/swe-bench-task
+  --agent-import-path mini_swe_agent_mcp:MiniSweAgentBaseline \
+  -m anthropic/claude-haiku-4-5-20251001 \
+  -p benchmarks/swebench_pro/tasks/instance_xxx
 
-# With Sourcegraph MCP
+# With Sourcegraph MCP (full code intelligence)
 harbor trials start \
-  --agent-import-path mini_swe_agent_mcp:MiniSweAgentMCP \
-  -m anthropic/claude-sonnet-4 \
-  -p path/to/swe-bench-task \
-  --agent-kwarg 'mcp_servers={"sourcegraph":{"command":"npx","args":["-y","@sourcegraph/cody"]}}'
+  --agent-import-path mini_swe_agent_mcp:MiniSweAgentSourcegraphMCP \
+  -m anthropic/claude-haiku-4-5-20251001 \
+  -p benchmarks/swebench_pro/tasks/instance_xxx
 
-# With Deep Search MCP
+# With Deep Search MCP (focused semantic search)
 harbor trials start \
-  --agent-import-path mini_swe_agent_mcp:MiniSweAgentMCP \
-  -m anthropic/claude-sonnet-4 \
-  -p path/to/swe-bench-task \
-  --agent-kwarg 'mcp_servers={"deepsearch":{"command":"uvx","args":["mcp-server-fetch"]}}'
+  --agent-import-path mini_swe_agent_mcp:MiniSweAgentDeepSearchMCP \
+  -m anthropic/claude-haiku-4-5-20251001 \
+  -p benchmarks/swebench_pro/tasks/instance_xxx
 ```
 
-### Using Config Files (Recommended for Benchmarks)
+### Using Config Files (Recommended)
 
 ```bash
+# Source environment
+source .env.local
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+
 # Baseline
-harbor trials start -c swe_bench_configs/baseline.yaml -p path/to/task
+harbor trials start -c swe_bench_configs/baseline.yaml \
+  -p benchmarks/swebench_pro/tasks/instance_xxx
 
 # Sourcegraph MCP
-export SOURCEGRAPH_ENDPOINT="https://sourcegraph.com"
-export SOURCEGRAPH_TOKEN="your-token"
-harbor trials start -c swe_bench_configs/sourcegraph_mcp.yaml -p path/to/task
+harbor trials start -c swe_bench_configs/sourcegraph_mcp.yaml \
+  -p benchmarks/swebench_pro/tasks/instance_xxx
 
 # Deep Search MCP
-harbor trials start -c swe_bench_configs/deepsearch_mcp.yaml -p path/to/task
+harbor trials start -c swe_bench_configs/deepsearch_mcp.yaml \
+  -p benchmarks/swebench_pro/tasks/instance_xxx
 ```
+
+### Using Dashboard (Recommended for Ablation Studies)
+
+The `swebench_ablation` profile is available in `configs/benchmark_profiles.yaml`:
+
+```bash
+# Run via dashboard/profile runner
+python scripts/benchmark_profile_runner.py swebench_ablation
+```
+
+This runs all three variants (baseline, Sourcegraph MCP, Deep Search MCP) automatically.
 
 ### Running Full Benchmark Sweeps
 
-For SWE-bench Verified or Pro:
+For multiple tasks across all configurations:
 
 ```bash
-# Run all three configurations on a dataset
+# Source environment
+source .env.local
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+
+# Run all three configurations on a task set
 for config in baseline sourcegraph_mcp deepsearch_mcp; do
-  harbor sweeps run \
-    --config swe_bench_configs/${config}.yaml \
-    --dataset path/to/swe-bench-verified \
-    --trials-dir trials/${config}
+  for task in benchmarks/swebench_pro/tasks/instance_*; do
+    harbor trials start \
+      -c swe_bench_configs/${config}.yaml \
+      -p "$task" \
+      --trials-dir jobs/swe_ablation_${config}
+  done
 done
 ```
 
-## Ablation Study Analysis
+## MCP Server Configuration
 
-After running trials, compare results:
+### HTTP-Based MCP (Used by These Configs)
 
-```bash
-# View baseline results
-harbor trials list --trials-dir trials/baseline
+The agent classes auto-configure HTTP MCP endpoints:
 
-# View Sourcegraph MCP results
-harbor trials list --trials-dir trials/sourcegraph_mcp
+```python
+# Sourcegraph MCP endpoint
+{
+  "mcpServers": {
+    "sourcegraph": {
+      "type": "http",
+      "url": "{SOURCEGRAPH_URL}/.api/mcp/v1",
+      "headers": {"Authorization": "token {SOURCEGRAPH_ACCESS_TOKEN}"}
+    }
+  }
+}
 
-# View Deep Search MCP results
-harbor trials list --trials-dir trials/deepsearch_mcp
+# Deep Search MCP endpoint
+{
+  "mcpServers": {
+    "deepsearch": {
+      "type": "http",
+      "url": "{SOURCEGRAPH_URL}/.api/mcp/deepsearch",
+      "headers": {"Authorization": "token {SOURCEGRAPH_ACCESS_TOKEN}"}
+    }
+  }
+}
 ```
 
-## Environment Setup
+### Command-Based MCP (Also Supported)
 
-### Sourcegraph MCP
-Requires Sourcegraph access token:
-```bash
-export SOURCEGRAPH_ENDPOINT="https://sourcegraph.com"
-export SOURCEGRAPH_TOKEN="sgp_your_token_here"
-```
-
-### Deep Search MCP
-Install the MCP server:
-```bash
-uvx mcp-server-fetch
-```
-
-## MCP Server Configuration Format
-
-MCP servers are configured in the agent kwargs as:
+The base `MiniSweAgentMCP` class also supports command-based MCP:
 
 ```yaml
 agent:
+  import_path: "mini_swe_agent_mcp:MiniSweAgentMCP"
   kwargs:
     mcp_servers:
-      server_name:
-        command: "executable"
-        args:
-          - "arg1"
-          - "arg2"
-        env:  # optional
-          VAR_NAME: "value"
-```
-
-Or via command line:
-```bash
---agent-kwarg 'mcp_servers={"server_name":{"command":"cmd","args":["arg1"]}}'
+      custom_server:
+        command: "npx"
+        args: ["-y", "package-name"]
+        env:
+          API_KEY: "${API_KEY}"
 ```
 
 ## Notes

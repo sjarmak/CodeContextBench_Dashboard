@@ -40,3 +40,23 @@ profiles:
       - name: baseline
         display_name: Baseline Claude Code
         agent_import_path: agents.claude_baseline_agent:BaselineClaudeCodeAgent
+  swebench_ablation:
+    description: SWE-Bench Pro MCP ablation study (baseline vs Sourcegraph vs Deep Search)
+    benchmarks:
+      - id: swebench_pro
+        jobs_subdir: swebench_pro
+        task_names:
+          - instance_ansible-ansible-0ea40e09d1b35bcb69ff4d9cecf3d0defa4b36e8-v30a923fb5c164d6cd18280c02422f75e611e8fb2
+          - instance_flipt-io__flipt-42379dbccb539be2e97aec78e6c28df93b0b3d8e-v6a7a03632a77d6aa36ccc00c3ab1aa2c40a0d6c2
+        harbor:
+          timeout_multiplier: 3.0
+    agents:
+      - name: baseline
+        display_name: Mini SWE Agent (Baseline)
+        agent_import_path: mini_swe_agent_mcp:MiniSweAgentBaseline
+      - name: sourcegraph_mcp
+        display_name: Mini SWE Agent + Sourcegraph MCP
+        agent_import_path: mini_swe_agent_mcp:MiniSweAgentSourcegraphMCP
+      - name: deepsearch_mcp
+        display_name: Mini SWE Agent + Deep Search MCP
+        agent_import_path: mini_swe_agent_mcp:MiniSweAgentDeepSearchMCP

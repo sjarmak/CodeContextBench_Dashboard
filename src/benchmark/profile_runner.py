@@ -106,6 +106,7 @@ class BenchmarkProfileRunner:
     # ------------------------------------------------------------------
     def run(self, profile_ids: Optional[Iterable[str]] = None) -> Dict[str, Path]:
         """Run each requested profile, returning output directories."""
+        print(f"[{dt.datetime.now().strftime('%H:%M:%S')}] BenchmarkProfileRunner started. Run ID: {self.run_id}", flush=True)
 
         available_profiles = self.profile_config.get("profiles", {})
         selected_ids = list(profile_ids) if profile_ids else list(available_profiles.keys())
@@ -402,9 +403,10 @@ class BenchmarkProfileRunner:
 
         # Print status for dashboard monitoring
         task_label = task_name or task_filter or "all tasks"
-        print(f"Starting agent: {agent_name} on task: {task_label}", flush=True)
-        print(f"Command: {command_str}", flush=True)
-        print(f"Log: {log_path}", flush=True)
+        timestamp = dt.datetime.now().strftime('%H:%M:%S')
+        print(f"[{timestamp}] Starting agent: {agent_name} on task: {task_label}", flush=True)
+        print(f"[{timestamp}] Command: {command_str}", flush=True)
+        print(f"[{timestamp}] Log: {log_path}", flush=True)
 
         start = time.monotonic()
         # Open with line buffering for real-time logging
@@ -427,7 +429,8 @@ class BenchmarkProfileRunner:
         duration = time.monotonic() - start
         status = "success" if process.returncode == 0 else "failed"
         
-        print(f"Agent {agent_name} finished task {task_label} with status: {status}", flush=True)
+        timestamp = dt.datetime.now().strftime('%H:%M:%S')
+        print(f"[{timestamp}] Agent {agent_name} finished task {task_label} with status: {status}", flush=True)
         
         return HarborRunResult(
             profile_id=profile_id,

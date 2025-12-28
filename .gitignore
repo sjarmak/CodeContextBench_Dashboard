@@ -51,3 +51,5 @@ harbor-10figure-dataset/
 configs/.mcp.json
 jobs/**/.mcp.json
 .dashboard_runs/
+data/*.db
+trials/

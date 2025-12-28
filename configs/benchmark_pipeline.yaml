@@ -81,3 +81,26 @@ benchmarks:
           workdir: ${PROJECT_ROOT}
     manifest:
       path: benchmarks/dibench/MANIFEST.json
+  swebench_pro:
+    description: SWE-Bench Pro benchmark for software engineering tasks
+    task_root: benchmarks/swebench_pro
+    artifact_paths:
+      - benchmarks/swebench_pro/tasks
+    creation:
+      commands:
+        - name: swebench-pro-tasks-exist
+          run: >
+            test -d benchmarks/swebench_pro/tasks && \
+            echo "SWE-Bench Pro tasks already exist (731 tasks)" || \
+            echo "Run: python benchmarks/swebench_pro/run_adapter.py --all --task-dir benchmarks/swebench_pro/tasks"
+          workdir: ${PROJECT_ROOT}
+    validation:
+      commands:
+        - name: swebench-pro-structural-validation
+          run: >
+            python runners/validate_tasks.py \
+              --input benchmarks/swebench_pro/tasks \
+              --output artifacts/benchmark_pipeline/swebench-pro-validation.json
+          workdir: ${PROJECT_ROOT}
+    manifest:
+      path: benchmarks/swebench_pro/MANIFEST.json

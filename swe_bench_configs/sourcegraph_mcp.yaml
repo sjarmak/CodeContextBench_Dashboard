@@ -1,22 +1,14 @@
 # Mini SWE Agent + Sourcegraph MCP Configuration
-# Provides code search and repository context via Sourcegraph MCP server
+# Provides full code intelligence via Sourcegraph HTTP MCP endpoint
+# Tools: sg_keyword_search, sg_nls_search, sg_deepsearch, sg_read_file
 
 task:
   path: "path/to/swe-bench/task"  # Will be overridden by CLI
 
 agent:
-  import_path: "mini_swe_agent_mcp:MiniSweAgentMCP"
-  model_name: "anthropic/claude-sonnet-4"
-  kwargs:
-    mcp_servers:
-      sourcegraph:
-        command: "npx"
-        args:
-          - "-y"
-          - "@sourcegraph/cody-context-filters-mcp"
-        env:
-          SRC_ENDPOINT: "${SOURCEGRAPH_URL}"  # Set via environment variable
-          SRC_ACCESS_TOKEN: "${SOURCEGRAPH_ACCESS_TOKEN}"  # Set via environment variable
+  import_path: "mini_swe_agent_mcp:MiniSweAgentSourcegraphMCP"
+  model_name: "anthropic/claude-haiku-4-5-20251001"
+  # MCP config auto-configured from SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN env vars
 
 environment:
   type: docker
