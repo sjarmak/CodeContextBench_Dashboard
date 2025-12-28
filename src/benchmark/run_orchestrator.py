@@ -251,9 +251,11 @@ class EvaluationOrchestrator:
                 if idx < len(cmd):
                     cmd.pop(idx) # value
 
-            # Run from project root so relative paths work correctly
-            project_root = Path.cwd()
+        # Run from project root so relative paths work correctly
+        project_root = Path.cwd().resolve()
 
+        # Run Harbor
+        try:
             # Save Harbor output for debugging (Live streaming)
             log_file = output_dir / f"{task_name}_{safe_agent_name}_harbor.log"
             
