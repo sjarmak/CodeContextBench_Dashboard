@@ -274,9 +274,16 @@ def show_run_configuration():
 
     if st.button("Start Evaluation Run", type="primary"):
         try:
+            import subprocess
+            import sys
+            project_root = Path.cwd()
+            sys.path.insert(0, str(project_root / "dashboard"))
+            from utils.run_tracker import RunTracker
+
             # Get MCP type from session state
             mcp_type_env = st.session_state.get("baseline_mcp_type", "none")
 
+            # 1. Create the run record in DB
             run_id = create_evaluation_run(
                 benchmark_name=selected_benchmark["name"],
                 agents=selected_agents,
@@ -290,14 +297,45 @@ def show_run_configuration():
                 }
             )
 
+            # 2. Prepare the CLI command
+            command = f"python scripts/run_evaluation.py --run-id {run_id}"
+            
+            # 3. Initialize run tracker and detached log file
+            tracker = RunTracker(project_root / ".dashboard_runs")
+            log_file = tracker.tracker_dir / f"{run_id}.log"
+            
+            # 4. Launch as detached background process
+            log_fd = open(log_file, "w", buffering=1)
+            process = subprocess.Popen(
+                command,
+                shell=True,
+                cwd=project_root,
+                stdout=log_fd,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=os.environ.copy()
+            )
+
+            # 5. Register with tracker
+            tracker.register_run(
+                run_id=run_id,
+                run_type="evaluation",
+                pid=process.pid,
+                command=command,
+                benchmark_name=selected_benchmark["name"]
+            )
+
             st.session_state["current_run_id"] = run_id
             st.session_state["show_monitoring"] = True
-            st.session_state["auto_start_run"] = True  # Signal auto-start
-            st.success(f"Run created: {run_id} (MCP: {mcp_type_env})")
+            st.success(f"✅ Evaluation started in background! Run ID: {run_id}")
+            
+            time.sleep(1)
             st.rerun()
 
         except Exception as e:
             st.error(f"Failed to create run: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
     return None
 
@@ -325,13 +363,6 @@ def show_run_monitoring():
 
     # Get progress
     progress = orchestrator.get_progress()
-
-    # AUTO-START logic: If pending and auto_start_run flag is set, start immediately
-    if progress["status"] == "pending" and st.session_state.get("auto_start_run"):
-        # Clear flag first to avoid infinite loops
-        st.session_state["auto_start_run"] = False
-        orchestrator.start()
-        st.rerun()
 
     # Show progress
     col1, col2, col3, col4 = st.columns(4)
