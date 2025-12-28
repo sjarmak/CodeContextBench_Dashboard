@@ -34,7 +34,17 @@ def show_run_configuration():
         return None
 
     benchmark_names = [b["name"] for b in benchmarks]
-    selected_benchmark_name = st.selectbox("Select Benchmark", benchmark_names, key="eval_benchmark_selector")
+    # Default to SWE-bench Verified if available
+    default_bench_idx = 0
+    if "SWE-bench Verified" in benchmark_names:
+        default_bench_idx = benchmark_names.index("SWE-bench Verified")
+    
+    selected_benchmark_name = st.selectbox(
+        "Select Benchmark", 
+        benchmark_names, 
+        index=default_bench_idx,
+        key="eval_benchmark_selector"
+    )
 
     selected_benchmark = next(b for b in benchmarks if b["name"] == selected_benchmark_name)
     
@@ -147,9 +157,11 @@ def show_run_configuration():
     st.markdown("#### Agent Configuration")
 
     # Agent type selection
+    # Default to Mini SWE Agent (index 1)
     agent_type = st.selectbox(
         "Agent Type",
         options=["Claude Code", "Mini SWE Agent"],
+        index=1,
         help="Select the base agent framework to use"
     )
 
@@ -280,6 +292,7 @@ def show_run_configuration():
 
             st.session_state["current_run_id"] = run_id
             st.session_state["show_monitoring"] = True
+            st.session_state["auto_start_run"] = True  # Signal auto-start
             st.success(f"Run created: {run_id} (MCP: {mcp_type_env})")
             st.rerun()
 
@@ -312,6 +325,13 @@ def show_run_monitoring():
 
     # Get progress
     progress = orchestrator.get_progress()
+
+    # AUTO-START logic: If pending and auto_start_run flag is set, start immediately
+    if progress["status"] == "pending" and st.session_state.get("auto_start_run"):
+        # Clear flag first to avoid infinite loops
+        st.session_state["auto_start_run"] = False
+        orchestrator.start()
+        st.rerun()
 
     # Show progress
     col1, col2, col3, col4 = st.columns(4)
@@ -440,7 +460,7 @@ def show_recent_runs():
 
     # Select a run to monitor
     run_ids = [r["run_id"] for r in runs]
-    selected_run_id = st.selectbox("Load Run", [""] + run_ids)
+    selected_run_id = st.selectbox("Load Run", ["" ] + run_ids)
 
     if selected_run_id:
         if st.button("Load Selected Run"):
@@ -464,7 +484,7 @@ def show_profile_runner():
     Profiles are defined in `configs/benchmark_profiles.yaml`.
 
     **The profile will run in the background** - you can monitor progress below.
-    """)
+    """ )
 
     # Get project root
     project_root = st.session_state.get("project_root", Path.cwd())
