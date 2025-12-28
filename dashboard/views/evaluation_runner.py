@@ -458,8 +458,8 @@ def show_run_monitoring():
                         st.info("No error message captured.")
 
 
-    # Auto-refresh if running
-    if progress["status"] == "running":
+    # Auto-refresh if running or pending (for auto-start)
+    if progress["status"] in ("running", "pending"):
         time.sleep(2)
         st.rerun()
 
