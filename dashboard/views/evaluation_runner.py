@@ -317,6 +317,11 @@ def show_run_configuration():
             
             # 4. Launch as detached background process
             log_fd = open(log_file, "w", buffering=1)
+
+            # Set up environment with unbuffered output for real-time streaming
+            env = os.environ.copy()
+            env["PYTHONUNBUFFERED"] = "1"
+
             process = subprocess.Popen(
                 command,
                 shell=True,
@@ -324,7 +329,7 @@ def show_run_configuration():
                 stdout=log_fd,
                 stderr=subprocess.STDOUT,
                 text=True,
-                env=os.environ.copy()
+                env=env
             )
 
             # 5. Register with tracker
