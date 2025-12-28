@@ -387,12 +387,27 @@ def show_run_monitoring():
     running_tasks = [t for t in tasks if t["status"] == "running"]
     if running_tasks:
         active_task = running_tasks[0]
-        st.markdown(f"#### 🔄 Live Log: {active_task['task_name']}")
+        
+        # Calculate elapsed time for active task
+        import datetime
+        started_at = active_task.get("started_at")
+        elapsed_str = "Calculating..."
+        if started_at:
+            if isinstance(started_at, str):
+                # Handle ISO format strings
+                try:
+                    start_dt = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+                    elapsed = datetime.datetime.utcnow() - start_dt.replace(tzinfo=None)
+                    elapsed_str = str(elapsed).split('.')[0]
+                except:
+                    pass
+        
+        st.markdown(f"#### 🔄 Live Log: {active_task['task_name']} (Elapsed: {elapsed_str})")
         
         # Determine log path
-        # Output dir logic matches run_orchestrator.py
         safe_agent_name = active_task["agent_name"].replace(":", "__").replace("/", "_")
-        log_file = Path(f"jobs/{run_id}/{active_task['task_name']}_{safe_agent_name}_harbor.log")
+        job_dir = Path(f"jobs/{run_id}")
+        log_file = job_dir / f"{active_task['task_name']}_{safe_agent_name}_harbor.log"
         
         if log_file.exists():
             try:
@@ -405,6 +420,14 @@ def show_run_monitoring():
                 st.error(f"Error reading log: {e}")
         else:
             st.info("Log file initializing...")
+            # Debug: list directory if log missing
+            if job_dir.exists():
+                with st.expander("Debug: Job Directory Contents"):
+                    st.write(f"Path: `{job_dir.absolute()}`")
+                    files = list(job_dir.iterdir())
+                    st.write([f.name for f in files])
+            else:
+                st.error(f"Job directory not found: `{job_dir}`")
 
     st.markdown("#### Task Status")
 
