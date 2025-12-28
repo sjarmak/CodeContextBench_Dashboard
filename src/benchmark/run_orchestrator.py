@@ -248,6 +248,15 @@ class EvaluationOrchestrator:
         if "env" in self.run_data.get("config", {}):
             env.update(self.run_data["config"]["env"])
 
+        # CRITICAL: Clean the cmd list of any accidental stale URL flags
+        # This is a safety measure against memory/caching issues
+        if "--registry-url" in cmd:
+            idx = cmd.index("--registry-url")
+            # Remove the flag and its value
+            cmd.pop(idx) # --registry-url
+            if idx < len(cmd):
+                cmd.pop(idx) # the value (e.g. http://localhost)
+
         # Run Harbor
         try:
             # Run from project root so relative paths work correctly

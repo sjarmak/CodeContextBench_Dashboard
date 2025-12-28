@@ -387,6 +387,13 @@ class BenchmarkProfileRunner:
         agent_env = agent.get("env") or {}
         env.update({k: str(self._resolve_value(v)) for k, v in agent_env.items()})
 
+        # CRITICAL: Clean the cmd list of any accidental stale URL flags
+        if "--registry-url" in cmd:
+            idx = cmd.index("--registry-url")
+            cmd.pop(idx) # --registry-url
+            if idx < len(cmd):
+                cmd.pop(idx) # the value
+
         command_str = " ".join(shlex.quote(part) for part in cmd)
         if self.dry_run:
             log_path.write_text(f"[dry-run] {command_str}\n", encoding="utf-8")
