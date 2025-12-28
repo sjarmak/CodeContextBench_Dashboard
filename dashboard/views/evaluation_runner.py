@@ -1013,32 +1013,45 @@ def show_run_monitor_compact(run: dict, tracker):
     output = tracker.get_process_output(run["run_id"], tail_lines=50)
 
     # Parse for current agent/task
-    current_agent = "Unknown"
-    current_task = "Unknown"
+    current_agent = "Starting..."
+    current_task = "Initializing..."
 
-    if output:
-        # Look for agent (new format with optional timestamp)
-        # Matches: [10:00:00] Starting agent: name ...
-        agent_matches = re.findall(r"Starting agent:\s*([^\s]+)", output)
-        if agent_matches:
-            current_agent = agent_matches[-1]
-        else:
-            # Fallback to old format
-            agent_matches = re.findall(r"--agent-import-path\s+(\S+)", output)
+    # 1. Try to get info from DB first (most reliable)
+    from benchmark.database import RunManager, TaskManager
+    run_db = RunManager.get(run["run_id"])
+    if run_db:
+        if run_db.get("agents"):
+            current_agent = run_db["agents"][0].split(":")[-1]
+        
+        # If multiple tasks, find the one that is currently running
+        run_tasks = TaskManager.get_tasks(run["run_id"])
+        running_tasks = [t for t in run_tasks if t["status"] == "running"]
+        if running_tasks:
+            current_task = running_tasks[0]["task_name"]
+        elif run_db.get("task_selection"):
+            current_task = run_db["task_selection"][0]
+
+    # 2. Fallback to regex parsing if DB info is sparse
+    if current_agent == "Starting..." or current_task == "Initializing...":
+        if output:
+            # Look for agent (new format with optional timestamp)
+            agent_matches = re.findall(r"Starting agent:\s*([^\s]+)", output)
             if agent_matches:
-                agent_path = agent_matches[-1]
-                current_agent = agent_path.split(":")[-1] if ":" in agent_path else agent_path
+                current_agent = agent_matches[-1]
+            else:
+                agent_matches = re.findall(r"--agent-import-path\s+(\S+)", output)
+                if agent_matches:
+                    agent_path = agent_matches[-1]
+                    current_agent = agent_path.split(":")[-1] if ":" in agent_path else agent_path
 
-        # Look for task (new format)
-        # Matches: ... on task: task-name
-        task_matches = re.findall(r"on task:\s*([^\s]+)", output)
-        if task_matches:
-            current_task = task_matches[-1]
-        else:
-            # Fallback to old format
-            task_matches = re.findall(r"instance[_-]([a-zA-Z0-9_-]+)", output)
+            # Look for task (new format)
+            task_matches = re.findall(r"on task:\s*([^\s]+)", output)
             if task_matches:
-                current_task = task_matches[-1][:30] + "..." if len(task_matches[-1]) > 30 else task_matches[-1]
+                current_task = task_matches[-1]
+            else:
+                task_matches = re.findall(r"instance[_-]([a-zA-Z0-9_-]+)", output)
+                if task_matches:
+                    current_task = task_matches[-1][:30] + "..." if len(task_matches[-1]) > 30 else task_matches[-1]
 
     st.write(f"**Agent:** {current_agent}")
     st.write(f"**Task:** {current_task}")
