@@ -287,10 +287,11 @@ class MiniSweAgentMCP(BaseInstalledAgent):
 
         # Capture git diff after agent completes
         # This is critical for SWE-bench evaluation which requires a patch
+        # Only add modified/deleted files, not new untracked files (excludes debug scripts)
         commands.append(
             ExecInput(
                 command=(
-                    f"cd /testbed && git add -A && git diff --cached > {EnvironmentPaths.agent_dir / 'patch.diff'} && "
+                    f"cd /testbed && git add -u && git diff --cached > {EnvironmentPaths.agent_dir / 'patch.diff'} && "
                     f"echo 'Captured git diff: ' && wc -l {EnvironmentPaths.agent_dir / 'patch.diff'}"
                 ),
                 env=env,
