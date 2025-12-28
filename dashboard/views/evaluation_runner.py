@@ -307,7 +307,8 @@ def show_run_configuration():
             # 2. Prepare the CLI command
             # Pass force rebuild flag if checked
             force_flag = "--force-build" if force_rebuild else ""
-            command = f"python scripts/run_evaluation.py --run-id {run_id} {force_flag}"
+            # CRITICAL: Quote the run_id because it can contain spaces (e.g. "SWE-bench Verified")
+            command = f'python scripts/run_evaluation.py --run-id "{run_id}" {force_flag}'
             
             # 3. Initialize run tracker and detached log file
             tracker = RunTracker(project_root / ".dashboard_runs")
@@ -995,11 +996,11 @@ def show_run_monitor_compact(run: dict, tracker):
     # Display metrics
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Status", "🔄 Running")
+        st.write(f"**Status:** Running")
     with col2:
-        st.metric("Elapsed", elapsed_str)
+        st.write(f"**Elapsed:** {elapsed_str}")
     with col3:
-        st.metric("PID", run["pid"])
+        st.write(f"**PID:** {run['pid']}")
 
     # Debug info: Log file
     log_file = tracker.tracker_dir / f"{run['run_id']}.log"
