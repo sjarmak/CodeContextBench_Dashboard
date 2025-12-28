@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Install curl, build tools, and python3-pip
+apt-get update
+apt-get install -y curl build-essential git python3-pip python3-venv
+
+# Install mini-swe-agent using pip (avoids uv segfault on ARM64/QEMU)
+# Use --index-url to override any local mirror configuration
+{% if version %}
+python3 -m pip install --break-system-packages --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git@{{ version }}
+{% else %}
+python3 -m pip install --break-system-packages --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git
+{% endif %}
+
+echo "INSTALL_SUCCESS"
