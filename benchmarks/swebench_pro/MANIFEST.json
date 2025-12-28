@@ -1,0 +1,16 @@
+{
+  "benchmark_id": "swebench_pro",
+  "benchmark_name": "SWE-Bench Pro",
+  "description": "Software engineering benchmark with multi-language support (Python, Go, TypeScript)",
+  "version": "1.0.0",
+  "created_at": "2024-12-28T09:00:00Z",
+  "task_root": "benchmarks/swebench_pro/tasks",
+  "num_tasks": 731,
+  "languages": ["Python", "Go", "TypeScript"],
+  "metadata": {
+    "source": "ScaleAI/SWE-bench_Pro",
+    "docker_images": "jefzda/sweap-images",
+    "task_types": ["bug_fix", "feature_implementation", "refactoring"],
+    "difficulty": "high"
+  }
+}
