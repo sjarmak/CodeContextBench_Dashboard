@@ -193,6 +193,13 @@ class EvaluationOrchestrator:
         benchmark = BenchmarkRegistry.get(self.run_data["benchmark_id"])
         is_harbor_dataset = benchmark.get("adapter_type") == "harbor_dataset"
 
+        # Print start message for visibility
+        print(f"\n{'='*80}", flush=True)
+        print(f"Starting Task: {task_name}", flush=True)
+        print(f"Agent: {agent}", flush=True)
+        print(f"Benchmark: {benchmark.get('name', 'Unknown')}", flush=True)
+        print(f"{'='*80}\n", flush=True)
+
         # Update task status
         TaskManager.update_status(self.run_id, task_name, agent, "running")
 
@@ -262,24 +269,57 @@ class EvaluationOrchestrator:
         try:
             # Save Harbor output for debugging (Live streaming)
             log_file = output_dir / f"{task_name}_{safe_agent_name}_harbor.log"
-            
-            with open(log_file, "w", buffering=1) as log_fd:
-                self.current_process = subprocess.Popen(
-                    cmd,
-                    stdout=log_fd,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    cwd=str(project_root),  # Run from project root
-                    env=env
-                )
 
-                # Wait for completion without communicate (which buffers)
+            print(f"Harbor Command: {' '.join(cmd)}", flush=True)
+            print(f"Harbor Log: {log_file}", flush=True)
+            print(f"Starting Harbor execution...\n", flush=True)
+
+            import time
+            start_time = time.time()
+
+            # Use PIPE to capture output and stream it in real-time
+            self.current_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,  # Line buffering
+                cwd=str(project_root),  # Run from project root
+                env=env
+            )
+
+            # Stream output to both log file AND stdout (for dashboard visibility)
+            stdout_lines = []
+            with open(log_file, "w", buffering=1) as log_fd:
+                for line in self.current_process.stdout:
+                    # Write to log file
+                    log_fd.write(line)
+                    # Write to stdout so parent process captures it
+                    print(line, end='', flush=True)
+                    stdout_lines.append(line)
+
+                # Wait for process to complete
                 self.current_process.wait()
 
-            # Read stdout for error parsing if it failed
-            stdout = log_file.read_text()
+            elapsed_time = time.time() - start_time
+            print(f"\nHarbor execution completed in {elapsed_time:.1f} seconds", flush=True)
 
-            # Check result
+            # Join all output for error parsing
+            stdout = ''.join(stdout_lines)
+        except KeyboardInterrupt:
+            if self.current_process:
+                print(f"\nInterrupt received, terminating subprocess {self.current_process.pid}...")
+                self.current_process.terminate()
+                try:
+                    self.current_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.current_process.kill()
+            raise
+        except Exception:
+            raise
+
+        # Check result
+        try:
             if self.current_process.returncode == 0:
                 # Find result.json
                 result_files = list(task_output_dir.rglob("result.json"))

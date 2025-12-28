@@ -42,7 +42,9 @@ def main():
         
         # We define a simple callback to show progress in terminal
         def progress_callback(completed, total, task_name, agent):
+            print(f"\n{'='*80}", flush=True)
             print(f"[{completed}/{total}] Completed task: {task_name} with agent: {agent}", flush=True)
+            print(f"{'='*80}\n", flush=True)
 
         orchestrator = get_orchestrator(args.run_id)
         
