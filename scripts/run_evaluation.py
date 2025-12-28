@@ -12,6 +12,16 @@ import sys
 import argparse
 from pathlib import Path
 
+# MONKEYPATCH: Force Harbor to use a fixed registry URL globally
+# This bypasses the broken remote registry even if Harbor ignores CLI flags
+try:
+    import harbor.registry.client
+    FIXED_URL = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/68bc000df990cf069007606603de599c8923fd13/registry.json"
+    harbor.registry.client.RegistryClient.DEFAULT_REGISTRY_URL = FIXED_URL
+    print(f"DEBUG: Harbor Registry monkeypatched to {FIXED_URL}")
+except ImportError:
+    pass
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

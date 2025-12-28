@@ -89,7 +89,7 @@ def show_tasks_section(benchmark: dict):
     is_harbor_dataset = benchmark.get("adapter_type") == "harbor_dataset"
 
     if is_harbor_dataset:
-        st.info(f"📦 **Harbor Dataset**: {benchmark['name']}")
+        st.info(f"**Harbor Dataset**: {benchmark['name']}")
         st.write("This is a pre-installed Harbor dataset. Tasks are managed by Harbor.")
 
         # Load tasks from HuggingFace
@@ -213,7 +213,7 @@ def show_validation_section(benchmark: dict):
     # Skip validation for Harbor datasets (they're pre-validated)
     is_harbor_dataset = benchmark.get("adapter_type") == "harbor_dataset"
     if is_harbor_dataset:
-        st.info("📦 Harbor datasets are pre-validated and maintained by the Harbor team.")
+        st.info("Harbor datasets are pre-validated and maintained by the Harbor team.")
         return
 
     benchmark_path = Path("benchmarks") / benchmark["folder_name"]

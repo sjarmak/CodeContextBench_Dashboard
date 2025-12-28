@@ -201,7 +201,7 @@ def render_agent_runs(report: Dict[str, Any]):
                         st.markdown(f"- {w}")
 
     # Tool usage details
-    st.markdown("### 🔧 Tool Usage")
+    st.markdown("### Tool Usage")
 
     if tool_usage:
         tool_data = []

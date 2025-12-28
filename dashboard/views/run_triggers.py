@@ -148,7 +148,7 @@ def show_profile_runner_trigger():
             if profile_name:
                 profile_desc = config["profiles"][profile_name].get("description", "")
                 if profile_desc:
-                    st.caption(f"📋 {profile_desc}")
+                    st.caption(f"{profile_desc}")
 
     except Exception as e:
         st.error(f"Error loading profiles: {e}")

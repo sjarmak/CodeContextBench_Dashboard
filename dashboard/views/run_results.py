@@ -237,7 +237,7 @@ def show_agent_trace(claude_files, trajectory_files):
         show_conversation_view(filtered_steps)
 
         # Separate sections for aggregated views
-        tab1, tab2, tab3, tab4 = st.tabs(["📝 Full Conversation", "🔧 Tool Calls", "📋 Code Diffs", "🧪 Test Results"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Full Conversation", "Tool Calls", "Code Diffs", "Test Results"])
 
         with tab1:
             show_full_conversation(filtered_steps)
@@ -270,12 +270,12 @@ def show_conversation_view(steps):
     assistant_steps = [s for s in steps if s.source == "assistant"]
 
     if user_steps:
-        st.markdown("### 👤 User Request")
+        st.markdown("### User Request")
         user_msg = TraceParser.get_clean_message(user_steps[0])
         st.markdown(user_msg if user_msg else "_No message_")
 
     if assistant_steps:
-        st.markdown("### 🤖 Assistant Response")
+        st.markdown("### Assistant Response")
 
         # Combine all assistant messages
         for i, step in enumerate(assistant_steps, 1):
@@ -285,7 +285,7 @@ def show_conversation_view(steps):
 
             # Show tool calls inline
             if step.tool_calls:
-                with st.expander(f"🔧 Tool Calls ({len(step.tool_calls)})", expanded=False):
+                with st.expander(f"Tool Calls ({len(step.tool_calls)})", expanded=False):
                     for tool in step.tool_calls:
                         st.markdown(f"**{tool.tool_name}**")
                         if tool.parameters:
@@ -294,7 +294,7 @@ def show_conversation_view(steps):
             # Show diffs inline
             diffs = TraceParser.extract_diffs(step.tool_calls)
             if diffs:
-                with st.expander(f"📝 Code Changes ({len(diffs)})", expanded=False):
+                with st.expander(f"Code Changes ({len(diffs)})", expanded=False):
                     for diff in diffs:
                         if diff["type"] == "edit":
                             st.markdown(f"**Edit:** `{diff['file_path']}`")
@@ -326,14 +326,14 @@ def show_full_conversation(steps):
 
         # Tool calls
         if step.tool_calls:
-            st.markdown(f"**🔧 Tool Calls ({len(step.tool_calls)}):**")
+            st.markdown(f"**Tool Calls ({len(step.tool_calls)}):**")
             for tool in step.tool_calls:
                 st.markdown(f"- `{tool.tool_name}`")
 
         # Diffs
         diffs = TraceParser.extract_diffs(step.tool_calls)
         if diffs:
-            st.markdown(f"**📝 Code Changes ({len(diffs)}):**")
+            st.markdown(f"**Code Changes ({len(diffs)}):**")
             for diff in diffs:
                 if diff["type"] == "edit":
                     st.markdown(f"- Edit: `{diff['file_path']}`")
@@ -488,7 +488,7 @@ def show_trace_step(step, step_number=None):
 
             for diff in diffs:
                 if diff["type"] == "edit":
-                    st.markdown(f"📝 **Edit:** `{diff['file_path']}`")
+                    st.markdown(f"**Edit:** `{diff['file_path']}`")
 
                     col1, col2 = st.columns(2)
                     with col1:
@@ -499,7 +499,7 @@ def show_trace_step(step, step_number=None):
                         st.code(diff["new_string"], language="python")
 
                 elif diff["type"] == "write":
-                    st.markdown(f"📄 **Write:** `{diff['file_path']}`")
+                    st.markdown(f"**Write:** `{diff['file_path']}`")
                     st.code(diff["content"], language="python")
 
         # Metrics

@@ -7,6 +7,14 @@ import argparse
 import sys
 from pathlib import Path
 
+# MONKEYPATCH: Force Harbor to use a fixed registry URL globally
+try:
+    import harbor.registry.client
+    FIXED_URL = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/68bc000df990cf069007606603de599c8923fd13/registry.json"
+    harbor.registry.client.RegistryClient.DEFAULT_REGISTRY_URL = FIXED_URL
+except ImportError:
+    pass
+
 from src.benchmark.lifecycle_pipeline import (  # type: ignore
     PipelineConfigError,
     load_pipeline_config,

@@ -62,7 +62,7 @@ def show_run_configuration():
     if is_harbor_dataset:
         # For Harbor datasets, load instance list from HuggingFace
         st.markdown("#### Instance Selection")
-        st.info(f"📦 **Harbor Dataset:** {selected_benchmark['name']}")
+        st.info(f"**Harbor Dataset:** {selected_benchmark['name']}")
 
         # Load instance IDs
         with st.spinner("Loading instances from HuggingFace..."):
@@ -336,7 +336,7 @@ def show_run_configuration():
             )
 
             st.session_state["current_run_id"] = run_id
-            st.success(f"✅ Evaluation started in background! Run ID: `{run_id}`")
+            st.success(f"Evaluation started in background! Run ID: `{run_id}`")
             st.info("Navigate to the **'Current Runs'** tab to monitor progress and view live logs.")
             
         except Exception as e:
@@ -441,7 +441,7 @@ def show_run_monitoring():
                 except:
                     pass
         
-        st.markdown(f"#### 🔄 Live Log: {active_task['task_name']} (Elapsed: {elapsed_str})")
+        st.markdown(f"#### Live Log: {active_task['task_name']} (Elapsed: {elapsed_str})")
         
         # Determine log path
         safe_agent_name = active_task["agent_name"].replace(":", "__").replace("/", "_")
@@ -490,7 +490,7 @@ def show_run_monitoring():
         if failed_tasks:
             st.markdown("#### Failed Task Details")
             for task in failed_tasks:
-                with st.expander(f"❌ Failure: {task['task_name']} ({task['agent_name'].split(':')[-1]})"):
+                with st.expander(f"Failure: {task['task_name']} ({task['agent_name'].split(':')[-1]})"):
                     if "error_message" in task and task["error_message"]:
                         st.code(task["error_message"], language="text")
                     else:
@@ -603,7 +603,7 @@ def show_profile_runner():
             profile = config["profiles"][profile_name]
             desc = profile.get("description", "")
             if desc:
-                st.info(f"📋 {desc}")
+                st.info(f"{desc}")
 
             # Show profile details
             with st.expander("Profile Details"):
@@ -660,7 +660,7 @@ def show_profile_runner():
                     dry_run=dry_run
                 )
 
-                st.success(f"✅ Profile started! Run ID: {run_id}")
+                st.success(f"Profile started! Run ID: {run_id}")
                 st.info("Navigate to 'Current Runs' tab to monitor progress")
 
                 # Clear any existing monitoring state
@@ -786,11 +786,11 @@ def show_profile_monitoring():
 
     with col2:
         if return_code is None:
-            st.metric("Status", "🔄 Running")
+            st.metric("Status", "Running")
         elif return_code == 0:
-            st.metric("Status", "✅ Complete")
+            st.metric("Status", "Complete")
         else:
-            st.metric("Status", f"❌ Failed ({return_code})")
+            st.metric("Status", f"Failed ({return_code})")
 
     with col3:
         st.metric("Current Agent", current_agent)
@@ -799,7 +799,7 @@ def show_profile_monitoring():
         st.metric("Current Task", current_task)
 
     # Show elapsed time prominently
-    st.metric("⏱️ Elapsed Time", elapsed_str)
+    st.metric("Elapsed Time", elapsed_str)
 
     st.code(command, language="bash")
 
@@ -862,7 +862,7 @@ def show_profile_monitoring():
                 st.code(stderr, language="bash")
 
             if return_code == 0:
-                st.success(f"✅ Profile '{profile_name}' completed successfully!")
+                st.success(f"Profile '{profile_name}' completed successfully!")
 
                 # Show results location
                 project_root = st.session_state.get("project_root", Path.cwd())
@@ -888,7 +888,7 @@ def show_profile_monitoring():
                                 for file in files[:20]:  # Limit to first 20 files
                                     st.text(f"{subindent}{file}")
             else:
-                st.error(f"❌ Profile failed with exit code {return_code}")
+                st.error(f"Profile failed with exit code {return_code}")
 
         except Exception as e:
             st.error(f"Error reading output: {e}")
@@ -943,20 +943,20 @@ def show_current_runs():
     # Summary metrics
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("🔄 Running", len(running_runs))
+        st.metric("Running", len(running_runs))
     with col2:
-        st.metric("✅ Completed (Recent)", len(completed_runs[:10]))
+        st.metric("Completed (Recent)", len(completed_runs[:10]))
     with col3:
-        st.metric("📊 Total Tracked", len(all_runs))
+        st.metric("Total Tracked", len(all_runs))
 
     st.markdown("---")
 
     # Show running runs
     if running_runs:
-        st.markdown("### 🔄 Active Runs")
+        st.markdown("### Active Runs")
 
         for run in running_runs:
-            with st.expander(f"▶️ {run['profile_name'] or run['run_type']} - {run['run_id']}", expanded=True):
+            with st.expander(f"{run['profile_name'] or run['run_type']} - {run['run_id']}", expanded=True):
                 # Show run details and monitoring
                 show_run_monitor_compact(run, tracker)
 
@@ -966,17 +966,17 @@ def show_current_runs():
     # Show recent completed runs
     if completed_runs:
         st.markdown("---")
-        st.markdown("### ✅ Recently Completed")
+        st.markdown("### Recently Completed")
 
         for run in completed_runs[:5]:  # Show last 5
-            with st.expander(f"✓ {run['profile_name'] or run['run_type']} - {run['run_id']}"):
+            with st.expander(f"{run['profile_name'] or run['run_type']} - {run['run_id']}"):
                 show_run_summary(run, tracker)
 
     # Cleanup button
     st.markdown("---")
     col1, col2 = st.columns([3, 1])
     with col2:
-        if st.button("🗑️ Cleanup Old Runs"):
+        if st.button("Cleanup Old Runs"):
             tracker.cleanup_completed(keep_recent=10)
             st.success("Cleaned up old completed runs")
             time.sleep(1)
@@ -1057,16 +1057,16 @@ def show_run_monitor_compact(run: dict, tracker):
     # Control buttons
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("🔄 Refresh", key=f"refresh_{run['run_id']}"):
+        if st.button("Refresh", key=f"refresh_{run['run_id']}"):
             st.rerun()
     with col2:
-        if st.button("🛑 Stop", key=f"stop_{run['run_id']}", type="secondary"):
+        if st.button("Stop", key=f"stop_{run['run_id']}", type="secondary"):
             if tracker.terminate_run(run["run_id"]):
                 st.warning("Run terminated")
                 time.sleep(1)
                 st.rerun()
     with col3:
-        if st.button("🗑️ Remove", key=f"remove_{run['run_id']}"):
+        if st.button("Remove", key=f"remove_{run['run_id']}"):
             tracker.remove_run(run["run_id"])
             st.success("Run removed from tracking")
             time.sleep(1)
@@ -1092,7 +1092,7 @@ def show_run_summary(run: dict, tracker):
         with st.expander("View Output (last 20 lines)"):
             st.code(output)
 
-    if st.button("🗑️ Remove", key=f"remove_summary_{run['run_id']}"):
+    if st.button("Remove", key=f"remove_summary_{run['run_id']}"):
         tracker.remove_run(run["run_id"])
         st.success("Run removed")
         time.sleep(1)

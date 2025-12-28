@@ -353,7 +353,7 @@ def show_comparison_view():
         st.plotly_chart(radar_chart, use_container_width=True)
 
     # Tool usage heatmap
-    st.subheader("🔧 Tool Usage Analysis")
+    st.subheader("Tool Usage Analysis")
     heatmap = create_tool_usage_heatmap(report)
     if heatmap:
         st.plotly_chart(heatmap, use_container_width=True)
