@@ -75,7 +75,8 @@ def show_run_overview(run_data):
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("Status", run_data.get("status", "unknown").upper())
+        status_label = run_data.get("status", "unknown").capitalize()
+        st.metric("Status", status_label)
 
     with col2:
         st.metric("Tasks", f"{completed_tasks}/{total_tasks}")

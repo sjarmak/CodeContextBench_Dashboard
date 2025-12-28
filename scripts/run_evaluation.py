@@ -26,32 +26,28 @@ def main():
     print(f"Starting evaluation for Run ID: {args.run_id}")
     
     try:
-        # Mark run as running immediately
+        # Mark run as running immediately in DB
         RunManager.update_status(args.run_id, "running")
-        
-        orchestrator = get_orchestrator(args.run_id)
         
         # We define a simple callback to show progress in terminal
         def progress_callback(completed, total, task_name, agent):
             print(f"[{completed}/{total}] Completed task: {task_name} with agent: {agent}")
 
+        orchestrator = get_orchestrator(args.run_id)
+        
         # The _run_evaluation method handles the loop
-        # We call it directly here instead of using .start() (which spawns a thread)
-        # because this IS the background process now.
         orchestrator._run_evaluation(progress_callback=progress_callback)
         
-        # Verify status
+        # Final check
         run_data = RunManager.get(args.run_id)
         print(f"Evaluation finished. Final status: {run_data['status']}")
-        
-        if run_data['status'] == 'failed':
-            return 1
         return 0
 
     except Exception as e:
         print(f"Fatal error: {e}")
         import traceback
         traceback.print_exc()
+        # Ensure failure is recorded
         RunManager.update_status(args.run_id, "failed", error=str(e))
         return 1
 
