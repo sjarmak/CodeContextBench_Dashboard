@@ -308,7 +308,8 @@ def show_run_configuration():
             # Pass force rebuild flag if checked
             force_flag = "--force-build" if force_rebuild else ""
             # CRITICAL: Quote the run_id because it can contain spaces (e.g. "SWE-bench Verified")
-            command = f'python scripts/run_evaluation.py --run-id "{run_id}" {force_flag}'
+            # Use sys.executable to ensure we use the same python environment
+            command = f'{sys.executable} scripts/run_evaluation.py --run-id "{run_id}" {force_flag}'
             
             # 3. Initialize run tracker and detached log file
             tracker = RunTracker(project_root / ".dashboard_runs")
@@ -332,7 +333,8 @@ def show_run_configuration():
                 run_type="evaluation",
                 pid=process.pid,
                 command=command,
-                benchmark_name=selected_benchmark["name"]
+                benchmark_name=selected_benchmark["name"],
+                agent_name=agent_type
             )
 
             st.session_state["current_run_id"] = run_id
@@ -1009,19 +1011,18 @@ def show_run_monitor_compact(run: dict, tracker):
     else:
         st.error(f"Log file missing: {log_file}")
 
-    # Get latest output
-    output = tracker.get_process_output(run["run_id"], tail_lines=50)
-
     # Parse for current agent/task
-    current_agent = "Starting..."
-    current_task = "Initializing..."
+    current_agent = run.get("agent_name", "Starting...")
+    current_task = run.get("benchmark_name", "Initializing...")
 
-    # 1. Try to get info from DB first (most reliable)
+    # 1. Try to get more specific info from DB if possible
     from benchmark.database import RunManager, TaskManager
     run_db = RunManager.get(run["run_id"])
     if run_db:
         if run_db.get("agents"):
-            current_agent = run_db["agents"][0].split(":")[-1]
+            db_agent = run_db["agents"][0].split(":")[-1]
+            if db_agent:
+                current_agent = db_agent
         
         # If multiple tasks, find the one that is currently running
         run_tasks = TaskManager.get_tasks(run["run_id"])
@@ -1030,6 +1031,9 @@ def show_run_monitor_compact(run: dict, tracker):
             current_task = running_tasks[0]["task_name"]
         elif run_db.get("task_selection"):
             current_task = run_db["task_selection"][0]
+
+    # Get latest output for logs and fallback parsing
+    output = tracker.get_process_output(run["run_id"], tail_lines=50)
 
     # 2. Fallback to regex parsing if DB info is sparse
     if current_agent == "Starting..." or current_task == "Initializing...":

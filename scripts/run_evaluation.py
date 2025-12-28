@@ -34,7 +34,7 @@ def main():
     parser.add_argument("--force-build", action="store_true", help="Force rebuild of Docker environment")
     args = parser.parse_args()
 
-    print(f"Starting evaluation for Run ID: {args.run_id}")
+    print(f"Starting evaluation for Run ID: {args.run_id}", flush=True)
     
     try:
         # Mark run as running immediately in DB
@@ -42,7 +42,7 @@ def main():
         
         # We define a simple callback to show progress in terminal
         def progress_callback(completed, total, task_name, agent):
-            print(f"[{completed}/{total}] Completed task: {task_name} with agent: {agent}")
+            print(f"[{completed}/{total}] Completed task: {task_name} with agent: {agent}", flush=True)
 
         orchestrator = get_orchestrator(args.run_id)
         
@@ -56,11 +56,15 @@ def main():
         
         # Final check
         run_data = RunManager.get(args.run_id)
-        print(f"Evaluation finished. Final status: {run_data['status']}")
+        print(f"Evaluation finished. Final status: {run_data['status']}", flush=True)
         return 0
 
+    except KeyboardInterrupt:
+        print("\nEvaluation interrupted by user.", flush=True)
+        RunManager.update_status(args.run_id, "stopped")
+        return 130
     except Exception as e:
-        print(f"Fatal error: {e}")
+        print(f"Fatal error: {e}", flush=True)
         import traceback
         traceback.print_exc()
         # Ensure failure is recorded
