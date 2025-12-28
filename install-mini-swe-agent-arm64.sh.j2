@@ -17,9 +17,13 @@ if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" 
     echo "Python $PYTHON_VERSION is too old for mini-swe-agent (requires >=3.10). Installing Python 3.10..."
     add-apt-repository -y ppa:deadsnakes/ppa
     apt-get update
-    apt-get install -y python3.10 python3.10-pip python3.10-venv python3.10-dev
+    apt-get install -y python3.10 python3.10-venv python3.10-dev python3.10-distutils
+
+    # Install pip for Python 3.10
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+
     PYTHON_CMD=python3.10
-    echo "Installed Python 3.10"
+    echo "Installed Python 3.10 with pip"
 else
     echo "Python $PYTHON_VERSION is compatible, using system Python"
     apt-get install -y python3-pip python3-venv
