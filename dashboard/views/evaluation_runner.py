@@ -1071,12 +1071,18 @@ def show_run_monitor_compact(run: dict, tracker):
 
     # Show live log
     if output:
+        # Add content hash to key to force Streamlit to update the widget
+        import hashlib
+        content_hash = hashlib.md5(output.encode()).hexdigest()[:8]
+
         st.text_area(
             "Live Output (last 50 lines)",
             output,
             height=300,
-            key=f"output_{run['run_id']}"
+            key=f"output_{run['run_id']}_{content_hash}"
         )
+        # Also show byte count to prove it's updating
+        st.caption(f"Log size: {len(output)} chars | Last {len(output.split(chr(10)))} lines")
     else:
         st.info("Waiting for output...")
 
