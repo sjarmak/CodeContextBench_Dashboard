@@ -351,11 +351,12 @@ class BenchmarkProfileRunner:
             job_name_parts.append(self._slugify(task_name))
         job_name = "-".join(part for part in job_name_parts if part)
 
+        registry_url = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/registry.json"
         cmd = [
             "harbor",
             "run",
-            "--registry-url", "file:///Users/sjarmak/CodeContextBench/configs/harbor/registry.json", "--registry-path",
-            "configs/harbor/registry.json",
+            "--registry-url", registry_url,
+            "--registry-path", "configs/harbor/registry.json",
             "--path",
             str(task_path),
             "--agent-import-path",
@@ -389,10 +390,12 @@ class BenchmarkProfileRunner:
 
         # CRITICAL: Clean the cmd list of any accidental stale URL flags
         if "--registry-url" in cmd:
-            idx = cmd.index("--registry-url")
-            cmd.pop(idx) # --registry-url
-            if idx < len(cmd):
-                cmd.pop(idx) # the value
+            indices = [i for i, x in enumerate(cmd) if x == "--registry-url"]
+            if len(indices) > 1:
+                for idx in reversed(indices[1:]):
+                    cmd.pop(idx)
+                    if idx < len(cmd):
+                        cmd.pop(idx)
 
         command_str = " ".join(shlex.quote(part) for part in cmd)
         if self.dry_run:

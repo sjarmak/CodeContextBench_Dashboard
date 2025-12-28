@@ -206,12 +206,15 @@ class EvaluationOrchestrator:
 
         # Build Harbor command
         registry_path = "configs/harbor/registry.json"
+        # Using a stable fixed Gist as fallback because file:// is not supported by Harbor's requests client
+        registry_url = "https://gist.githubusercontent.com/sjarmak/005160332f794266ae71c7b815cbef4a/raw/registry.json"
         
         if is_harbor_dataset:
             # Use Harbor dataset command
             cmd = [
                 "harbor", "run",
-                "--registry-path", registry_path, "--registry-url", "file:///Users/sjarmak/CodeContextBench/configs/harbor/registry.json",
+                "--registry-path", registry_path, 
+                "--registry-url", registry_url,
                 "--dataset", benchmark["folder_name"],  # e.g., "swebench_verified"
                 "--task-name", task_name,               # Specific task to run from dataset
                 "--agent-import-path", agent,
@@ -223,7 +226,8 @@ class EvaluationOrchestrator:
             # Use local benchmark path
             cmd = [
                 "harbor", "run",
-                "--registry-path", registry_path, "--registry-url", "file:///Users/sjarmak/CodeContextBench/configs/harbor/registry.json",
+                "--registry-path", registry_path, 
+                "--registry-url", registry_url,
                 "--path", str(benchmark_path),  # Point to benchmark directory, not task
                 "--task-name", task_name,       # Specify which task to run
                 "--agent-import-path", agent,
@@ -232,30 +236,18 @@ class EvaluationOrchestrator:
                 "-n", "1",
             ]
 
-        # Add timeout multiplier if configured
-        if "timeout" in self.run_data.get("config", {}):
-            # Harbor uses timeout-multiplier, not timeout
-            # Convert seconds to multiplier (Harbor's default timeout varies by task)
-            timeout_sec = self.run_data["config"]["timeout"]
-            # Use timeout-multiplier of 1.0 and let Harbor respect task's time_limit_sec
-            # For now, we'll skip this and let Harbor use task defaults
-            pass
-
-        # Prepare environment variables
-        env = os.environ.copy()
-
-        # Add any custom environment variables from config
-        if "env" in self.run_data.get("config", {}):
-            env.update(self.run_data["config"]["env"])
-
         # CRITICAL: Clean the cmd list of any accidental stale URL flags
         # This is a safety measure against memory/caching issues
         if "--registry-url" in cmd:
-            idx = cmd.index("--registry-url")
-            # Remove the flag and its value
-            cmd.pop(idx) # --registry-url
-            if idx < len(cmd):
-                cmd.pop(idx) # the value (e.g. http://localhost)
+            # We keep the one we just added, but remove any DUPLICATES that might have been injected
+            indices = [i for i, x in enumerate(cmd) if x == "--registry-url"]
+            if len(indices) > 1:
+                # Remove extra ones (from the end to keep indices stable)
+                for idx in reversed(indices[1:]):
+                    cmd.pop(idx) # flag
+                    if idx < len(cmd):
+                        cmd.pop(idx) # value
+
 
         # Run Harbor
         try:
