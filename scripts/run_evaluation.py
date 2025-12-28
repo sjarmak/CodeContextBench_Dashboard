@@ -21,6 +21,7 @@ from src.benchmark.database import RunManager
 def main():
     parser = argparse.ArgumentParser(description="Run a benchmark evaluation")
     parser.add_argument("--run-id", required=True, help="Run ID to execute")
+    parser.add_argument("--force-build", action="store_true", help="Force rebuild of Docker environment")
     args = parser.parse_args()
 
     print(f"Starting evaluation for Run ID: {args.run_id}")
@@ -35,6 +36,11 @@ def main():
 
         orchestrator = get_orchestrator(args.run_id)
         
+        # If force-build is requested, pass it through to the orchestrator logic
+        # We store it in run_data for now so _run_evaluation can pick it up
+        if args.force_build:
+            orchestrator.run_data["force_build"] = True
+
         # The _run_evaluation method handles the loop
         orchestrator._run_evaluation(progress_callback=progress_callback)
         

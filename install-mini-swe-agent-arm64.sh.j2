@@ -4,12 +4,21 @@
 apt-get update
 apt-get install -y curl build-essential git python3-pip python3-venv
 
-# Install mini-swe-agent using pip (avoids uv segfault on ARM64/QEMU)
-# Use --index-url to override any local mirror configuration
+# Create a virtual environment for the agent to avoid system package conflicts
+python3 -m venv /opt/mini-swe-agent-venv
+source /opt/mini-swe-agent-venv/bin/activate
+
+# Install mini-swe-agent using pip inside the venv
 {% if version %}
-python3 -m pip install --break-system-packages --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git@{{ version }}
+pip install --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git@{{ version }}
 {% else %}
-python3 -m pip install --break-system-packages --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git
+pip install --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git
 {% endif %}
+
+# Create a symlink to the binary in /usr/local/bin so it is in the PATH
+ln -sf /opt/mini-swe-agent-venv/bin/mini-swe-agent /usr/local/bin/mini-swe-agent
+
+# Also symlink 'mini' just in case anything still expects the old name
+ln -sf /opt/mini-swe-agent-venv/bin/mini-swe-agent /usr/local/bin/mini
 
 echo "INSTALL_SUCCESS"

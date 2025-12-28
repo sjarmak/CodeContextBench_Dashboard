@@ -270,6 +270,12 @@ def show_run_configuration():
             value=600
         )
 
+    force_rebuild = st.checkbox(
+        "Force Rebuild Environment",
+        value=False,
+        help="Check this if you changed the agent installation script or need to clear the Docker cache."
+    )
+
     # Create run button
     st.markdown("---")
 
@@ -299,7 +305,9 @@ def show_run_configuration():
             )
 
             # 2. Prepare the CLI command
-            command = f"python scripts/run_evaluation.py --run-id {run_id}"
+            # Pass force rebuild flag if checked
+            force_flag = "--force-build" if force_rebuild else ""
+            command = f"python scripts/run_evaluation.py --run-id {run_id} {force_flag}"
             
             # 3. Initialize run tracker and detached log file
             tracker = RunTracker(project_root / ".dashboard_runs")

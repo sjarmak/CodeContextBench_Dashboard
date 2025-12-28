@@ -234,6 +234,10 @@ class EvaluationOrchestrator:
                 "-n", "1",
             ]
 
+        # Add force rebuild if requested
+        if self.run_data.get("force_build"):
+            cmd.append("--force-build")
+
         # Prepare environment variables
         env = os.environ.copy()
         
