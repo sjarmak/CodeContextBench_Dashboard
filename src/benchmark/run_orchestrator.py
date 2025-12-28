@@ -211,7 +211,7 @@ class EvaluationOrchestrator:
             # Use Harbor dataset command
             cmd = [
                 "harbor", "run",
-                "--registry-path", registry_path,
+                "--registry-path", registry_path, "--registry-url", "file:///Users/sjarmak/CodeContextBench/configs/harbor/registry.json",
                 "--dataset", benchmark["folder_name"],  # e.g., "swebench_verified"
                 "--task-name", task_name,               # Specific task to run from dataset
                 "--agent-import-path", agent,
@@ -223,7 +223,7 @@ class EvaluationOrchestrator:
             # Use local benchmark path
             cmd = [
                 "harbor", "run",
-                "--registry-path", registry_path,
+                "--registry-path", registry_path, "--registry-url", "file:///Users/sjarmak/CodeContextBench/configs/harbor/registry.json",
                 "--path", str(benchmark_path),  # Point to benchmark directory, not task
                 "--task-name", task_name,       # Specify which task to run
                 "--agent-import-path", agent,

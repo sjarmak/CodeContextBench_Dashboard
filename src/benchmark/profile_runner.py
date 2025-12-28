@@ -354,7 +354,7 @@ class BenchmarkProfileRunner:
         cmd = [
             "harbor",
             "run",
-            "--registry-path",
+            "--registry-url", "file:///Users/sjarmak/CodeContextBench/configs/harbor/registry.json", "--registry-path",
             "configs/harbor/registry.json",
             "--path",
             str(task_path),
