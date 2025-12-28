@@ -161,6 +161,84 @@ podman system prune -a
 - Verify bd CLI version: `bd --version`
 - Clear cache and retry: `bd ready --json`
 
+## Dashboard Issues
+
+### Current Runs shows "Waiting for output..."
+
+**Symptoms:**
+- Elapsed time stuck at 2 seconds
+- "Waiting for output..." instead of live logs
+- Run started but no output appears
+
+**Root Cause:**
+The log file handle was closed immediately after starting the subprocess, preventing output from being written.
+
+**Fix Applied:**
+Changed `dashboard/views/evaluation_runner.py` to keep file handle open:
+
+```python
+# Open file without context manager so it stays open for subprocess
+log_fd = open(log_file, "w", buffering=1)  # Line buffering
+process = subprocess.Popen(
+    command,
+    shell=True,
+    stdout=log_fd,
+    stderr=subprocess.STDOUT,
+    text=True
+)
+```
+
+**Verification:**
+- Start profile from "Evaluation Runner → Profile Run"
+- Navigate to "Current Runs" tab
+- Elapsed time should update continuously
+- Live output should show command output
+- Run should persist across page refreshes
+
+### Dashboard timeout on long runs
+
+**Symptoms:**
+- "Command timed out after 1 hour"
+- Profile runner stops mid-execution
+
+**Solution:**
+Use CLI instead of dashboard for long-running profiles:
+
+```bash
+source .env.local
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+python scripts/benchmark_profile_runner.py --profiles swebench_ablation
+```
+
+Or use tmux for background execution:
+
+```bash
+tmux new -s profile_run
+# Inside tmux: run the profile
+# Detach: Ctrl+b, then d
+# Re-attach: tmux attach -t profile_run
+```
+
+### Runs disappear on dashboard refresh
+
+**Symptoms:**
+- Started run no longer visible after refresh
+- Cannot monitor long-running evaluations
+
+**Solution:**
+Dashboard now uses persistent tracking with `RunTracker`:
+- Run metadata stored in `.dashboard_runs/` directory
+- Process PIDs tracked using psutil
+- Runs survive dashboard restarts
+- Navigate to "Current Runs" tab to see all tracked runs
+
+**Cleanup:**
+```bash
+# Remove old completed runs (keeps 10 most recent)
+# Use "Cleanup Old Runs" button in dashboard
+# Or manually: rm -rf .dashboard_runs/*.json
+```
+
 ## Repository Hygiene
 
 ### Status documents appearing in root

@@ -146,47 +146,93 @@ def show_run_configuration():
     # Agent selection
     st.markdown("#### Agent Configuration")
 
-    # Use baseline agent only
-    agent_import_path = "agents.claude_baseline_agent:BaselineClaudeCodeAgent"
-    st.write(f"**Agent:** {agent_import_path}")
-
-    # MCP Type Selection
-    mcp_type = st.radio(
-        "MCP Configuration",
-        options=["None (Pure Baseline)", "Sourcegraph MCP", "Deep Search MCP"],
-        help="""
-        - None: Pure baseline with no MCP
-        - Sourcegraph: Full Sourcegraph MCP with all tools (keyword, NLS, Deep Search)
-        - Deep Search: Deep Search-only MCP endpoint
-        """
+    # Agent type selection
+    agent_type = st.selectbox(
+        "Agent Type",
+        options=["Claude Code", "Mini SWE Agent"],
+        help="Select the base agent framework to use"
     )
 
-    # Map selection to environment variable value
-    mcp_env_value = {
-        "None (Pure Baseline)": "none",
-        "Sourcegraph MCP": "sourcegraph",
-        "Deep Search MCP": "deepsearch"
-    }[mcp_type]
+    if agent_type == "Claude Code":
+        # MCP Type Selection for Claude Code
+        mcp_type = st.radio(
+            "MCP Configuration",
+            options=["None (Pure Baseline)", "Sourcegraph MCP", "Deep Search MCP"],
+            help="""
+            - None: Pure baseline with no MCP
+            - Sourcegraph: Full Sourcegraph MCP with all tools (keyword, NLS, Deep Search)
+            - Deep Search: Deep Search-only MCP endpoint
+            """
+        )
 
-    # Store in session state for later use
-    st.session_state["baseline_mcp_type"] = mcp_env_value
+        # Map selection to environment variable value
+        mcp_env_value = {
+            "None (Pure Baseline)": "none",
+            "Sourcegraph MCP": "sourcegraph",
+            "Deep Search MCP": "deepsearch"
+        }[mcp_type]
 
-    st.info(f"MCP Type: {mcp_type}")
+        # Store in session state for later use
+        st.session_state["baseline_mcp_type"] = mcp_env_value
 
-    # Display what will be created based on MCP selection
-    with st.expander("Configuration Details"):
-        if mcp_env_value == "none":
-            st.write("- No mcp.json will be created")
-            st.write("- No CLAUDE.md will be created")
-            st.write("- Pure baseline agent with local tools only")
-        elif mcp_env_value == "sourcegraph":
-            st.write("- mcp.json: Sourcegraph MCP endpoint (.api/mcp/v1)")
-            st.write("- CLAUDE.md: Instructions for sg_keyword_search, sg_nls_search, sg_deepsearch")
-            st.write("- Access to all Sourcegraph MCP tools")
-        elif mcp_env_value == "deepsearch":
-            st.write("- mcp.json: Deep Search MCP endpoint (.api/mcp/deepsearch)")
-            st.write("- CLAUDE.md: Instructions for sg_deepsearch only")
-            st.write("- Focused on Deep Search semantic code understanding")
+        agent_import_path = "agents.claude_baseline_agent:BaselineClaudeCodeAgent"
+
+        st.info(f"**Agent:** Claude Code ({mcp_type})")
+
+        # Display what will be created based on MCP selection
+        with st.expander("Configuration Details"):
+            if mcp_env_value == "none":
+                st.write("- No mcp.json will be created")
+                st.write("- No CLAUDE.md will be created")
+                st.write("- Pure baseline agent with local tools only")
+            elif mcp_env_value == "sourcegraph":
+                st.write("- mcp.json: Sourcegraph MCP endpoint (.api/mcp/v1)")
+                st.write("- CLAUDE.md: Instructions for sg_keyword_search, sg_nls_search, sg_deepsearch")
+                st.write("- Access to all Sourcegraph MCP tools")
+            elif mcp_env_value == "deepsearch":
+                st.write("- mcp.json: Deep Search MCP endpoint (.api/mcp/deepsearch)")
+                st.write("- CLAUDE.md: Instructions for sg_deepsearch only")
+                st.write("- Focused on Deep Search semantic code understanding")
+
+    else:  # Mini SWE Agent
+        # Variant selection for Mini SWE Agent
+        swe_variant = st.radio(
+            "Mini SWE Agent Variant",
+            options=["Baseline (No MCP)", "Sourcegraph MCP", "Deep Search MCP"],
+            help="""
+            - Baseline: Pure mini-swe-agent with local tools only
+            - Sourcegraph MCP: Full code intelligence (keyword, NLS, Deep Search, read_file)
+            - Deep Search MCP: Focused semantic search only
+            """
+        )
+
+        # Map to agent import paths
+        agent_import_paths = {
+            "Baseline (No MCP)": "mini_swe_agent_mcp:MiniSweAgentBaseline",
+            "Sourcegraph MCP": "mini_swe_agent_mcp:MiniSweAgentSourcegraphMCP",
+            "Deep Search MCP": "mini_swe_agent_mcp:MiniSweAgentDeepSearchMCP",
+        }
+        agent_import_path = agent_import_paths[swe_variant]
+
+        # No MCP env var needed for Mini SWE - variants handle it internally
+        st.session_state["baseline_mcp_type"] = "none"
+
+        st.info(f"**Agent:** Mini SWE Agent ({swe_variant})")
+
+        # Display configuration details
+        with st.expander("Configuration Details"):
+            if swe_variant == "Baseline (No MCP)":
+                st.write("- Pure mini-swe-agent")
+                st.write("- No MCP servers")
+                st.write("- Local tools only")
+            elif swe_variant == "Sourcegraph MCP":
+                st.write("- HTTP MCP endpoint: {SOURCEGRAPH_URL}/.api/mcp/v1")
+                st.write("- Tools: sg_keyword_search, sg_nls_search, sg_deepsearch, sg_read_file")
+                st.write("- Requires: SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN env vars")
+            elif swe_variant == "Deep Search MCP":
+                st.write("- HTTP MCP endpoint: {SOURCEGRAPH_URL}/.api/mcp/deepsearch")
+                st.write("- Tools: deepsearch (semantic search)")
+                st.write("- Requires: SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN env vars")
 
     selected_agents = [agent_import_path]
 
@@ -390,12 +436,530 @@ def show_recent_runs():
             st.rerun()
 
 
+def show_profile_runner():
+    """Run benchmark profiles (multiple agents on same tasks)."""
+
+    # Check if we're monitoring a profile run
+    if st.session_state.get("monitoring_profile"):
+        show_profile_monitoring()
+        return
+
+    st.subheader("Benchmark Profile Runner")
+
+    st.markdown("""
+    Run benchmark profiles to test multiple agent variants on the same tasks.
+    Profiles are defined in `configs/benchmark_profiles.yaml`.
+
+    **The profile will run in the background** - you can monitor progress below.
+    """)
+
+    # Get project root
+    project_root = st.session_state.get("project_root", Path.cwd())
+    profiles_config = project_root / "configs" / "benchmark_profiles.yaml"
+
+    if not profiles_config.exists():
+        st.error(f"Profiles config not found: {profiles_config}")
+        return
+
+    # Parse YAML to get available profiles
+    import yaml
+    try:
+        with open(profiles_config) as f:
+            config = yaml.safe_load(f)
+            available_profiles = list(config.get("profiles", {}).keys())
+
+        if not available_profiles:
+            st.warning("No profiles found in config")
+            return
+
+        # Profile selection dropdown
+        profile_name = st.selectbox(
+            "Select Profile",
+            available_profiles,
+            help="Profile defined in configs/benchmark_profiles.yaml"
+        )
+
+        # Show profile description
+        if profile_name:
+            profile = config["profiles"][profile_name]
+            desc = profile.get("description", "")
+            if desc:
+                st.info(f"📋 {desc}")
+
+            # Show profile details
+            with st.expander("Profile Details"):
+                st.json(profile)
+
+        # Run options
+        dry_run = st.checkbox("Dry Run (preview commands only)", value=True)
+
+        # Run button
+        if st.button("Start Profile Run", type="primary"):
+            import subprocess
+            import datetime
+            import sys
+            sys.path.insert(0, str(project_root / "dashboard"))
+            from utils.run_tracker import RunTracker
+
+            cmd_parts = ["python", "scripts/benchmark_profile_runner.py", "--profiles", profile_name]
+
+            if dry_run:
+                cmd_parts.append("--dry-run")
+
+            command = " ".join(cmd_parts)
+
+            st.info(f"Starting: `{command}`")
+
+            try:
+                # Initialize run tracker
+                tracker = RunTracker(project_root / ".dashboard_runs")
+
+                # Create log file
+                run_id = f"profile_{profile_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                log_file = tracker.tracker_dir / f"{run_id}.log"
+
+                # Start process in background with output redirect
+                # Open file without context manager so it stays open for subprocess
+                log_fd = open(log_file, "w", buffering=1)  # Line buffering for real-time output
+                process = subprocess.Popen(
+                    command,
+                    shell=True,
+                    cwd=project_root,
+                    stdout=log_fd,
+                    stderr=subprocess.STDOUT,
+                    text=True
+                )
+                # Note: log_fd will be closed when process exits or is garbage collected
+
+                # Register with tracker
+                tracker.register_run(
+                    run_id=run_id,
+                    run_type="profile",
+                    pid=process.pid,
+                    command=command,
+                    profile_name=profile_name,
+                    dry_run=dry_run
+                )
+
+                st.success(f"✅ Profile started! Run ID: {run_id}")
+                st.info("Navigate to 'Current Runs' tab to monitor progress")
+
+                # Clear any existing monitoring state
+                if "monitoring_profile" in st.session_state:
+                    del st.session_state["monitoring_profile"]
+
+                time.sleep(2)
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Failed to start profile: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+
+    except Exception as e:
+        st.error(f"Error loading profiles: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+
+
+def show_profile_monitoring():
+    """Monitor running profile with live log streaming."""
+    import datetime
+    import re
+    import select
+
+    st.subheader("Profile Run Monitor")
+
+    profile_name = st.session_state.get("profile_name", "Unknown")
+    command = st.session_state.get("profile_command", "")
+    start_time = st.session_state.get("profile_start_time")
+    dry_run = st.session_state.get("profile_dry_run", False)
+    process = st.session_state.get("profile_process")
+
+    if not process:
+        st.error("No process found in session state")
+        if st.button("Back to Profile Runner"):
+            st.session_state["monitoring_profile"] = False
+            st.rerun()
+        return
+
+    # Check process status
+    return_code = process.poll()
+
+    # Calculate elapsed time
+    if start_time:
+        elapsed = datetime.datetime.now() - start_time
+        elapsed_str = str(elapsed).split('.')[0]  # Remove microseconds
+    else:
+        elapsed_str = "Unknown"
+
+    # Read available output and parse for current agent/task
+    if "profile_output_buffer" not in st.session_state:
+        st.session_state["profile_output_buffer"] = ""
+
+    current_agent = "Starting..."
+    current_task = "Initializing..."
+
+    # Read new output (non-blocking)
+    try:
+        if return_code is None and process.stdout:
+            # Use non-blocking read
+            import fcntl
+            import os
+            fd = process.stdout.fileno()
+            flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+            try:
+                new_output = process.stdout.read()
+                if new_output:
+                    st.session_state["profile_output_buffer"] += new_output
+            except:
+                pass  # No new data available
+
+        # Parse output to find current agent and task
+        output = st.session_state.get("profile_output_buffer", "")
+
+        # Look for agent patterns
+        agent_patterns = [
+            r"Agent:\s*(\S+)",
+            r"Running agent:\s*(\S+)",
+            r"--agent-import-path\s+(\S+)",
+        ]
+        for pattern in agent_patterns:
+            matches = re.findall(pattern, output)
+            if matches:
+                agent_path = matches[-1]  # Get most recent
+                # Extract class name
+                if ":" in agent_path:
+                    current_agent = agent_path.split(":")[-1]
+                else:
+                    current_agent = agent_path
+
+        # Look for task patterns
+        task_patterns = [
+            r"Task:\s*(\S+)",
+            r"Running task:\s*(\S+)",
+            r"--path\s+\S+/(\S+)",
+            r"instance[_-]([a-zA-Z0-9_-]+)",
+        ]
+        for pattern in task_patterns:
+            matches = re.findall(pattern, output)
+            if matches:
+                task = matches[-1]
+                # Truncate long task names
+                if len(task) > 40:
+                    current_task = task[:37] + "..."
+                else:
+                    current_task = task
+
+    except Exception as e:
+        # Fail silently for parsing errors
+        pass
+
+    # Display status with 4 columns
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Profile", profile_name)
+
+    with col2:
+        if return_code is None:
+            st.metric("Status", "🔄 Running")
+        elif return_code == 0:
+            st.metric("Status", "✅ Complete")
+        else:
+            st.metric("Status", f"❌ Failed ({return_code})")
+
+    with col3:
+        st.metric("Current Agent", current_agent)
+
+    with col4:
+        st.metric("Current Task", current_task)
+
+    # Show elapsed time prominently
+    st.metric("⏱️ Elapsed Time", elapsed_str)
+
+    st.code(command, language="bash")
+
+    if dry_run:
+        st.info("🔍 Running in DRY RUN mode - no actual execution")
+
+    # Show live log
+    st.markdown("---")
+    st.markdown("### Live Output Log")
+
+    if return_code is None:
+        # Still running - show live output
+        output = st.session_state.get("profile_output_buffer", "")
+
+        if output:
+            # Show last 100 lines for performance
+            lines = output.split('\n')
+            display_lines = lines[-100:] if len(lines) > 100 else lines
+            display_text = '\n'.join(display_lines)
+
+            st.text_area(
+                "Output (last 100 lines)",
+                display_text,
+                height=400,
+                key="live_output"
+            )
+
+            # Show line count
+            total_lines = len(lines)
+            if total_lines > 100:
+                st.caption(f"Showing last 100 of {total_lines} lines")
+        else:
+            st.info("Waiting for output... The process has started but hasn't produced output yet.")
+
+        # Auto-refresh every 3 seconds for more responsive updates
+        st.markdown("*Auto-refreshing every 3 seconds...*")
+        time.sleep(3)
+        st.rerun()
+
+    else:
+        # Process finished - show full output
+        try:
+            stdout, stderr = process.communicate(timeout=1)
+
+            # Combine with buffered output
+            full_output = st.session_state.get("profile_output_buffer", "")
+            if stdout:
+                full_output += "\n" + stdout
+
+            if full_output:
+                st.text_area(
+                    "Complete Output",
+                    full_output,
+                    height=500,
+                    key="final_output"
+                )
+
+            if stderr:
+                st.subheader("Errors")
+                st.code(stderr, language="bash")
+
+            if return_code == 0:
+                st.success(f"✅ Profile '{profile_name}' completed successfully!")
+
+                # Show results location
+                project_root = st.session_state.get("project_root", Path.cwd())
+                results_dir = project_root / "jobs" / "benchmark_profiles" / profile_name
+
+                if results_dir.exists():
+                    st.info(f"📁 Results: `{results_dir}`")
+
+                    # List result directories
+                    result_dirs = sorted(results_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True)
+                    if result_dirs:
+                        latest = result_dirs[0]
+                        st.write(f"**Latest run:** `{latest.name}`")
+
+                        # Show directory structure
+                        with st.expander("View Results Structure"):
+                            import os
+                            for root, dirs, files in os.walk(latest):
+                                level = root.replace(str(latest), '').count(os.sep)
+                                indent = ' ' * 2 * level
+                                st.text(f"{indent}{os.path.basename(root)}/")
+                                subindent = ' ' * 2 * (level + 1)
+                                for file in files[:20]:  # Limit to first 20 files
+                                    st.text(f"{subindent}{file}")
+            else:
+                st.error(f"❌ Profile failed with exit code {return_code}")
+
+        except Exception as e:
+            st.error(f"Error reading output: {e}")
+
+        # Clear buffer on completion
+        if "profile_output_buffer" in st.session_state:
+            del st.session_state["profile_output_buffer"]
+
+    # Control buttons
+    st.markdown("---")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Start New Profile Run"):
+            # Clean up
+            st.session_state["monitoring_profile"] = False
+            del st.session_state["profile_process"]
+            st.rerun()
+
+    with col2:
+        if return_code is None:
+            if st.button("Stop Profile", type="secondary"):
+                try:
+                    process.terminate()
+                    st.warning("Profile run terminated")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to stop: {e}")
+
+
+def show_current_runs():
+    """Show all current background runs with monitoring."""
+    import sys
+    from pathlib import Path
+
+    project_root = st.session_state.get("project_root", Path.cwd())
+    sys.path.insert(0, str(project_root / "dashboard"))
+    from utils.run_tracker import RunTracker
+
+    st.subheader("Current Background Runs")
+    st.markdown("Monitor all running profile and benchmark evaluations")
+
+    tracker = RunTracker(project_root / ".dashboard_runs")
+
+    # Get all runs
+    all_runs = tracker.list_runs()
+    running_runs = [r for r in all_runs if r["status"] == "running"]
+    completed_runs = [r for r in all_runs if r["status"] == "completed"]
+
+    # Summary metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("🔄 Running", len(running_runs))
+    with col2:
+        st.metric("✅ Completed (Recent)", len(completed_runs[:10]))
+    with col3:
+        st.metric("📊 Total Tracked", len(all_runs))
+
+    st.markdown("---")
+
+    # Show running runs
+    if running_runs:
+        st.markdown("### 🔄 Active Runs")
+
+        for run in running_runs:
+            with st.expander(f"▶️ {run['profile_name'] or run['run_type']} - {run['run_id']}", expanded=True):
+                # Show run details and monitoring
+                show_run_monitor_compact(run, tracker)
+
+    else:
+        st.info("No active runs. Start a profile from the 'Profile Run' tab.")
+
+    # Show recent completed runs
+    if completed_runs:
+        st.markdown("---")
+        st.markdown("### ✅ Recently Completed")
+
+        for run in completed_runs[:5]:  # Show last 5
+            with st.expander(f"✓ {run['profile_name'] or run['run_type']} - {run['run_id']}"):
+                show_run_summary(run, tracker)
+
+    # Cleanup button
+    st.markdown("---")
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("🗑️ Cleanup Old Runs"):
+            tracker.cleanup_completed(keep_recent=10)
+            st.success("Cleaned up old completed runs")
+            time.sleep(1)
+            st.rerun()
+
+
+def show_run_monitor_compact(run: dict, tracker):
+    """Show compact monitoring view for a single run."""
+    import datetime
+    import re
+
+    # Calculate elapsed time
+    start_time = datetime.datetime.fromisoformat(run["start_time"])
+    elapsed = datetime.datetime.now() - start_time
+    elapsed_str = str(elapsed).split('.')[0]
+
+    # Display metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Status", "🔄 Running")
+    with col2:
+        st.metric("Elapsed", elapsed_str)
+    with col3:
+        st.metric("PID", run["pid"])
+
+    # Get latest output
+    output = tracker.get_process_output(run["run_id"], tail_lines=50)
+
+    # Parse for current agent/task
+    current_agent = "Unknown"
+    current_task = "Unknown"
+
+    if output:
+        # Look for agent
+        agent_matches = re.findall(r"--agent-import-path\s+(\S+)", output)
+        if agent_matches:
+            agent_path = agent_matches[-1]
+            current_agent = agent_path.split(":")[-1] if ":" in agent_path else agent_path
+
+        # Look for task
+        task_matches = re.findall(r"instance[_-]([a-zA-Z0-9_-]+)", output)
+        if task_matches:
+            current_task = task_matches[-1][:30] + "..." if len(task_matches[-1]) > 30 else task_matches[-1]
+
+    st.write(f"**Agent:** {current_agent}")
+    st.write(f"**Task:** {current_task}")
+
+    # Show live log
+    if output:
+        st.text_area(
+            "Live Output (last 50 lines)",
+            output,
+            height=300,
+            key=f"output_{run['run_id']}"
+        )
+    else:
+        st.info("Waiting for output...")
+
+    # Control buttons
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🔄 Refresh", key=f"refresh_{run['run_id']}"):
+            st.rerun()
+    with col2:
+        if st.button("🛑 Stop", key=f"stop_{run['run_id']}", type="secondary"):
+            if tracker.terminate_run(run["run_id"]):
+                st.warning("Run terminated")
+                time.sleep(1)
+                st.rerun()
+    with col3:
+        if st.button("🗑️ Remove", key=f"remove_{run['run_id']}"):
+            tracker.remove_run(run["run_id"])
+            st.success("Run removed from tracking")
+            time.sleep(1)
+            st.rerun()
+
+
+def show_run_summary(run: dict, tracker):
+    """Show summary of a completed run."""
+    import datetime
+
+    start_time = datetime.datetime.fromisoformat(run["start_time"])
+    st.write(f"**Started:** {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    st.write(f"**Command:** `{run['command']}`")
+
+    # Show final output excerpt
+    output = tracker.get_process_output(run["run_id"], tail_lines=20)
+    if output:
+        with st.expander("View Output (last 20 lines)"):
+            st.code(output)
+
+    if st.button("🗑️ Remove", key=f"remove_summary_{run['run_id']}"):
+        tracker.remove_run(run["run_id"])
+        st.success("Run removed")
+        time.sleep(1)
+        st.rerun()
+
+
 def show_evaluation_runner():
     """Main evaluation runner page."""
     st.title("Evaluation Runner")
     st.write("Run and monitor benchmark evaluations")
 
-    # Check if we're monitoring a run
+    # Check if we're monitoring a run (legacy support)
     if st.session_state.get("show_monitoring"):
         show_run_monitoring()
 
@@ -407,8 +971,20 @@ def show_evaluation_runner():
             st.rerun()
 
     else:
-        # Show configuration form
-        show_run_configuration()
+        # Add tabs for single run, profile run, and current runs
+        tab1, tab2, tab3 = st.tabs(["Single Run", "Profile Run", "Current Runs"])
+
+        with tab1:
+            # Show configuration form for single run
+            show_run_configuration()
+
+        with tab2:
+            # Show profile runner
+            show_profile_runner()
+
+        with tab3:
+            # Show current background runs
+            show_current_runs()
 
         st.markdown("---")
 
