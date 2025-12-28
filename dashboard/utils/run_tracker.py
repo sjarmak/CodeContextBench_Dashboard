@@ -67,7 +67,12 @@ class RunTracker:
 
         # Only check process if status is 'running'
         if run_info.get("status") == "running":
-            run_info["status"] = self._check_process_status(run_info["pid"])
+            new_status = self._check_process_status(run_info["pid"])
+            if new_status != "running":
+                # Process completed, update tracker file
+                run_info["status"] = new_status
+                with open(tracker_file, "w") as f:
+                    json.dump(run_info, f, indent=2)
 
         return run_info
 
@@ -82,7 +87,12 @@ class RunTracker:
 
                 # Only check process if status is 'running'
                 if run_info.get("status") == "running":
-                    run_info["status"] = self._check_process_status(run_info["pid"])
+                    new_status = self._check_process_status(run_info["pid"])
+                    if new_status != "running":
+                        # Process completed, update tracker file
+                        run_info["status"] = new_status
+                        with open(tracker_file, "w") as f:
+                            json.dump(run_info, f, indent=2)
 
                 # Filter by status if specified
                 if status is None or run_info["status"] == status:
