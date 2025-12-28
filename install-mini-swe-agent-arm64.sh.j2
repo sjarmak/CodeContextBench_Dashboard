@@ -1,19 +1,52 @@
 #!/bin/bash
+set -e  # Exit immediately if any command fails
 
-# Install curl, build tools, and python3-pip
+echo "Installing mini-swe-agent with Python 3.10+ support..."
+
+# Install basic dependencies
 apt-get update
-apt-get install -y curl build-essential git python3-pip python3-venv
+apt-get install -y curl build-essential git software-properties-common
+
+# Install Python 3.10+ (mini-swe-agent requires Python >=3.10)
+# Use deadsnakes PPA for older Ubuntu versions that ship with Python 3.9
+echo "Checking Python version..."
+PYTHON_VERSION=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
+PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]); then
+    echo "System Python $PYTHON_VERSION is too old (need >=3.10). Installing Python 3.10..."
+    add-apt-repository -y ppa:deadsnakes/ppa
+    apt-get update
+    apt-get install -y python3.10 python3.10-venv python3.10-dev
+    PYTHON_BIN=python3.10
+else
+    echo "System Python $PYTHON_VERSION is compatible (>=3.10)"
+    PYTHON_BIN=python3
+fi
 
 # Create a virtual environment for the agent to avoid system package conflicts
-python3 -m venv /opt/mini-swe-agent-venv
+echo "Creating virtual environment with $PYTHON_BIN..."
+$PYTHON_BIN -m venv /opt/mini-swe-agent-venv
 source /opt/mini-swe-agent-venv/bin/activate
 
+# Verify we're using Python 3.10+
+VENV_PYTHON_VERSION=$($PYTHON_BIN --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
+echo "Virtual environment Python version: $VENV_PYTHON_VERSION"
+
 # Install mini-swe-agent using pip inside the venv
+echo "Installing mini-swe-agent..."
 {% if version %}
 pip install --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git@{{ version }}
 {% else %}
 pip install --index-url https://pypi.org/simple git+https://github.com/li-boxuan/mini-swe-agent.git
 {% endif %}
+
+# Verify installation succeeded
+if ! /opt/mini-swe-agent-venv/bin/mini-swe-agent --version &>/dev/null; then
+    echo "ERROR: mini-swe-agent installation failed - binary not found or not executable"
+    exit 1
+fi
 
 # Create a symlink to the binary in /usr/local/bin so it is in the PATH
 ln -sf /opt/mini-swe-agent-venv/bin/mini-swe-agent /usr/local/bin/mini-swe-agent
@@ -21,4 +54,11 @@ ln -sf /opt/mini-swe-agent-venv/bin/mini-swe-agent /usr/local/bin/mini-swe-agent
 # Also symlink 'mini' just in case anything still expects the old name
 ln -sf /opt/mini-swe-agent-venv/bin/mini-swe-agent /usr/local/bin/mini
 
-echo "INSTALL_SUCCESS"
+# Verify symlink works
+if ! mini-swe-agent --version &>/dev/null; then
+    echo "ERROR: mini-swe-agent symlink failed - command not accessible from PATH"
+    exit 1
+fi
+
+echo "INSTALL_SUCCESS: mini-swe-agent installed successfully"
+mini-swe-agent --version
