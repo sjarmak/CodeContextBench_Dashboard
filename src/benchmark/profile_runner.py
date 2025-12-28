@@ -401,14 +401,23 @@ class BenchmarkProfileRunner:
             )
 
         start = time.monotonic()
-        with log_path.open("w", encoding="utf-8") as log_file:
-            process = subprocess.run(  # noqa: S603 - launched intentionally
+        # Open with line buffering for real-time logging
+        log_file = log_path.open("w", encoding="utf-8", buffering=1)
+        try:
+            process = subprocess.Popen(
                 cmd,
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
-                check=False,
                 env=env,
+                text=True,
             )
+            process.wait()
+        except KeyboardInterrupt:
+            process.terminate()
+            raise
+        finally:
+            log_file.close()
+
         duration = time.monotonic() - start
         status = "success" if process.returncode == 0 else "failed"
         return HarborRunResult(

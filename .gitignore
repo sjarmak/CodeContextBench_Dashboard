@@ -50,3 +50,4 @@ harbor-10figure-dataset/
 .claude/
 configs/.mcp.json
 jobs/**/.mcp.json
+.dashboard_runs/
