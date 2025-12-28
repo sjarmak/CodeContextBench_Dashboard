@@ -622,6 +622,7 @@ def show_profile_monitoring():
 
         # Look for agent patterns
         agent_patterns = [
+            r"Starting agent:\s*(\S+)",
             r"Agent:\s*(\S+)",
             r"Running agent:\s*(\S+)",
             r"--agent-import-path\s+(\S+)",
@@ -638,6 +639,7 @@ def show_profile_monitoring():
 
         # Look for task patterns
         task_patterns = [
+            r"on task:\s*(\S+)",
             r"Task:\s*(\S+)",
             r"Running task:\s*(\S+)",
             r"--path\s+\S+/(\S+)",
@@ -889,16 +891,26 @@ def show_run_monitor_compact(run: dict, tracker):
     current_task = "Unknown"
 
     if output:
-        # Look for agent
-        agent_matches = re.findall(r"--agent-import-path\s+(\S+)", output)
+        # Look for agent (new format)
+        agent_matches = re.findall(r"Starting agent:\s*(\S+)", output)
         if agent_matches:
-            agent_path = agent_matches[-1]
-            current_agent = agent_path.split(":")[-1] if ":" in agent_path else agent_path
+            current_agent = agent_matches[-1]
+        else:
+            # Fallback to old format
+            agent_matches = re.findall(r"--agent-import-path\s+(\S+)", output)
+            if agent_matches:
+                agent_path = agent_matches[-1]
+                current_agent = agent_path.split(":")[-1] if ":" in agent_path else agent_path
 
-        # Look for task
-        task_matches = re.findall(r"instance[_-]([a-zA-Z0-9_-]+)", output)
+        # Look for task (new format)
+        task_matches = re.findall(r"on task:\s*(\S+)", output)
         if task_matches:
-            current_task = task_matches[-1][:30] + "..." if len(task_matches[-1]) > 30 else task_matches[-1]
+            current_task = task_matches[-1]
+        else:
+            # Fallback to old format
+            task_matches = re.findall(r"instance[_-]([a-zA-Z0-9_-]+)", output)
+            if task_matches:
+                current_task = task_matches[-1][:30] + "..." if len(task_matches[-1]) > 30 else task_matches[-1]
 
     st.write(f"**Agent:** {current_agent}")
     st.write(f"**Task:** {current_task}")
@@ -931,6 +943,11 @@ def show_run_monitor_compact(run: dict, tracker):
             st.success("Run removed from tracking")
             time.sleep(1)
             st.rerun()
+
+    # Auto-refresh if running (and expanded)
+    if run["status"] == "running":
+        time.sleep(2)
+        st.rerun()
 
 
 def show_run_summary(run: dict, tracker):

@@ -400,6 +400,12 @@ class BenchmarkProfileRunner:
                 task_filter=task_filter,
             )
 
+        # Print status for dashboard monitoring
+        task_label = task_name or task_filter or "all tasks"
+        print(f"Starting agent: {agent_name} on task: {task_label}", flush=True)
+        print(f"Command: {command_str}", flush=True)
+        print(f"Log: {log_path}", flush=True)
+
         start = time.monotonic()
         # Open with line buffering for real-time logging
         log_file = log_path.open("w", encoding="utf-8", buffering=1)
@@ -420,6 +426,9 @@ class BenchmarkProfileRunner:
 
         duration = time.monotonic() - start
         status = "success" if process.returncode == 0 else "failed"
+        
+        print(f"Agent {agent_name} finished task {task_label} with status: {status}", flush=True)
+        
         return HarborRunResult(
             profile_id=profile_id,
             benchmark_id=bench_id,
