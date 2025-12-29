@@ -316,13 +316,16 @@ def show_run_configuration():
             )
 
             # 5. Register with tracker
+            # Create descriptive agent name based on MCP configuration
+            agent_display_name = f"BaselineClaudeCode ({mcp_type})"
+
             tracker.register_run(
                 run_id=run_id,
                 run_type="evaluation",
                 pid=process.pid,
                 command=command,
                 benchmark_name=selected_benchmark["name"],
-                agent_name=agent_type
+                agent_name=agent_display_name
             )
 
             st.session_state["current_run_id"] = run_id
