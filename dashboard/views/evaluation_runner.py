@@ -242,9 +242,21 @@ def show_run_configuration():
         )
 
     force_rebuild = st.checkbox(
-        "Force Rebuild Environment",
+        "Force Rebuild Environment (advanced)",
         value=False,
-        help="Check this if you changed the agent installation script or need to clear the Docker cache."
+        help="""
+        Force build environment from Dockerfile instead of using pre-built images.
+
+        **When to use:**
+        - You modified a benchmark's Dockerfile
+        - You added new system dependencies
+        - Debugging environment issues
+
+        **Usually NOT needed** because:
+        - Daytona creates fresh cloud VMs each time
+        - Pre-built images work fine for most runs
+        - BaselineClaudeCodeAgent doesn't change the environment
+        """
     )
 
     # Create run button
