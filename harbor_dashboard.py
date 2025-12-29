@@ -182,15 +182,25 @@ with st.sidebar:
         if available_tasks:
             st.markdown(f"**{len(available_tasks)} tasks available**")
             
-            # For large task lists, use searchable selectbox
+            # For large task lists, add search filter
             if len(available_tasks) > 50:
-                st.markdown("*Type to filter tasks below*")
-                selected_task = st.selectbox(
-                    "Select Task",
-                    available_tasks,
-                    key="task_select",
-                    help="Start typing to filter the task list"
+                task_search = st.text_input(
+                    "Search tasks",
+                    placeholder="Type to filter (e.g., django, bug, fix)...",
+                    key="task_search"
                 )
+                filtered_tasks = [t for t in available_tasks if task_search.lower() in t.lower()] if task_search else available_tasks
+                
+                if task_search and not filtered_tasks:
+                    st.warning(f"No tasks match '{task_search}'")
+                    selected_task = None
+                else:
+                    st.markdown(f"**{len(filtered_tasks)} tasks**" if task_search else "")
+                    selected_task = st.selectbox(
+                        "Select Task",
+                        filtered_tasks,
+                        key="task_select"
+                    )
             else:
                 selected_task = st.selectbox(
                     "Select Task",
