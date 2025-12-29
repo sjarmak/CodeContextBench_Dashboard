@@ -61,15 +61,21 @@ class BaselineClaudeCodeAgent(ClaudeCode):
         mcp_tools = "mcp__sourcegraph__sg_deepsearch,mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file,mcp__deepsearch__deepsearch"
         allowed_tools = f"{base_tools},{mcp_tools}"
         
+        # Check if MCP is configured
+        mcp_type = os.environ.get("BASELINE_MCP_TYPE", "none").lower()
+        mcp_config_flag = ""
+        if mcp_type in ["sourcegraph", "deepsearch"]:
+            mcp_config_flag = "--mcp-config /logs/agent/sessions/.mcp.json "
+
         # Modify the Claude command to enable implementation mode with full tool access
         result = []
         for cmd in parent_commands:
             if cmd.command and "claude " in cmd.command:
-                # Inject both --permission-mode and --allowedTools
+                # Inject --permission-mode, --allowedTools, and --mcp-config (if MCP enabled)
                 # This enables actual code changes and ensures tools are available
                 modified_command = cmd.command.replace(
                     "claude ",
-                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} "
+                    f"claude --permission-mode acceptEdits {mcp_config_flag}--allowedTools {allowed_tools} "
                 )
                 
                 # CRITICAL: Add autonomous environment variables
