@@ -65,6 +65,7 @@ run_test() {
     local test_name="$1"
     local agent="$2"
     local env_vars="${3:-}"
+    local use_import_path="${4:-false}"  # Whether to use --agent-import-path
 
     echo -e "${YELLOW}Testing: $test_name${NC}"
     echo "Agent: $agent"
@@ -73,11 +74,16 @@ run_test() {
     local test_dir="$JOBS_DIR/$test_name"
     mkdir -p "$test_dir"
 
-    # Build command
+    # Build command - choose --agent or --agent-import-path
+    local agent_flag="--agent"
+    if [[ "$use_import_path" == "true" ]]; then
+        agent_flag="--agent-import-path"
+    fi
+
     local cmd="harbor run \
         --dataset $DATASET \
         --task-name $TASK_NAME \
-        --agent $agent \
+        $agent_flag $agent \
         --model $MODEL \
         --env daytona \
         --jobs-dir $test_dir \
@@ -123,7 +129,7 @@ run_test "oracle" "oracle"
 echo "========================================="
 echo "Test 2: Harbor ClaudeCode Baseline"
 echo "========================================="
-run_test "harbor-claudecode-baseline" "claudecode"
+run_test "harbor-claudecode-baseline" "claude-code"
 
 # Test 3: Harbor's ClaudeCode + Sourcegraph MCP
 echo "========================================="
@@ -144,14 +150,14 @@ fi
 echo "========================================="
 echo "Test 4: SWEAgentBaselineAgent (No MCP)"
 echo "========================================="
-run_test "swe-agent-baseline" "agents.swe_agent_wrapper:SWEAgentBaselineAgent"
+run_test "swe-agent-baseline" "agents.swe_agent_wrapper:SWEAgentBaselineAgent" "" "true"
 
 # Test 5: SWEAgentMCPAgent (with Sourcegraph)
 echo "========================================="
 echo "Test 5: SWEAgentMCPAgent (Sourcegraph)"
 echo "========================================="
 if [[ -n "${SOURCEGRAPH_ACCESS_TOKEN:-}" ]]; then
-    run_test "swe-agent-mcp" "agents.swe_agent_wrapper:SWEAgentMCPAgent"
+    run_test "swe-agent-mcp" "agents.swe_agent_wrapper:SWEAgentMCPAgent" "" "true"
 else
     echo -e "${YELLOW}SKIPPED: SOURCEGRAPH_ACCESS_TOKEN not set${NC}"
     echo ""
@@ -163,7 +169,8 @@ echo "Test 6: BaselineClaudeCodeAgent (No MCP)"
 echo "========================================="
 run_test "baseline-claude-no-mcp" \
     "agents.claude_baseline_agent:BaselineClaudeCodeAgent" \
-    "BASELINE_MCP_TYPE=none"
+    "BASELINE_MCP_TYPE=none" \
+    "true"
 
 # Test 7: BaselineClaudeCodeAgent + Sourcegraph MCP
 echo "========================================="
@@ -172,7 +179,8 @@ echo "========================================="
 if [[ -n "${SOURCEGRAPH_ACCESS_TOKEN:-}" ]]; then
     run_test "baseline-claude-sourcegraph" \
         "agents.claude_baseline_agent:BaselineClaudeCodeAgent" \
-        "BASELINE_MCP_TYPE=sourcegraph"
+        "BASELINE_MCP_TYPE=sourcegraph" \
+        "true"
 else
     echo -e "${YELLOW}SKIPPED: SOURCEGRAPH_ACCESS_TOKEN not set${NC}"
     echo ""
@@ -185,7 +193,8 @@ echo "========================================="
 if [[ -n "${SOURCEGRAPH_ACCESS_TOKEN:-}" ]]; then
     run_test "baseline-claude-deepsearch" \
         "agents.claude_baseline_agent:BaselineClaudeCodeAgent" \
-        "BASELINE_MCP_TYPE=deepsearch"
+        "BASELINE_MCP_TYPE=deepsearch" \
+        "true"
 else
     echo -e "${YELLOW}SKIPPED: SOURCEGRAPH_ACCESS_TOKEN not set${NC}"
     echo ""
@@ -197,7 +206,9 @@ echo "Test 9: StrategicDeepSearchAgent"
 echo "========================================="
 if [[ -n "${SOURCEGRAPH_ACCESS_TOKEN:-}" ]]; then
     run_test "strategic-deepsearch" \
-        "agents.mcp_variants:StrategicDeepSearchAgent"
+        "agents.mcp_variants:StrategicDeepSearchAgent" \
+        "" \
+        "true"
 else
     echo -e "${YELLOW}SKIPPED: SOURCEGRAPH_ACCESS_TOKEN not set${NC}"
     echo ""
@@ -209,7 +220,9 @@ echo "Test 10: DeepSearchFocusedAgent"
 echo "========================================="
 if [[ -n "${SOURCEGRAPH_ACCESS_TOKEN:-}" ]]; then
     run_test "deepsearch-focused" \
-        "agents.mcp_variants:DeepSearchFocusedAgent"
+        "agents.mcp_variants:DeepSearchFocusedAgent" \
+        "" \
+        "true"
 else
     echo -e "${YELLOW}SKIPPED: SOURCEGRAPH_ACCESS_TOKEN not set${NC}"
     echo ""
@@ -221,7 +234,9 @@ echo "Test 11: MCPNonDeepSearchAgent"
 echo "========================================="
 if [[ -n "${SOURCEGRAPH_ACCESS_TOKEN:-}" ]]; then
     run_test "mcp-no-deepsearch" \
-        "agents.mcp_variants:MCPNonDeepSearchAgent"
+        "agents.mcp_variants:MCPNonDeepSearchAgent" \
+        "" \
+        "true"
 else
     echo -e "${YELLOW}SKIPPED: SOURCEGRAPH_ACCESS_TOKEN not set${NC}"
     echo ""
@@ -233,7 +248,9 @@ echo "Test 12: FullToolkitAgent"
 echo "========================================="
 if [[ -n "${SOURCEGRAPH_ACCESS_TOKEN:-}" ]]; then
     run_test "full-toolkit" \
-        "agents.mcp_variants:FullToolkitAgent"
+        "agents.mcp_variants:FullToolkitAgent" \
+        "" \
+        "true"
 else
     echo -e "${YELLOW}SKIPPED: SOURCEGRAPH_ACCESS_TOKEN not set${NC}"
     echo ""
