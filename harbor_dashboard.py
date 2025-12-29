@@ -182,22 +182,15 @@ with st.sidebar:
         if available_tasks:
             st.markdown(f"**{len(available_tasks)} tasks available**")
             
-            # Add search filter for large task lists
+            # For large task lists, use searchable selectbox
             if len(available_tasks) > 50:
-                task_search = st.text_input(
-                    "Filter tasks",
-                    placeholder="Search by name...",
-                    key="task_search"
+                st.markdown("*Type to filter tasks below*")
+                selected_task = st.selectbox(
+                    "Select Task",
+                    available_tasks,
+                    key="task_select",
+                    help="Start typing to filter the task list"
                 )
-                filtered_tasks = [t for t in available_tasks if task_search.lower() in t.lower()]
-                if not filtered_tasks:
-                    st.warning(f"No tasks match '{task_search}'")
-                else:
-                    selected_task = st.selectbox(
-                        f"Select Task ({len(filtered_tasks)} matches)",
-                        filtered_tasks,
-                        key="task_select"
-                    )
             else:
                 selected_task = st.selectbox(
                     "Select Task",
@@ -490,23 +483,41 @@ with tab2:
                         with st.expander("View complete result.json"):
                             st.json(full_result)
                         
-                        # Agent trajectory
-                        trajectory_file = job_path / selected_trial.replace(" ", "_").split("__")[0] if "__" in selected_trial else None
-                        if not trajectory_file:
-                            # Try to find trajectory file
-                            for trial_dir in job_path.glob("*__*"):
-                                if trial_dir.name.startswith(selected_trial):
-                                    traj_path = trial_dir / "agent" / "trajectory.json"
-                                    if traj_path.exists():
-                                        trajectory_file = traj_path
-                                        break
+                        # Agent trajectory - search for matching trial directory
+                        trajectory_file = None
+                        for trial_dir in job_path.glob("*__*"):
+                            if trial_dir.name.startswith(selected_trial.split("__")[0] if "__" in selected_trial else selected_trial):
+                                traj_path = trial_dir / "agent" / "trajectory.json"
+                                if traj_path.exists():
+                                    trajectory_file = traj_path
+                                    break
                         
                         if trajectory_file and trajectory_file.exists():
                             st.markdown("### Agent Trajectory")
-                            with open(trajectory_file) as f:
-                                trajectory = json.load(f)
-                            with st.expander("View agent trajectory.json"):
-                                st.json(trajectory)
+                            try:
+                                with open(trajectory_file) as f:
+                                    trajectory = json.load(f)
+                                
+                                # Show trajectory stats
+                                traj_col1, traj_col2, traj_col3 = st.columns(3)
+                                
+                                with traj_col1:
+                                    tool_calls = [a for a in trajectory.get("actions", []) if a.get("type") == "tool"]
+                                    st.metric("Tool Calls", len(tool_calls))
+                                
+                                with traj_col2:
+                                    actions = trajectory.get("actions", [])
+                                    st.metric("Total Actions", len(actions))
+                                
+                                with traj_col3:
+                                    st.metric("Agent", trajectory.get("agent", {}).get("name", "unknown"))
+                                
+                                with st.expander("View full agent trajectory.json"):
+                                    st.json(trajectory)
+                            except json.JSONDecodeError:
+                                st.error("Failed to parse trajectory.json")
+                        else:
+                            st.info("No trajectory data available for this trial")
                     
                     # Stats
                     st.markdown("### Statistics")
