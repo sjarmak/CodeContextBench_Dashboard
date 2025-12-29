@@ -135,15 +135,12 @@ class BaselineClaudeCodeAgent(ClaudeCode):
         with open(mcp_config_path, "w") as f:
             json.dump(mcp_config, f, indent=2)
 
-        # Upload to /app/ (working directory)
+        # Upload to CLAUDE_CONFIG_DIR (where Claude Code looks for MCP config)
+        # Harbor sets CLAUDE_CONFIG_DIR=/logs/agent/sessions
         await environment.upload_file(
-            source_path=mcp_config_path, target_path="/app/.mcp.json"
+            source_path=mcp_config_path, target_path="/logs/agent/sessions/.mcp.json"
         )
-        # Also upload to home for Claude Code discovery
-        await environment.upload_file(
-            source_path=mcp_config_path, target_path="/root/.mcp.json"
-        )
-        self.logger.info(f"BaselineClaudeCodeAgent: Sourcegraph MCP configured at /app/ and /root/ ({sg_url})")
+        self.logger.info(f"BaselineClaudeCodeAgent: Sourcegraph MCP configured at /logs/agent/sessions/ ({sg_url})")
 
         # Upload CLAUDE.md with Sourcegraph instructions
         claude_md_content = """# MANDATORY: Use Sourcegraph MCP Tools
@@ -181,9 +178,9 @@ Local tools (Grep, Glob, Read) should be used AFTER MCP identifies relevant file
             f.write(claude_md_content)
 
         await environment.upload_file(
-            source_path=claude_md_path, target_path="/app/CLAUDE.md"
+            source_path=claude_md_path, target_path="/testbed/CLAUDE.md"
         )
-        self.logger.info("BaselineClaudeCodeAgent: Sourcegraph CLAUDE.md uploaded")
+        self.logger.info("BaselineClaudeCodeAgent: Sourcegraph CLAUDE.md uploaded to /testbed")
 
     async def _setup_deepsearch_mcp(self, environment: BaseEnvironment) -> None:
         """Configure Deep Search-only MCP endpoint."""
@@ -225,15 +222,12 @@ Local tools (Grep, Glob, Read) should be used AFTER MCP identifies relevant file
         with open(mcp_config_path, "w") as f:
             json.dump(mcp_config, f, indent=2)
 
-        # Upload to /app/ (working directory)
+        # Upload to CLAUDE_CONFIG_DIR (where Claude Code looks for MCP config)
+        # Harbor sets CLAUDE_CONFIG_DIR=/logs/agent/sessions
         await environment.upload_file(
-            source_path=mcp_config_path, target_path="/app/.mcp.json"
+            source_path=mcp_config_path, target_path="/logs/agent/sessions/.mcp.json"
         )
-        # Also upload to home for Claude Code discovery
-        await environment.upload_file(
-            source_path=mcp_config_path, target_path="/root/.mcp.json"
-        )
-        self.logger.info(f"BaselineClaudeCodeAgent: Deep Search MCP configured at /app/ and /root/ ({deepsearch_url})")
+        self.logger.info(f"BaselineClaudeCodeAgent: Deep Search MCP configured at /logs/agent/sessions/ ({deepsearch_url})")
 
         # Upload CLAUDE.md with Deep Search instructions
         claude_md_content = """# MANDATORY: Use Deep Search MCP Tool
@@ -283,6 +277,6 @@ mcp__deepsearch__deepsearch(query="TypeError combine_vars VarsWithSources dict")
             f.write(claude_md_content)
 
         await environment.upload_file(
-            source_path=claude_md_path, target_path="/app/CLAUDE.md"
+            source_path=claude_md_path, target_path="/testbed/CLAUDE.md"
         )
-        self.logger.info("BaselineClaudeCodeAgent: Deep Search CLAUDE.md uploaded")
+        self.logger.info("BaselineClaudeCodeAgent: Deep Search CLAUDE.md uploaded to /testbed")
