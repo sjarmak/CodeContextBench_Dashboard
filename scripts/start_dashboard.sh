@@ -1,51 +1,31 @@
 #!/bin/bash
-# Start the CodeContextBench dashboard with proper environment variables
-#
-# Usage: bash scripts/start_dashboard.sh
+# Start CodeContextBench Dashboard with proper environment setup
 
 set -e
 
-# Check for .env.local file
-if [ ! -f ".env.local" ]; then
-    echo "ERROR: .env.local file not found"
-    echo ""
-    echo "Create .env.local with your API credentials."
-    echo "See dashboard/USAGE.md for setup instructions."
+# Get script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+
+cd "$PROJECT_ROOT"
+
+# Load environment variables
+if [ -f ".env.local" ]; then
+    echo "Loading environment from .env.local..."
+    source .env.local
+
+    # CRITICAL: Export variables for Harbor subprocesses
+    export ANTHROPIC_API_KEY
+    export SOURCEGRAPH_ACCESS_TOKEN
+    export SOURCEGRAPH_URL
+    export BASELINE_MCP_TYPE
+
+    echo "✓ Environment variables exported"
+else
+    echo "ERROR: .env.local not found!"
     exit 1
 fi
 
-# Source environment variables
-echo "Loading environment from .env.local..."
-set -a  # Automatically export all variables
-source .env.local
-set +a
-
-# Verify API key is set
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-    echo "ERROR: ANTHROPIC_API_KEY not set in .env.local"
-    exit 1
-fi
-
-echo ""
-echo "✓ Environment variables loaded and exported:"
-echo "  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:0:15}... (${#ANTHROPIC_API_KEY} chars)"
-if [ -n "$SOURCEGRAPH_ACCESS_TOKEN" ]; then
-    echo "  SOURCEGRAPH_ACCESS_TOKEN: ${SOURCEGRAPH_ACCESS_TOKEN:0:15}... (${#SOURCEGRAPH_ACCESS_TOKEN} chars)"
-fi
-if [ -n "$SOURCEGRAPH_URL" ]; then
-    echo "  SOURCEGRAPH_URL: $SOURCEGRAPH_URL"
-fi
-
-# Verify they're actually exported
-if ! env | grep -q "ANTHROPIC_API_KEY"; then
-    echo "ERROR: ANTHROPIC_API_KEY not in environment!"
-    exit 1
-fi
-
-echo ""
-echo "Starting dashboard on http://localhost:8501"
-echo "Press Ctrl+C to stop"
-echo ""
-
-# Start Streamlit dashboard with explicit environment
-exec streamlit run dashboard/app.py
+# Start dashboard
+echo "Starting dashboard..."
+streamlit run dashboard/app.py
