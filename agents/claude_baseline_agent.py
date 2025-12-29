@@ -182,13 +182,18 @@ You have Deep Search MCP available. You MUST use it to understand the codebase b
             sg_url = f"https://{sg_url}"
         sg_url = sg_url.rstrip("/")
 
-        # Full Sourcegraph MCP config
+        # Sourcegraph HTTP MCP config
+        # Note: Using HTTP transport with SSL workaround for Node.js fetch() issues
         mcp_config = {
             "mcpServers": {
                 "sourcegraph": {
                     "type": "http",
                     "url": f"{sg_url}/.api/mcp/v1",
                     "headers": {"Authorization": f"token {sg_token}"},
+                    "env": {
+                        # Workaround for Node.js fetch() SSL certificate validation issues in Docker
+                        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+                    }
                 }
             }
         }
