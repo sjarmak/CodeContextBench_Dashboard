@@ -217,7 +217,7 @@ class EvaluationOrchestrator:
         registry_path = str(project_root / "configs/harbor/registry.json")
         
         if is_harbor_dataset:
-            # Use Harbor dataset command
+            # Use Harbor dataset command with Daytona environment
             cmd = [
                 "harbor", "run",
                 "--registry-path", registry_path,
@@ -225,16 +225,12 @@ class EvaluationOrchestrator:
                 "--task-name", task_name,               # Specific task to run from dataset
                 "--agent-import-path", agent,
                 "--model", "anthropic/claude-haiku-4-5-20251001",
+                "--env", "daytona",  # Use Daytona cloud VMs (6x faster, no QEMU issues)
                 "--jobs-dir", str(task_output_dir),
                 "-n", "1",
             ]
-
-            # CRITICAL: SWE-bench requires Daytona environment (x86_64 VMs)
-            # ARM Mac QEMU emulation causes segfaults in SWE-bench parser
-            if "swebench" in benchmark["folder_name"].lower():
-                cmd.extend(["--env", "daytona"])
         else:
-            # Use local benchmark path
+            # Use local benchmark path with Daytona environment
             cmd = [
                 "harbor", "run",
                 "--registry-path", registry_path,
@@ -242,6 +238,7 @@ class EvaluationOrchestrator:
                 "--task-name", task_name,       # Specify which task to run
                 "--agent-import-path", agent,
                 "--model", "anthropic/claude-haiku-4-5-20251001",
+                "--env", "daytona",  # Use Daytona cloud VMs (6x faster, no QEMU issues)
                 "--jobs-dir", str(task_output_dir),
                 "-n", "1",
             ]
@@ -259,10 +256,9 @@ class EvaluationOrchestrator:
         # Force unbuffered output for real-time streaming
         env["PYTHONUNBUFFERED"] = "1"
 
-        # Ensure DAYTONA_API_KEY is available for SWE-bench tasks
-        if "swebench" in benchmark["folder_name"].lower():
-            if "DAYTONA_API_KEY" not in env:
-                print("WARNING: DAYTONA_API_KEY not found in environment. SWE-bench requires Daytona.", flush=True)
+        # Ensure DAYTONA_API_KEY is available (required for all Harbor runs)
+        if "DAYTONA_API_KEY" not in env:
+            print("WARNING: DAYTONA_API_KEY not found in environment. All benchmarks use Daytona cloud VMs.", flush=True)
 
         # Add any custom environment variables from config
         if "env" in self.run_data.get("config", {}):

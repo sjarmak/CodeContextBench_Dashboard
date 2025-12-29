@@ -40,16 +40,16 @@ Before running any harbor commands:
 source .env.local
 
 # Step 2: EXPORT variables (critical for subprocesses!)
-export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
+export ANTHROPIC_API_KEY DAYTONA_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL
 
-# Step 3a: For most benchmarks
+# Step 3: Run harbor with Daytona (required for all benchmarks)
 harbor run --path <benchmark-path> \
   --agent-import-path <agent-import> \
   --model anthropic/claude-haiku-4-5-20251001 \
+  --env daytona \
   -n 1
 
-# Step 3b: For SWE-bench - MUST use Daytona
-export DAYTONA_API_KEY
+# For Harbor datasets (e.g., SWE-bench)
 harbor run --dataset swebench-verified@1.0 \
   --task-name <task-name> \
   --agent oracle \
@@ -58,10 +58,11 @@ harbor run --dataset swebench-verified@1.0 \
   -n 1
 ```
 
-**Why Daytona for SWE-bench?**
-- SWE-bench parser requires x86_64 architecture
-- Local Docker on ARM Mac uses QEMU emulation which causes segfaults
-- Daytona provides real x86_64 cloud VMs (6x faster, no emulation issues)
+**Why Daytona for all benchmarks?**
+- Real x86_64 cloud VMs (no QEMU emulation issues on ARM Mac)
+- 6x faster than local Docker containers
+- Consistent environment across all benchmark runs
+- Required for SWE-bench (parser segfaults with QEMU)
 
 **Why export?** Harbor spawns subprocesses that won't see sourced variables.
 
@@ -360,16 +361,17 @@ bd ready
 
 **Run benchmark:**
 ```bash
-# Standard benchmarks
+# All benchmarks use Daytona
 source .env.local && \
-export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL && \
+export ANTHROPIC_API_KEY DAYTONA_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL && \
 harbor run \
   --path benchmarks/big_code_mcp/big-code-vsc-001 \
   --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
   --model anthropic/claude-haiku-4-5-20251001 \
+  --env daytona \
   -n 1
 
-# SWE-bench (requires Daytona)
+# SWE-bench (Harbor dataset)
 source .env.local && \
 export ANTHROPIC_API_KEY DAYTONA_API_KEY && \
 harbor run --dataset swebench-verified@1.0 \
