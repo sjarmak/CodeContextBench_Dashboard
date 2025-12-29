@@ -143,6 +143,10 @@ You have Deep Search MCP available. You MUST use it to understand the codebase b
                     'FORCE_AUTO_BACKGROUND_TASKS': '1',
                     'ENABLE_BACKGROUND_TASKS': '1'
                 }
+
+                # Add SSL workaround for MCP HTTP transport (Node.js fetch() SSL issues in Docker)
+                if mcp_type in ["sourcegraph", "deepsearch"]:
+                    env_with_autonomous['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
                 
                 self.logger.info(f"Modified command for autonomous implementation mode with tool whitelist")
                 self.logger.info(f"Tools enabled: {allowed_tools}")
@@ -183,17 +187,13 @@ You have Deep Search MCP available. You MUST use it to understand the codebase b
         sg_url = sg_url.rstrip("/")
 
         # Sourcegraph HTTP MCP config
-        # Note: Using HTTP transport with SSL workaround for Node.js fetch() issues
+        # Note: SSL workaround (NODE_TLS_REJECT_UNAUTHORIZED=0) is set in command environment
         mcp_config = {
             "mcpServers": {
                 "sourcegraph": {
                     "type": "http",
                     "url": f"{sg_url}/.api/mcp/v1",
-                    "headers": {"Authorization": f"token {sg_token}"},
-                    "env": {
-                        # Workaround for Node.js fetch() SSL certificate validation issues in Docker
-                        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
-                    }
+                    "headers": {"Authorization": f"token {sg_token}"}
                 }
             }
         }
