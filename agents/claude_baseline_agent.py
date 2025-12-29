@@ -42,17 +42,59 @@ class BaselineClaudeCodeAgent(ClaudeCode):
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
         """
         Override to enable autonomous implementation mode.
-        
+
         This modifies the Claude Code command to:
         1. Add autonomous environment variables (FORCE_AUTO_BACKGROUND_TASKS, ENABLE_BACKGROUND_TASKS)
         2. Use --permission-mode acceptEdits to enable file modifications
         3. Explicitly whitelist all necessary tools (Read, Edit, Write, Bash, Grep, Glob)
-        
+        4. Prepend MCP usage instructions to task prompt (if MCP enabled)
+
         The autonomous environment variables are the critical control mechanism that makes
         Claude Code operate in implementation mode instead of planning/analysis mode.
         """
-        
-        # Get parent's commands
+
+        # Prepend MCP instructions to task prompt if MCP is enabled
+        mcp_type = os.environ.get("BASELINE_MCP_TYPE", "none").lower()
+        if mcp_type == "sourcegraph":
+            mcp_prefix = """# CRITICAL: Use Sourcegraph MCP Tools First
+
+You have Sourcegraph MCP tools available. You MUST use them to understand the codebase before making changes.
+
+## Required First Steps:
+1. Call `mcp__sourcegraph__sg_deepsearch` to find relevant code (e.g., "find separability_matrix implementation")
+2. Review the search results to understand code structure
+3. Use `mcp__sourcegraph__sg_read_file` to read specific files from results
+4. THEN use local tools (Read, Edit, Write) to make changes
+
+## Available MCP Tools:
+- `mcp__sourcegraph__sg_deepsearch` - Deep semantic code search (USE THIS FIRST)
+- `mcp__sourcegraph__sg_keyword_search` - Exact string matching
+- `mcp__sourcegraph__sg_nls_search` - Natural language search
+- `mcp__sourcegraph__sg_read_file` - Read indexed files
+
+---
+
+"""
+            instruction = mcp_prefix + instruction
+        elif mcp_type == "deepsearch":
+            mcp_prefix = """# CRITICAL: Use Deep Search MCP Tool First
+
+You have Deep Search MCP available. You MUST use it to understand the codebase before making changes.
+
+## Required First Steps:
+1. Call `mcp__deepsearch__deepsearch` to find relevant code semantically
+2. Review the search results to understand code structure
+3. THEN use local tools (Read, Edit, Write) to make changes
+
+## Available MCP Tool:
+- `mcp__deepsearch__deepsearch` - Deep semantic code search (USE THIS FIRST)
+
+---
+
+"""
+            instruction = mcp_prefix + instruction
+
+        # Get parent's commands with modified instruction
         parent_commands = super().create_run_agent_commands(instruction)
         
         # All tools Claude needs for implementation
