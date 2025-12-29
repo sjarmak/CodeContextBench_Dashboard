@@ -187,7 +187,7 @@ with st.sidebar:
                 task_search = st.text_input(
                     "Search tasks",
                     placeholder="Type to filter (e.g., astr, django, bug)...",
-                    key="task_search_input"
+                    key=f"task_search_{dataset_name}"
                 ).strip().lower()
                 
                 # Filter and rank by relevance
@@ -198,25 +198,29 @@ with st.sidebar:
                     substring_matches = [t for t in available_tasks if task_search in t.lower() and t not in prefix_matches]
                     # Combine: prefix matches first, then substring matches
                     filtered_tasks = prefix_matches + substring_matches
+                    
+                    if not filtered_tasks:
+                        st.warning(f"No tasks match '{task_search}'")
+                        selected_task = None
+                    else:
+                        st.markdown(f"**{len(filtered_tasks)} matches**")
+                        selected_task = st.selectbox(
+                            "Select Task",
+                            filtered_tasks,
+                            key=f"task_select_large_{dataset_name}"
+                        )
                 else:
-                    filtered_tasks = available_tasks
-                
-                if task_search and not filtered_tasks:
-                    st.warning(f"No tasks match '{task_search}'")
-                    selected_task = None
-                elif filtered_tasks:
-                    match_text = f"**{len(filtered_tasks)} matches**" if task_search else f"**{len(filtered_tasks)} tasks**"
-                    st.markdown(match_text)
+                    st.markdown(f"**{len(available_tasks)} tasks**")
                     selected_task = st.selectbox(
                         "Select Task",
-                        filtered_tasks,
-                        key="task_select_box"
+                        available_tasks,
+                        key=f"task_select_large_{dataset_name}"
                     )
             else:
                 selected_task = st.selectbox(
                     "Select Task",
                     available_tasks,
-                    key="task_select_box"
+                    key=f"task_select_small_{dataset_name}"
                 )
         else:
             st.warning("No tasks found for this dataset")
