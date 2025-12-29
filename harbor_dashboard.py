@@ -19,6 +19,34 @@ from queue import Queue
 # Configuration
 PROJECT_ROOT = Path(__file__).parent
 HARBOR_JOBS_DIR = PROJECT_ROOT / "harbor_jobs" / "jobs"
+BENCHMARKS_DIR = PROJECT_ROOT / "benchmarks"
+
+# Benchmark to local directory mapping
+BENCHMARK_PATHS = {
+    "hello-world@head": "hello_world_test",
+    "swebench-verified@1.0": "swebench_pro",
+    "swebenchpro@1.0": "swebench_pro",
+    "aider-polyglot@1.0": "github_mined",
+    "ir-sdlc-multi-repo@1.0": "dependeval_benchmark",
+}
+
+def get_available_tasks(dataset_name: str) -> list:
+    """Discover available tasks for a dataset."""
+    benchmark_dir = BENCHMARK_PATHS.get(dataset_name)
+    if not benchmark_dir:
+        return []
+    
+    full_path = BENCHMARKS_DIR / benchmark_dir
+    if not full_path.exists():
+        return []
+    
+    tasks = []
+    # Look for task directories
+    for item in sorted(full_path.iterdir()):
+        if item.is_dir() and not item.name.startswith('.'):
+            tasks.append(item.name)
+    
+    return sorted(tasks)
 
 # Load credentials from .env.local
 def load_env():
@@ -139,9 +167,27 @@ with st.sidebar:
     )
     dataset_name = dataset[1]
     
+    # Task selection
+    available_tasks = get_available_tasks(dataset_name)
+    task_mode = st.radio(
+        "Task Selection",
+        ["Full Benchmark", "Single Task"],
+        horizontal=True
+    )
+    
+    selected_task = None
+    if task_mode == "Single Task":
+        if available_tasks:
+            selected_task = st.selectbox(
+                "Select Task",
+                available_tasks,
+                key="task_select"
+            )
+        else:
+            st.warning("No tasks found for this dataset")
+    
     # Advanced options
     with st.expander("Advanced Options"):
-        task_filter = st.text_input("Task Filter (e.g., *django*)", "")
         n_concurrent = st.slider("Concurrent Trials", 1, 16, 2)
         timeout_mult = st.slider("Timeout Multiplier", 0.5, 5.0, 1.0, 0.5)
         n_attempts = st.slider("Attempts", 1, 3, 1)
@@ -194,8 +240,8 @@ with tab1:
                 "--jobs-dir", str(HARBOR_JOBS_DIR.parent),
             ]
             
-            if task_filter:
-                cmd.extend(["--task-name", task_filter])
+            if selected_task:
+                cmd.extend(["--task-name", selected_task])
             
             # Build environment
             env = os.environ.copy()
