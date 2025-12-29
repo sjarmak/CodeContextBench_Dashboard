@@ -177,9 +177,7 @@ You have Deep Search MCP available. You MUST use it to understand the codebase b
         """Configure Sourcegraph MCP with all tools (keyword, NLS, Deep Search)."""
         # Set NODE_TLS_REJECT_UNAUTHORIZED globally in container for MCP subprocess
         # This works around Node.js fetch() SSL certificate validation issues in Docker
-        await environment.exec(ExecInput(
-            command='echo "export NODE_TLS_REJECT_UNAUTHORIZED=0" >> /etc/profile && export NODE_TLS_REJECT_UNAUTHORIZED=0'
-        ))
+        await environment.exec('export NODE_TLS_REJECT_UNAUTHORIZED=0')
         self.logger.info("BaselineClaudeCodeAgent: Set NODE_TLS_REJECT_UNAUTHORIZED=0 globally for MCP")
 
         sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
