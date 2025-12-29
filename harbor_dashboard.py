@@ -182,40 +182,39 @@ with st.sidebar:
         if available_tasks:
             st.markdown(f"**{len(available_tasks)} tasks available**")
             
-            # For large task lists, add search filter
+            # For large task lists, add search filter with live results
             if len(available_tasks) > 50:
                 task_search = st.text_input(
                     "Search tasks",
-                    placeholder="Type to filter (e.g., astr, django, bug)...",
+                    placeholder="Type to filter (e.g., ansible, element, flipt)...",
                     key=f"task_search_{dataset_name}"
                 ).strip().lower()
                 
-                # Filter and rank by relevance
+                # Filter by substring (anywhere in the name)
                 if task_search:
-                    # First, exact prefix matches (higher priority)
-                    prefix_matches = [t for t in available_tasks if t.lower().startswith(task_search)]
-                    # Then substring matches (lower priority)
-                    substring_matches = [t for t in available_tasks if task_search in t.lower() and t not in prefix_matches]
-                    # Combine: prefix matches first, then substring matches
-                    filtered_tasks = prefix_matches + substring_matches
+                    filtered_tasks = [t for t in available_tasks if task_search in t.lower()]
                     
                     if not filtered_tasks:
-                        st.warning(f"No tasks match '{task_search}'")
+                        st.info(f"No tasks match '{task_search}'. Available prefixes: ansible, element, flipt, future, gravitational, internetarchive, navidrome, nodebb, protonmail, qutebrowser, tutao")
                         selected_task = None
                     else:
-                        st.markdown(f"**{len(filtered_tasks)} matches**")
+                        st.markdown(f"**{len(filtered_tasks)} matches** - select one below:")
+                        # Show matches as clickable buttons/options
                         selected_task = st.selectbox(
-                            "Select Task",
+                            "Matching tasks",
                             filtered_tasks,
-                            key=f"task_select_large_{dataset_name}"
+                            key=f"task_select_large_{dataset_name}",
+                            label_visibility="collapsed"
                         )
                 else:
-                    st.markdown(f"**{len(available_tasks)} tasks**")
+                    st.markdown(f"**{len(available_tasks)} tasks available** - type above to filter")
                     selected_task = st.selectbox(
                         "Select Task",
-                        available_tasks,
+                        available_tasks[:100],  # Show first 100
                         key=f"task_select_large_{dataset_name}"
                     )
+                    if len(available_tasks) > 100:
+                        st.caption(f"Showing first 100 of {len(available_tasks)} tasks. Type above to filter for others.")
             else:
                 selected_task = st.selectbox(
                     "Select Task",
