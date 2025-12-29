@@ -61,16 +61,17 @@ class BaselineClaudeCodeAgent(ClaudeCode):
 You have Sourcegraph MCP tools available. You MUST use them to understand the codebase before making changes.
 
 ## Required First Steps:
-1. Call `mcp__sourcegraph__sg_deepsearch` to find relevant code (e.g., "find separability_matrix implementation")
+1. Call `mcp__sourcegraph__sg_keyword_search` or `mcp__sourcegraph__sg_nls_search` to find relevant code
 2. Review the search results to understand code structure
 3. Use `mcp__sourcegraph__sg_read_file` to read specific files from results
 4. THEN use local tools (Read, Edit, Write) to make changes
 
 ## Available MCP Tools:
-- `mcp__sourcegraph__sg_deepsearch` - Deep semantic code search (USE THIS FIRST)
-- `mcp__sourcegraph__sg_keyword_search` - Exact string matching
-- `mcp__sourcegraph__sg_nls_search` - Natural language search
+- `mcp__sourcegraph__sg_keyword_search` - Exact string/regex matching (USE THIS FIRST for specific symbols)
+- `mcp__sourcegraph__sg_nls_search` - Natural language search (USE THIS for conceptual queries)
 - `mcp__sourcegraph__sg_read_file` - Read indexed files
+
+Note: You do NOT have deep search. Use keyword or NLS search for code discovery.
 
 ---
 
@@ -98,10 +99,23 @@ You have Deep Search MCP available. You MUST use it to understand the codebase b
         parent_commands = super().create_run_agent_commands(instruction)
         
         # All tools Claude needs for implementation
-        # Include MCP tools for Sourcegraph integration (mcp__<server>__<tool>)
+        # Include MCP tools based on configuration:
+        # - Sourcegraph MCP: keyword, NLS, read_file (NO deep search)
+        # - Deep Search MCP: ONLY deep search
         base_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
-        mcp_tools = "mcp__sourcegraph__sg_deepsearch,mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file,mcp__deepsearch__deepsearch"
-        allowed_tools = f"{base_tools},{mcp_tools}"
+
+        # Add MCP tools based on type
+        if mcp_type == "sourcegraph":
+            # Sourcegraph MCP: traditional search tools only (no deep search)
+            mcp_tools = "mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file"
+        elif mcp_type == "deepsearch":
+            # Deep Search MCP: only deep search
+            mcp_tools = "mcp__deepsearch__deepsearch"
+        else:
+            # No MCP
+            mcp_tools = ""
+
+        allowed_tools = f"{base_tools},{mcp_tools}" if mcp_tools else base_tools
         
         # Check if MCP is configured
         mcp_type = os.environ.get("BASELINE_MCP_TYPE", "none").lower()
