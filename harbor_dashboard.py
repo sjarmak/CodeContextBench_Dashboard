@@ -186,26 +186,37 @@ with st.sidebar:
             if len(available_tasks) > 50:
                 task_search = st.text_input(
                     "Search tasks",
-                    placeholder="Type to filter (e.g., django, bug, fix)...",
-                    key="task_search"
-                )
-                filtered_tasks = [t for t in available_tasks if task_search.lower() in t.lower()] if task_search else available_tasks
+                    placeholder="Type to filter (e.g., astr, django, bug)...",
+                    key="task_search_input"
+                ).strip().lower()
+                
+                # Filter and rank by relevance
+                if task_search:
+                    # First, exact prefix matches (higher priority)
+                    prefix_matches = [t for t in available_tasks if t.lower().startswith(task_search)]
+                    # Then substring matches (lower priority)
+                    substring_matches = [t for t in available_tasks if task_search in t.lower() and t not in prefix_matches]
+                    # Combine: prefix matches first, then substring matches
+                    filtered_tasks = prefix_matches + substring_matches
+                else:
+                    filtered_tasks = available_tasks
                 
                 if task_search and not filtered_tasks:
                     st.warning(f"No tasks match '{task_search}'")
                     selected_task = None
-                else:
-                    st.markdown(f"**{len(filtered_tasks)} tasks**" if task_search else "")
+                elif filtered_tasks:
+                    match_text = f"**{len(filtered_tasks)} matches**" if task_search else f"**{len(filtered_tasks)} tasks**"
+                    st.markdown(match_text)
                     selected_task = st.selectbox(
                         "Select Task",
                         filtered_tasks,
-                        key="task_select"
+                        key="task_select_box"
                     )
             else:
                 selected_task = st.selectbox(
                     "Select Task",
                     available_tasks,
-                    key="task_select"
+                    key="task_select_box"
                 )
         else:
             st.warning("No tasks found for this dataset")
