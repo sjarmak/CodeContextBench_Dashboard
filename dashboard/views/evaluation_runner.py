@@ -157,95 +157,66 @@ def show_run_configuration():
     # Agent selection
     st.markdown("#### Agent Configuration")
 
-    # Agent type selection
-    # Default to Mini SWE Agent (index 1)
-    agent_type = st.selectbox(
-        "Agent Type",
-        options=["Claude Code", "Mini SWE Agent"],
-        index=1,
-        help="Select the base agent framework to use"
+    # Single agent: BaselineClaudeCodeAgent with MCP configuration options
+    st.info("**Agent:** BaselineClaudeCodeAgent (Harbor's generic Claude Code + configurable MCP)")
+
+    # MCP Type Selection
+    mcp_type = st.radio(
+        "MCP Configuration",
+        options=["None (Pure Baseline)", "Sourcegraph MCP", "Deep Search MCP"],
+        help="""
+        Select MCP configuration for the BaselineClaudeCodeAgent:
+        - **None**: Pure baseline with no MCP (local tools only)
+        - **Sourcegraph MCP**: Full Sourcegraph code intelligence (keyword, NLS, Deep Search)
+        - **Deep Search MCP**: Deep Search semantic search only
+
+        This allows clean A/B/C testing of MCP impact on the same agent harness.
+        """
     )
 
-    if agent_type == "Claude Code":
-        # MCP Type Selection for Claude Code
-        mcp_type = st.radio(
-            "MCP Configuration",
-            options=["None (Pure Baseline)", "Sourcegraph MCP", "Deep Search MCP"],
-            help="""
-            - None: Pure baseline with no MCP
-            - Sourcegraph: Full Sourcegraph MCP with all tools (keyword, NLS, Deep Search)
-            - Deep Search: Deep Search-only MCP endpoint
-            """
-        )
+    # Map selection to environment variable value
+    mcp_env_value = {
+        "None (Pure Baseline)": "none",
+        "Sourcegraph MCP": "sourcegraph",
+        "Deep Search MCP": "deepsearch"
+    }[mcp_type]
 
-        # Map selection to environment variable value
-        mcp_env_value = {
-            "None (Pure Baseline)": "none",
-            "Sourcegraph MCP": "sourcegraph",
-            "Deep Search MCP": "deepsearch"
-        }[mcp_type]
+    # Store in session state for later use
+    st.session_state["baseline_mcp_type"] = mcp_env_value
 
-        # Store in session state for later use
-        st.session_state["baseline_mcp_type"] = mcp_env_value
+    # Single agent import path
+    agent_import_path = "agents.claude_baseline_agent:BaselineClaudeCodeAgent"
 
-        agent_import_path = "agents.claude_baseline_agent:BaselineClaudeCodeAgent"
-
-        st.info(f"**Agent:** Claude Code ({mcp_type})")
-
-        # Display what will be created based on MCP selection
-        with st.expander("Configuration Details"):
-            if mcp_env_value == "none":
-                st.write("- No mcp.json will be created")
-                st.write("- No CLAUDE.md will be created")
-                st.write("- Pure baseline agent with local tools only")
-            elif mcp_env_value == "sourcegraph":
-                st.write("- mcp.json: Sourcegraph MCP endpoint (.api/mcp/v1)")
-                st.write("- CLAUDE.md: Instructions for sg_keyword_search, sg_nls_search, sg_deepsearch")
-                st.write("- Access to all Sourcegraph MCP tools")
-            elif mcp_env_value == "deepsearch":
-                st.write("- mcp.json: Deep Search MCP endpoint (.api/mcp/deepsearch)")
-                st.write("- CLAUDE.md: Instructions for sg_deepsearch only")
-                st.write("- Focused on Deep Search semantic code understanding")
-
-    else:  # Mini SWE Agent
-        # Variant selection for Mini SWE Agent
-        swe_variant = st.radio(
-            "Mini SWE Agent Variant",
-            options=["Baseline (No MCP)", "Sourcegraph MCP", "Deep Search MCP"],
-            help="""
-            - Baseline: Pure mini-swe-agent with local tools only
-            - Sourcegraph MCP: Full code intelligence (keyword, NLS, Deep Search, read_file)
-            - Deep Search MCP: Focused semantic search only
-            """
-        )
-
-        # Map to agent import paths
-        agent_import_paths = {
-            "Baseline (No MCP)": "mini_swe_agent_mcp:MiniSweAgentBaseline",
-            "Sourcegraph MCP": "mini_swe_agent_mcp:MiniSweAgentSourcegraphMCP",
-            "Deep Search MCP": "mini_swe_agent_mcp:MiniSweAgentDeepSearchMCP",
-        }
-        agent_import_path = agent_import_paths[swe_variant]
-
-        # No MCP env var needed for Mini SWE - variants handle it internally
-        st.session_state["baseline_mcp_type"] = "none"
-
-        st.info(f"**Agent:** Mini SWE Agent ({swe_variant})")
-
-        # Display configuration details
-        with st.expander("Configuration Details"):
-            if swe_variant == "Baseline (No MCP)":
-                st.write("- Pure mini-swe-agent")
-                st.write("- No MCP servers")
-                st.write("- Local tools only")
-            elif swe_variant == "Sourcegraph MCP":
-                st.write("- HTTP MCP endpoint: {SOURCEGRAPH_URL}/.api/mcp/v1")
-                st.write("- Tools: sg_keyword_search, sg_nls_search, sg_deepsearch, sg_read_file")
-                st.write("- Requires: SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN env vars")
-            elif swe_variant == "Deep Search MCP":
-                st.write("- HTTP MCP endpoint: {SOURCEGRAPH_URL}/.api/mcp/deepsearch")
-                st.write("- Tools: deepsearch (semantic search)")
-                st.write("- Requires: SOURCEGRAPH_URL and SOURCEGRAPH_ACCESS_TOKEN env vars")
+    # Display what will be created based on MCP selection
+    with st.expander("Configuration Details"):
+        if mcp_env_value == "none":
+            st.markdown("""
+            **Pure Baseline (No MCP)**
+            - No MCP configuration
+            - Local tools only: Bash, Read, Edit, Write, Grep, Glob
+            - Baseline for measuring MCP impact
+            """)
+        elif mcp_env_value == "sourcegraph":
+            st.markdown("""
+            **Sourcegraph MCP (Full Code Intelligence)**
+            - MCP endpoint: `{SOURCEGRAPH_URL}/.api/mcp/v1`
+            - Tools available:
+              - `sg_keyword_search` - Exact string matching
+              - `sg_nls_search` - Natural language search
+              - `sg_deepsearch` - Deep semantic search
+              - `sg_read_file` - Read indexed files
+            - CLAUDE.md instructs agent to use MCP tools first
+            - Requires: `SOURCEGRAPH_URL` and `SOURCEGRAPH_ACCESS_TOKEN`
+            """)
+        elif mcp_env_value == "deepsearch":
+            st.markdown("""
+            **Deep Search MCP (Semantic Search Only)**
+            - MCP endpoint: `{SOURCEGRAPH_URL}/.api/mcp/deepsearch`
+            - Tools available:
+              - `deepsearch` - Deep semantic code understanding
+            - Focused configuration for testing Deep Search impact
+            - Requires: `SOURCEGRAPH_URL` and `SOURCEGRAPH_ACCESS_TOKEN`
+            """)
 
     selected_agents = [agent_import_path]
 
