@@ -24,8 +24,8 @@ BENCHMARKS_DIR = PROJECT_ROOT / "benchmarks"
 # Benchmark to local directory mapping
 BENCHMARK_PATHS = {
     "hello-world@head": "hello_world_test",
-    "swebench-verified@1.0": "swebench_pro",
-    "swebenchpro@1.0": "swebench_pro",
+    "swebench-verified@1.0": "swebench_pro/tasks",
+    "swebenchpro@1.0": "swebench_pro/tasks",
     "aider-polyglot@1.0": "github_mined",
     "ir-sdlc-multi-repo@1.0": "dependeval_benchmark",
 }
@@ -41,9 +41,11 @@ def get_available_tasks(dataset_name: str) -> list:
         return []
     
     tasks = []
-    # Look for task directories
+    # Look for task directories (exclude common non-task directories)
+    exclude_dirs = {'.', '..', '__pycache__', '.git', 'jobs', 'template', '.DS_Store'}
+    
     for item in sorted(full_path.iterdir()):
-        if item.is_dir() and not item.name.startswith('.'):
+        if item.is_dir() and not item.name.startswith('.') and item.name not in exclude_dirs:
             tasks.append(item.name)
     
     return sorted(tasks)
@@ -178,11 +180,30 @@ with st.sidebar:
     selected_task = None
     if task_mode == "Single Task":
         if available_tasks:
-            selected_task = st.selectbox(
-                "Select Task",
-                available_tasks,
-                key="task_select"
-            )
+            st.markdown(f"**{len(available_tasks)} tasks available**")
+            
+            # Add search filter for large task lists
+            if len(available_tasks) > 50:
+                task_search = st.text_input(
+                    "Filter tasks",
+                    placeholder="Search by name...",
+                    key="task_search"
+                )
+                filtered_tasks = [t for t in available_tasks if task_search.lower() in t.lower()]
+                if not filtered_tasks:
+                    st.warning(f"No tasks match '{task_search}'")
+                else:
+                    selected_task = st.selectbox(
+                        f"Select Task ({len(filtered_tasks)} matches)",
+                        filtered_tasks,
+                        key="task_select"
+                    )
+            else:
+                selected_task = st.selectbox(
+                    "Select Task",
+                    available_tasks,
+                    key="task_select"
+                )
         else:
             st.warning("No tasks found for this dataset")
     
