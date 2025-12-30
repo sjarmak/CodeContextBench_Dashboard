@@ -22,17 +22,16 @@ HARBOR_JOBS_DIR = PROJECT_ROOT / "harbor_jobs" / "jobs"
 BENCHMARKS_DIR = PROJECT_ROOT / "benchmarks"
 
 def get_local_tasks(dataset_name: str) -> list:
-    """Get available local task examples for a dataset"""
-    # Map dataset names to local benchmark directories
-    local_paths = {
-        "hello-world@head": "hello_world_test",
-        "swebench-verified@1.0": "swebench_pro/tasks",
-        "swebenchpro@1.0": "swebench_pro/tasks", 
-        "aider-polyglot@1.0": "github_mined",
-        "ir-sdlc-multi-repo@1.0": "dependeval_benchmark",
+    """Get available local task examples for CUSTOM datasets only"""
+    # CUSTOM local datasets (not official Harbor datasets)
+    custom_paths = {
+        "big_code_mcp": "big_code_mcp",
+        "dependeval": "dependeval_benchmark",
+        "github_mined": "github_mined",
+        "hello_world": "hello_world_test",
     }
     
-    path = local_paths.get(dataset_name)
+    path = custom_paths.get(dataset_name)
     if not path:
         return []
     
@@ -42,10 +41,21 @@ def get_local_tasks(dataset_name: str) -> list:
     
     tasks = []
     for item in sorted(full_path.iterdir()):
-        if item.is_dir() and not item.name.startswith('.') and item.name not in {'jobs', 'template', '__pycache__', '.git'}:
+        if item.is_dir() and not item.name.startswith('.') and item.name not in {'jobs', 'template', '__pycache__', '.git', 'tasks'}:
             tasks.append(item.name)
     
     return sorted(tasks)
+
+def is_official_harbor_dataset(dataset_name: str) -> bool:
+    """Check if dataset is an official Harbor dataset (fetched from remote)"""
+    official_datasets = {
+        "hello-world@head",
+        "swebench-verified@1.0",
+        "swebenchpro@1.0",
+        "aider-polyglot@1.0",
+        "ir-sdlc-multi-repo@1.0",
+    }
+    return dataset_name in official_datasets
 
 
 # Load credentials from .env.local
@@ -169,6 +179,10 @@ with st.sidebar:
     
     # Task selection
     st.markdown("### Task Selection")
+    
+    # Check if this is an official Harbor dataset
+    use_official = is_official_harbor_dataset(dataset_name)
+    
     task_mode = st.radio(
         "Run mode",
         ["Full Benchmark", "Single Task"],
@@ -177,26 +191,32 @@ with st.sidebar:
     
     selected_task = None
     if task_mode == "Single Task":
-        # Get local tasks as examples
-        local_tasks = get_local_tasks(dataset_name)
-        
-        if local_tasks:
-            st.markdown(f"**{len(local_tasks)} tasks available locally**")
-            selected_task = st.selectbox(
-                "Select a task",
-                local_tasks,
-                key=f"task_select_{dataset_name}"
-            )
-            st.caption(f"Selected: {selected_task}")
-        else:
-            st.info("No local tasks found. Enter task name pattern manually:")
+        if use_official:
+            # Official Harbor datasets: use task name patterns
+            st.info("Official Harbor dataset - use task name patterns")
             selected_task = st.text_input(
                 "Task name or pattern",
-                placeholder="e.g., astropy-*, django-*, or exact task name",
-                key=f"task_manual_{dataset_name}"
+                placeholder="e.g., astropy-fix*, django-*, or exact task ID",
+                key=f"task_pattern_{dataset_name}",
+                help="Harbor will match tasks from the official dataset"
             ).strip()
             if selected_task:
-                st.caption(f"Will run: {selected_task}")
+                st.caption(f"Will run tasks matching: {selected_task}")
+        else:
+            # Custom local datasets: browse available tasks
+            local_tasks = get_local_tasks(dataset_name)
+            
+            if local_tasks:
+                st.markdown(f"**{len(local_tasks)} tasks available**")
+                selected_task = st.selectbox(
+                    "Select a task",
+                    local_tasks,
+                    key=f"task_select_{dataset_name}"
+                )
+                st.caption(f"Selected: {selected_task}")
+            else:
+                st.warning("No tasks found in this dataset")
+                selected_task = None
     else:
         st.caption("Will run all tasks in the benchmark")
     
