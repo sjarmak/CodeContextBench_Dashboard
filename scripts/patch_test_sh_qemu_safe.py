@@ -8,10 +8,14 @@ which segfaults on ARM64 Macs due to QEMU emulation + numpy ABI mismatch.
 Solution: Wrap test.sh to catch the segfault and exit gracefully after writing reward.
 
 Usage:
-    python scripts/patch_test_sh_qemu_safe.py <benchmark-dir>
+    python scripts/patch_test_sh_qemu_safe.py <directory>
     
-Example:
+Examples:
+    # Patch local benchmarks
     python scripts/patch_test_sh_qemu_safe.py benchmarks/swebench_pro/tasks/
+    
+    # Patch Harbor cached datasets (important for swebench-verified, etc.)
+    python scripts/patch_test_sh_qemu_safe.py ~/.cache/harbor/tasks/
 """
 
 import subprocess
@@ -41,14 +45,23 @@ def patch_test_sh(test_sh_path: Path) -> bool:
         print(f"⏭️  Already patched: {test_sh_path}")
         return True
     
-    # Find the shebang and preserve it
+    # Find the shebang (may be on line 1 or line 3 in Harbor cache files)
     lines = content.split('\n')
-    if not lines[0].startswith('#!'):
-        print(f"❌ No shebang found in {test_sh_path}")
+    shebang_idx = None
+    
+    # Check first few lines for shebang
+    for idx, line in enumerate(lines[:5]):
+        if line.startswith('#!'):
+            shebang_idx = idx
+            break
+    
+    if shebang_idx is None:
+        # No shebang found, skip this file
         return False
     
-    shebang = lines[0]
-    rest_of_script = '\n'.join(lines[1:])
+    shebang = lines[shebang_idx]
+    # Include everything before shebang and everything after
+    rest_of_script = '\n'.join(lines[:shebang_idx] + lines[shebang_idx+1:])
     
     # Create patched version
     patched = f"""{shebang}

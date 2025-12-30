@@ -293,16 +293,24 @@ Every experiment manifest must include:
 
 **Problem:** Running benchmarks locally on ARM64 Macs causes verifier parser segfault, even when tests pass.
 
-**Solution:** Patch test.sh files to exit cleanly before parser runs:
+**Solution:** Patch test.sh files (both local benchmarks and Harbor cache) to exit cleanly before parser runs:
 
 ```bash
-# One-time setup: patch all benchmark tasks
+# One-time setup: patch all benchmark tasks AND Harbor cache
 python scripts/patch_test_sh_qemu_safe.py benchmarks/swebench_pro/tasks/
+python scripts/patch_test_sh_qemu_safe.py ~/.cache/harbor/tasks/
 
 # Then run normally (with local MCP, on ARM64)
 source .env.local && \
 export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL && \
 harbor run --path benchmarks/swebench_pro/tasks/instance_<task> \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
+
+# Or use Harbor datasets (which need cache patching):
+harbor run --dataset swebench-verified@1.0 \
+  --task-name astropy__astropy-12907 \
   --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
   --model anthropic/claude-haiku-4-5-20251001 \
   -n 1
