@@ -359,9 +359,12 @@ with tab1:
             
             # Run with real-time logs
             st.markdown("### Execution Logs")
+            
+            # Create full-width container for logs
+            log_col = st.columns([1])[0]
             progress_bar = st.progress(0)
             status_area = st.empty()
-            log_area = st.empty()
+            log_area = log_col.empty()
             
             with status_area.container():
                 st.info("Evaluation in progress...")
