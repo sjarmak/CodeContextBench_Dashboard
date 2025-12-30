@@ -337,10 +337,12 @@ with tab1:
             
             # Run with real-time logs
             st.markdown("### Execution Logs")
+            progress_bar = st.progress(0)
+            status_area = st.empty()
+            log_area = st.empty()
             
-            # Use a wider layout for logs
-            log_col = st.container()
-            status_placeholder = st.empty()
+            with status_area.container():
+                st.info("Evaluation in progress...")
             
             try:
                 process = subprocess.Popen(
@@ -355,24 +357,30 @@ with tab1:
                 )
                 
                 log_lines = []
-                log_placeholder = log_col.empty()
                 
-                # Stream logs line by line and update the placeholder
+                # Collect all output
                 for line in iter(process.stdout.readline, ''):
                     if line:
                         log_lines.append(line.rstrip())
-                        # Update display with last 40 lines
-                        log_placeholder.code('\n'.join(log_lines[-40:]), language="text")
                 
                 returncode = process.wait()
                 
-                # Final log display (all lines)
-                log_placeholder.code('\n'.join(log_lines), language="text")
+                # Display all logs at once
+                if log_lines:
+                    with log_area.container():
+                        st.code('\n'.join(log_lines), language="text")
+                else:
+                    with log_area.container():
+                        st.warning("No output captured")
+                
+                progress_bar.progress(100)
                 
                 if returncode == 0:
-                    status_placeholder.success("✓ Evaluation completed successfully")
+                    with status_area.container():
+                        st.success("✓ Evaluation completed successfully")
                 else:
-                    status_placeholder.error(f"✗ Evaluation failed with exit code {returncode}")
+                    with status_area.container():
+                        st.error(f"✗ Evaluation failed with exit code {returncode}")
                 
             except Exception as e:
                 st.error(f"Error: {e}")
