@@ -21,6 +21,31 @@ PROJECT_ROOT = Path(__file__).parent
 HARBOR_JOBS_DIR = PROJECT_ROOT / "harbor_jobs" / "jobs"
 BENCHMARKS_DIR = PROJECT_ROOT / "benchmarks"
 
+def get_local_tasks(dataset_name: str) -> list:
+    """Get available local task examples for a dataset"""
+    # Map dataset names to local benchmark directories
+    local_paths = {
+        "hello-world@head": "hello_world_test",
+        "swebench-verified@1.0": "swebench_pro/tasks",
+        "swebenchpro@1.0": "swebench_pro/tasks", 
+        "aider-polyglot@1.0": "github_mined",
+        "ir-sdlc-multi-repo@1.0": "dependeval_benchmark",
+    }
+    
+    path = local_paths.get(dataset_name)
+    if not path:
+        return []
+    
+    full_path = BENCHMARKS_DIR / path
+    if not full_path.exists():
+        return []
+    
+    tasks = []
+    for item in sorted(full_path.iterdir()):
+        if item.is_dir() and not item.name.startswith('.') and item.name not in {'jobs', 'template', '__pycache__', '.git'}:
+            tasks.append(item.name)
+    
+    return sorted(tasks)
 
 
 # Load credentials from .env.local
@@ -146,21 +171,32 @@ with st.sidebar:
     st.markdown("### Task Selection")
     task_mode = st.radio(
         "Run mode",
-        ["Full Benchmark", "Filter Tasks"],
+        ["Full Benchmark", "Single Task"],
         horizontal=True
     )
     
     selected_task = None
-    if task_mode == "Filter Tasks":
-        selected_task = st.text_input(
-            "Task filter pattern",
-            placeholder="e.g., *astropy*, *django*, or specific task name",
-            key=f"task_filter_{dataset_name}",
-            help="Wildcard patterns supported. Harbor will match tasks from the official dataset."
-        ).strip()
+    if task_mode == "Single Task":
+        # Get local tasks as examples
+        local_tasks = get_local_tasks(dataset_name)
         
-        if selected_task:
-            st.caption(f"Will run tasks matching: {selected_task}")
+        if local_tasks:
+            st.markdown(f"**{len(local_tasks)} tasks available locally**")
+            selected_task = st.selectbox(
+                "Select a task",
+                local_tasks,
+                key=f"task_select_{dataset_name}"
+            )
+            st.caption(f"Selected: {selected_task}")
+        else:
+            st.info("No local tasks found. Enter task name pattern manually:")
+            selected_task = st.text_input(
+                "Task name or pattern",
+                placeholder="e.g., astropy-*, django-*, or exact task name",
+                key=f"task_manual_{dataset_name}"
+            ).strip()
+            if selected_task:
+                st.caption(f"Will run: {selected_task}")
     else:
         st.caption("Will run all tasks in the benchmark")
     
