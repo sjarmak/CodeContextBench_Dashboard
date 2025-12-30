@@ -106,6 +106,40 @@ mkdir -p /logs/verifier
 echo "1.0" > /logs/verifier/reward.txt
 ```
 
+### QEMU Parser Segfault on ARM64 Macs
+
+**Symptoms:**
+```
+qemu: uncaught target signal 11 (Segmentation fault) - core dumped
+/tests/test.sh: line 151: 13151 Segmentation fault (core dumped) uv run parser.py
+```
+
+**Cause:** Running SWE-bench verifications on Apple Silicon (ARM64) Macs using QEMU x86_64 emulation causes segfaults during result parsing, even when all tests pass.
+
+**Warning signs:**
+```
+RuntimeWarning: numpy.ndarray size changed, may indicate binary incompatibility.
+Expected 80 from C header, got 96 from PyObject
+```
+
+**Solution:** Use Daytona environment instead of local Docker:
+
+```bash
+# Use --env daytona flag to run on real x86_64 cloud VMs
+harbor run --path <benchmark-path> \
+  --agent-import-path <agent> \
+  --env daytona \
+  -n 1
+```
+
+**Why Daytona?**
+- Real x86_64 cloud VMs (no QEMU emulation)
+- 6x faster than local Docker
+- Correct numpy/C extension compatibility
+- No post-test parser crashes
+
+**Affected:** All agents and benchmarks on ARM64 Macs. This is not agent-specific.
+
 ### Cached Docker images causing stale workspace
 
 If workspace content doesn't match what's in Dockerfile's `git clone`:

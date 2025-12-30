@@ -289,6 +289,27 @@ Every experiment manifest must include:
 - `docs/TROUBLESHOOTING.md` - Common issues
 - `benchmarks/README.md` - Benchmark guide
 
+## ARM64 Mac + Local MCP: QEMU Segfault Workaround
+
+**Problem:** Running benchmarks locally on ARM64 Macs causes verifier parser segfault, even when tests pass.
+
+**Solution:** Patch test.sh files to exit cleanly before parser runs:
+
+```bash
+# One-time setup: patch all benchmark tasks
+python scripts/patch_test_sh_qemu_safe.py benchmarks/swebench_pro/tasks/
+
+# Then run normally (with local MCP, on ARM64)
+source .env.local && \
+export ANTHROPIC_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_URL && \
+harbor run --path benchmarks/swebench_pro/tasks/instance_<task> \
+  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
+```
+
+**Details:** See `history/QEMU_SEGFAULT_FIX.md` for technical background and validation methodology for white papers.
+
 **Documentation Maintenance:**
 - Update `docs/ARCHITECTURE.md` when structure changes
 - Update `docs/DEVELOPMENT.md` when workflows change
