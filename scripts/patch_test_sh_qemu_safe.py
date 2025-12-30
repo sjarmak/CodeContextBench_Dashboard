@@ -64,31 +64,34 @@ def patch_test_sh(test_sh_path: Path) -> bool:
     rest_of_script = '\n'.join(lines[:shebang_idx] + lines[shebang_idx+1:])
     
     # Create patched version
+    # Instead of wrapping in a subshell, modify the original to trap EXIT
     patched = f"""{shebang}
 # QEMU_SAFE_PATCH: Prevents segfault when parser.py runs on ARM64 Macs
-# This wrapper ensures reward is written and exits cleanly
+# This version ensures reward is written and exits cleanly before parser runs
 
-set -o pipefail  # Propagate pipe failures
+set -o pipefail
 
-# Capture test output and exit code
-{{
-{rest_of_script}
-}}
-TEST_EXIT_CODE=$?
-
-# Ensure reward is written (final safeguard)
-if [ ! -f /logs/verifier/reward.txt ]; then
+# Trap EXIT to ensure reward is written and script exits before parser.py can be called
+_qemu_safe_exit() {{
+    local exit_code=$?
     mkdir -p /logs/verifier
-    if [ "$TEST_EXIT_CODE" -eq 0 ]; then
-        echo 1 > /logs/verifier/reward.txt
-    else
-        echo 0 > /logs/verifier/reward.txt
+    
+    # Only write reward if not already written
+    if [ ! -f /logs/verifier/reward.txt ]; then
+        if [ $exit_code -eq 0 ]; then
+            echo 1 > /logs/verifier/reward.txt
+        else
+            echo 0 > /logs/verifier/reward.txt
+        fi
     fi
-fi
+    
+    # Exit IMMEDIATELY - don't let any cleanup code run
+    # This prevents parser.py from being called
+    exit $exit_code
+}}
+trap _qemu_safe_exit EXIT
 
-# Exit with test result BEFORE parser.py runs
-# This prevents the QEMU segfault that occurs during parser cleanup
-exit $TEST_EXIT_CODE
+{rest_of_script}
 """
     
     # Write patched version
