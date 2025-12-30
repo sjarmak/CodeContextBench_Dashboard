@@ -211,23 +211,38 @@ with st.sidebar:
     
     selected_task = None
     if task_mode == "Single Task":
-        # Try to get tasks from Harbor cache first
-        harbor_tasks = get_harbor_cached_tasks()
+        # Show tasks available from current dataset
+        # Note: We use local tasks for custom datasets, Harbor cache for official datasets
+        dataset_short_name = dataset_name.split("@")[0]  # Remove version suffix
         
-        if harbor_tasks:
-            st.markdown(f"**{len(harbor_tasks)} tasks available in Harbor cache**")
-            selected_task = st.selectbox(
-                "Select a task",
-                harbor_tasks,
-                key=f"task_select_{dataset_name}"
-            )
-            st.caption(f"Selected: {selected_task}")
+        # Check if it's an official Harbor dataset or custom
+        is_official = is_official_harbor_dataset(dataset_name)
+        
+        if is_official and dataset_short_name in ["swebench-verified", "swebenchpro", "aider-polyglot", "ir-sdlc-multi-repo"]:
+            # For official datasets, try Harbor cache
+            all_harbor_tasks = get_harbor_cached_tasks()
+            if all_harbor_tasks:
+                st.markdown(f"**{len(all_harbor_tasks)} total tasks in Harbor cache**")
+                st.info(f"Note: Showing all cached tasks. Filter to tasks for {dataset_name} in command")
+                selected_task = st.selectbox(
+                    "Select a task",
+                    all_harbor_tasks,
+                    key=f"task_select_{dataset_name}"
+                )
+                st.caption(f"Selected: {selected_task}")
+            else:
+                st.warning("No tasks in Harbor cache. Run --task-name with task pattern")
+                selected_task = st.text_input(
+                    "Task name",
+                    placeholder="e.g., astropy__astropy-12907",
+                    key=f"task_pattern_{dataset_name}"
+                ).strip()
         else:
-            # Fallback: try local tasks
+            # For custom datasets, use local tasks
             local_tasks = get_local_tasks(dataset_name)
             
             if local_tasks:
-                st.markdown(f"**{len(local_tasks)} tasks available locally**")
+                st.markdown(f"**{len(local_tasks)} tasks available**")
                 selected_task = st.selectbox(
                     "Select a task",
                     local_tasks,
@@ -235,14 +250,12 @@ with st.sidebar:
                 )
                 st.caption(f"Selected: {selected_task}")
             else:
-                st.warning("No tasks found. Run with full benchmark or enter task name pattern:")
+                st.warning(f"No local tasks found for {dataset_name}")
                 selected_task = st.text_input(
                     "Task name or pattern",
-                    placeholder="e.g., django-fix*, astropy-*",
+                    placeholder="e.g., task-name",
                     key=f"task_pattern_{dataset_name}"
                 ).strip()
-                if selected_task:
-                    st.caption(f"Will run: {selected_task}")
     else:
         st.caption("Will run all tasks in the benchmark")
     
@@ -286,6 +299,15 @@ with tab1:
             
             if not os.getenv("ANTHROPIC_API_KEY"):
                 st.error("Missing ANTHROPIC_API_KEY in .env.local")
+                st.stop()
+            
+            # Warn user if they selected a task but using Full Benchmark mode
+            if task_mode == "Full Benchmark" and selected_task:
+                st.warning(f"Task '{selected_task}' will be ignored - running full benchmark instead")
+            
+            # Verify task selection makes sense
+            if task_mode == "Single Task" and not selected_task:
+                st.error("Please select a task")
                 st.stop()
             
             # Build command
@@ -365,13 +387,11 @@ with tab1:
                 
                 returncode = process.wait()
                 
-                # Display all logs at once
+                # Display all logs at once (full width)
                 if log_lines:
-                    with log_area.container():
-                        st.code('\n'.join(log_lines), language="text")
+                    log_area.text('\n'.join(log_lines))
                 else:
-                    with log_area.container():
-                        st.warning("No output captured")
+                    log_area.warning("No output captured")
                 
                 progress_bar.progress(100)
                 
