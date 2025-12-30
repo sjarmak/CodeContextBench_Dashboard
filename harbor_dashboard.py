@@ -21,34 +21,7 @@ PROJECT_ROOT = Path(__file__).parent
 HARBOR_JOBS_DIR = PROJECT_ROOT / "harbor_jobs" / "jobs"
 BENCHMARKS_DIR = PROJECT_ROOT / "benchmarks"
 
-# Benchmark to local directory mapping
-BENCHMARK_PATHS = {
-    "hello-world@head": "hello_world_test",
-    "swebench-verified@1.0": "swebench_pro/tasks",
-    "swebenchpro@1.0": "swebench_pro/tasks",
-    "aider-polyglot@1.0": "github_mined",
-    "ir-sdlc-multi-repo@1.0": "dependeval_benchmark",
-}
 
-def get_available_tasks(dataset_name: str) -> list:
-    """Discover available tasks for a dataset."""
-    benchmark_dir = BENCHMARK_PATHS.get(dataset_name)
-    if not benchmark_dir:
-        return []
-    
-    full_path = BENCHMARKS_DIR / benchmark_dir
-    if not full_path.exists():
-        return []
-    
-    tasks = []
-    # Look for task directories (exclude common non-task directories)
-    exclude_dirs = {'.', '..', '__pycache__', '.git', 'jobs', 'template', '.DS_Store'}
-    
-    for item in sorted(full_path.iterdir()):
-        if item.is_dir() and not item.name.startswith('.') and item.name not in exclude_dirs:
-            tasks.append(item.name)
-    
-    return sorted(tasks)
 
 # Load credentials from .env.local
 def load_env():
@@ -170,59 +143,26 @@ with st.sidebar:
     dataset_name = dataset[1]
     
     # Task selection
-    available_tasks = get_available_tasks(dataset_name)
+    st.markdown("### Task Selection")
     task_mode = st.radio(
-        "Task Selection",
-        ["Full Benchmark", "Single Task"],
+        "Run mode",
+        ["Full Benchmark", "Filter Tasks"],
         horizontal=True
     )
     
     selected_task = None
-    if task_mode == "Single Task":
-        if available_tasks:
-            st.markdown(f"**{len(available_tasks)} tasks available**")
-            
-            # For large task lists, add search filter with live results
-            if len(available_tasks) > 50:
-                task_search = st.text_input(
-                    "Search tasks",
-                    placeholder="Type to filter (e.g., ansible, element, flipt)...",
-                    key=f"task_search_{dataset_name}"
-                ).strip().lower()
-                
-                # Filter by substring (anywhere in the name)
-                if task_search:
-                    filtered_tasks = [t for t in available_tasks if task_search in t.lower()]
-                    
-                    if not filtered_tasks:
-                        st.info(f"No tasks match '{task_search}'. Available prefixes: ansible, element, flipt, future, gravitational, internetarchive, navidrome, nodebb, protonmail, qutebrowser, tutao")
-                        selected_task = None
-                    else:
-                        st.markdown(f"**{len(filtered_tasks)} matches** - select one below:")
-                        # Show matches as clickable buttons/options
-                        selected_task = st.selectbox(
-                            "Matching tasks",
-                            filtered_tasks,
-                            key=f"task_select_large_{dataset_name}",
-                            label_visibility="collapsed"
-                        )
-                else:
-                    st.markdown(f"**{len(available_tasks)} tasks available** - type above to filter")
-                    selected_task = st.selectbox(
-                        "Select Task",
-                        available_tasks[:100],  # Show first 100
-                        key=f"task_select_large_{dataset_name}"
-                    )
-                    if len(available_tasks) > 100:
-                        st.caption(f"Showing first 100 of {len(available_tasks)} tasks. Type above to filter for others.")
-            else:
-                selected_task = st.selectbox(
-                    "Select Task",
-                    available_tasks,
-                    key=f"task_select_small_{dataset_name}"
-                )
-        else:
-            st.warning("No tasks found for this dataset")
+    if task_mode == "Filter Tasks":
+        selected_task = st.text_input(
+            "Task filter pattern",
+            placeholder="e.g., *astropy*, *django*, or specific task name",
+            key=f"task_filter_{dataset_name}",
+            help="Wildcard patterns supported. Harbor will match tasks from the official dataset."
+        ).strip()
+        
+        if selected_task:
+            st.caption(f"Will run tasks matching: {selected_task}")
+    else:
+        st.caption("Will run all tasks in the benchmark")
     
     # Advanced options
     with st.expander("Advanced Options"):
