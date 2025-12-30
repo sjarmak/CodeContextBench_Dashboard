@@ -337,8 +337,10 @@ with tab1:
             
             # Run with real-time logs
             st.markdown("### Execution Logs")
-            log_container = st.container()
-            status_text = st.empty()
+            
+            # Use a wider layout for logs
+            log_col = st.container()
+            status_placeholder = st.empty()
             
             try:
                 process = subprocess.Popen(
@@ -348,30 +350,29 @@ with tab1:
                     text=True,
                     env=env,
                     cwd=str(PROJECT_ROOT),
-                    bufsize=1
+                    bufsize=1,
+                    universal_newlines=True
                 )
                 
                 log_lines = []
-                with log_container:
-                    log_display = st.code("", language="")
+                log_placeholder = log_col.empty()
                 
-                # Stream logs in real time
+                # Stream logs line by line and update the placeholder
                 for line in iter(process.stdout.readline, ''):
                     if line:
                         log_lines.append(line.rstrip())
-                        # Display last 20 lines
-                        with log_container:
-                            log_display.code('\n'.join(log_lines[-20:]), language="")
-                        time.sleep(0.01)  # Small delay for UI update
+                        # Update display with last 40 lines
+                        log_placeholder.code('\n'.join(log_lines[-40:]), language="text")
                 
                 returncode = process.wait()
                 
+                # Final log display (all lines)
+                log_placeholder.code('\n'.join(log_lines), language="text")
+                
                 if returncode == 0:
-                    status_text.success("Evaluation completed successfully")
+                    status_placeholder.success("✓ Evaluation completed successfully")
                 else:
-                    status_text.error(f"Evaluation failed with exit code {returncode}")
-                    with log_container:
-                        log_display.code('\n'.join(log_lines[-50:]), language="")
+                    status_placeholder.error(f"✗ Evaluation failed with exit code {returncode}")
                 
             except Exception as e:
                 st.error(f"Error: {e}")
