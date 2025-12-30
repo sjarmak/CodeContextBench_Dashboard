@@ -57,6 +57,29 @@ def is_official_harbor_dataset(dataset_name: str) -> bool:
     }
     return dataset_name in official_datasets
 
+def get_harbor_cached_tasks() -> list:
+    """Fetch available tasks from Harbor's cache (~/.cache/harbor/tasks/)"""
+    cache_dir = Path.home() / ".cache" / "harbor" / "tasks"
+    
+    if not cache_dir.exists():
+        return []
+    
+    tasks = []
+    try:
+        # Each task is in a subdirectory under cache_dir
+        for task_dir in cache_dir.iterdir():
+            if task_dir.is_dir() and not task_dir.name.startswith('.'):
+                # Task directory name structure: <hash>/<task_name>/
+                for task_name_dir in task_dir.iterdir():
+                    if task_name_dir.is_dir():
+                        task_name = task_name_dir.name
+                        if task_name and not task_name.startswith('.'):
+                            tasks.append(task_name)
+    except Exception as e:
+        print(f"Error reading Harbor cache: {e}")
+    
+    return sorted(list(set(tasks)))  # Remove duplicates and sort
+
 
 # Load credentials from .env.local
 def load_env():
@@ -180,9 +203,6 @@ with st.sidebar:
     # Task selection
     st.markdown("### Task Selection")
     
-    # Check if this is an official Harbor dataset
-    use_official = is_official_harbor_dataset(dataset_name)
-    
     task_mode = st.radio(
         "Run mode",
         ["Full Benchmark", "Single Task"],
@@ -191,23 +211,23 @@ with st.sidebar:
     
     selected_task = None
     if task_mode == "Single Task":
-        if use_official:
-            # Official Harbor datasets: use task name patterns
-            st.info("Official Harbor dataset - use task name patterns")
-            selected_task = st.text_input(
-                "Task name or pattern",
-                placeholder="e.g., astropy-fix*, django-*, or exact task ID",
-                key=f"task_pattern_{dataset_name}",
-                help="Harbor will match tasks from the official dataset"
-            ).strip()
-            if selected_task:
-                st.caption(f"Will run tasks matching: {selected_task}")
+        # Try to get tasks from Harbor cache first
+        harbor_tasks = get_harbor_cached_tasks()
+        
+        if harbor_tasks:
+            st.markdown(f"**{len(harbor_tasks)} tasks available in Harbor cache**")
+            selected_task = st.selectbox(
+                "Select a task",
+                harbor_tasks,
+                key=f"task_select_{dataset_name}"
+            )
+            st.caption(f"Selected: {selected_task}")
         else:
-            # Custom local datasets: browse available tasks
+            # Fallback: try local tasks
             local_tasks = get_local_tasks(dataset_name)
             
             if local_tasks:
-                st.markdown(f"**{len(local_tasks)} tasks available**")
+                st.markdown(f"**{len(local_tasks)} tasks available locally**")
                 selected_task = st.selectbox(
                     "Select a task",
                     local_tasks,
@@ -215,8 +235,14 @@ with st.sidebar:
                 )
                 st.caption(f"Selected: {selected_task}")
             else:
-                st.warning("No tasks found in this dataset")
-                selected_task = None
+                st.warning("No tasks found. Run with full benchmark or enter task name pattern:")
+                selected_task = st.text_input(
+                    "Task name or pattern",
+                    placeholder="e.g., django-fix*, astropy-*",
+                    key=f"task_pattern_{dataset_name}"
+                ).strip()
+                if selected_task:
+                    st.caption(f"Will run: {selected_task}")
     else:
         st.caption("Will run all tasks in the benchmark")
     
