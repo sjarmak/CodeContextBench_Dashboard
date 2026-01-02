@@ -327,6 +327,8 @@ def cmd_analyze(args):
         cmd_analyze_failures,
         cmd_analyze_ir,
         cmd_analyze_recommend,
+        cmd_analyze_statistical,
+        cmd_analyze_timeseries,
     )
     
     if args.analyze_command == "compare":
@@ -335,6 +337,10 @@ def cmd_analyze(args):
         return cmd_analyze_failures(args)
     elif args.analyze_command == "ir":
         return cmd_analyze_ir(args)
+    elif args.analyze_command == "statistical":
+        return cmd_analyze_statistical(args)
+    elif args.analyze_command == "timeseries":
+        return cmd_analyze_timeseries(args)
     elif args.analyze_command == "recommend":
         return cmd_analyze_recommend(args)
     else:
@@ -410,6 +416,17 @@ def main():
     ir_parser.add_argument("experiment_id", help="Experiment ID")
     ir_parser.add_argument("--baseline", help="Baseline agent (optional)")
     ir_parser.add_argument("-v", "--verbose", action="store_true")
+    
+    stat_parser = analyze_subparsers.add_parser("statistical", help="Statistical significance testing")
+    stat_parser.add_argument("experiment_id", help="Experiment ID")
+    stat_parser.add_argument("--baseline", help="Baseline agent (optional)")
+    stat_parser.add_argument("--confidence", type=float, default=0.95, help="Confidence level (default: 0.95)")
+    stat_parser.add_argument("-v", "--verbose", action="store_true")
+    
+    ts_parser = analyze_subparsers.add_parser("timeseries", help="Time-series analysis across experiments")
+    ts_parser.add_argument("experiments", help="Experiment IDs (comma-separated, in chronological order)")
+    ts_parser.add_argument("--agents", help="Agent names to analyze (comma-separated, optional)")
+    ts_parser.add_argument("-v", "--verbose", action="store_true")
     
     rec_parser = analyze_subparsers.add_parser("recommend", help="Generate recommendations")
     rec_parser.add_argument("experiment_id", help="Experiment ID")

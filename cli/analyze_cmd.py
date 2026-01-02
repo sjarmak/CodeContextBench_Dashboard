@@ -7,6 +7,7 @@ from src.analysis.comparator import ExperimentComparator
 from src.analysis.failure_analyzer import FailureAnalyzer
 from src.analysis.ir_analyzer import IRAnalyzer
 from src.analysis.recommendation_engine import RecommendationEngine
+from src.analysis.statistical_analyzer import StatisticalAnalyzer
 
 
 def cmd_analyze_compare(args):
@@ -166,6 +167,150 @@ def cmd_analyze_ir(args):
         output_file = project_root / "artifacts" / f"ir_analysis_{args.experiment_id}.json"
         output_file.parent.mkdir(parents=True, exist_ok=True)
         
+        with open(output_file, "w") as f:
+            json.dump(result.to_dict(), f, indent=2)
+        
+        print(f"\n✓ Detailed results saved to {output_file}")
+        
+        return 0
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        return 1
+
+
+def cmd_analyze_statistical(args):
+    """Perform statistical significance testing on an experiment."""
+    from pathlib import Path
+    
+    project_root = Path(__file__).parent.parent
+    db_path = project_root / "data" / "metrics.db"
+    
+    if not db_path.exists():
+        print(f"Error: Database not found: {db_path}")
+        return 1
+    
+    db = MetricsDatabase(db_path)
+    analyzer = StatisticalAnalyzer(db)
+    
+    try:
+        result = analyzer.analyze_comparison(
+            args.experiment_id,
+            baseline_agent=args.baseline,
+            confidence_level=args.confidence,
+        )
+        
+        print(f"\n✓ Statistical Analysis for {args.experiment_id}\n")
+        print(f"Baseline Agent: {result.baseline_agent}")
+        print(f"Variant Agents: {', '.join(result.variant_agents)}")
+        print(f"\nStatistical Power: {result.power_assessment.title()}")
+        print(f"Total Tests: {result.total_tests}")
+        print(f"Significant Results: {result.significant_tests}/{result.total_tests}")
+        
+        if result.significant_metrics:
+            print(f"\n✓ Significant Metrics ({len(result.significant_metrics)}):")
+            for metric in result.significant_metrics:
+                tests = result.tests.get(metric, [])
+                for test in tests:
+                    print(f"  • {test.metric_name}: {test.interpretation}")
+                    print(f"    Effect size ({test.effect_size_name}): {test.effect_size:.3f}")
+        
+        if result.non_significant_metrics:
+            print(f"\n→ Non-Significant Metrics ({len(result.non_significant_metrics)}):")
+            for metric in result.non_significant_metrics[:5]:
+                tests = result.tests.get(metric, [])
+                for test in tests:
+                    print(f"  • {test.metric_name}: p={test.p_value:.4f}")
+        
+        # Save detailed results
+        output_file = project_root / "artifacts" / f"statistical_{args.experiment_id}.json"
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_file, "w") as f:
+            json.dump(result.to_dict(), f, indent=2)
+        
+        print(f"\n✓ Detailed results saved to {output_file}")
+        
+        return 0
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        return 1
+
+
+def cmd_analyze_timeseries(args):
+    """Perform time-series analysis on experiment metrics."""
+    from pathlib import Path
+    
+    project_root = Path(__file__).parent.parent
+    db_path = project_root / "data" / "metrics.db"
+    
+    if not db_path.exists():
+        print(f"Error: Database not found: {db_path}")
+        return 1
+    
+    db = MetricsDatabase(db_path)
+    from src.analysis.time_series_analyzer import TimeSeriesAnalyzer, TrendDirection
+    
+    analyzer = TimeSeriesAnalyzer(db)
+    
+    try:
+        # Parse experiment IDs from comma-separated list
+        experiment_ids = args.experiments.split(",") if args.experiments else []
+        
+        if not experiment_ids:
+            print("Error: Must provide experiment IDs (comma-separated)")
+            return 1
+        
+        # Analyze multi-agent trends
+        result = analyzer.analyze_multi_agent_trends(
+            experiment_ids,
+            agent_names=args.agents.split(",") if args.agents else None,
+        )
+        
+        print(f"\n✓ Time-Series Analysis Results\n")
+        print(f"Experiments: {', '.join(result.experiment_ids)}")
+        print(f"Agents Analyzed: {', '.join(result.agent_names)}")
+        
+        if result.best_improving_metric:
+            print(f"\n🚀 Best Improving: {result.best_improving_metric.metric_name}")
+            print(f"   {result.best_improving_metric.interpretation}")
+            print(f"   Change: {result.best_improving_metric.percent_change:+.1f}%")
+        
+        if result.worst_degrading_metric:
+            print(f"\n⚠️  Worst Degrading: {result.worst_degrading_metric.metric_name}")
+            print(f"   {result.worst_degrading_metric.interpretation}")
+            print(f"   Change: {result.worst_degrading_metric.percent_change:+.1f}%")
+        
+        if result.most_stable_metric:
+            print(f"\n→ Most Stable: {result.most_stable_metric.metric_name}")
+            print(f"   {result.most_stable_metric.interpretation}")
+        
+        if result.total_anomalies > 0:
+            print(f"\n⚠️  Anomalies Detected: {result.total_anomalies}")
+            print(f"   Agents affected: {', '.join(result.agents_with_anomalies)}")
+        
+        # Detailed trends
+        print(f"\nDetailed Trends by Metric:")
+        for metric, agent_trends in result.trends.items():
+            print(f"\n  {metric}:")
+            for agent, trend in agent_trends.items():
+                status = "✓" if trend.direction == TrendDirection.IMPROVING else "✗" if trend.direction == TrendDirection.DEGRADING else "→"
+                print(f"    {status} {agent}: {trend.direction.value}")
+                print(f"       Value: {trend.first_value:.3f} → {trend.last_value:.3f} ({trend.percent_change:+.1f}%)")
+                print(f"       Confidence: {trend.confidence:.0%}")
+        
+        # Save detailed results
+        output_file = project_root / "artifacts" / f"timeseries_{'_'.join(result.experiment_ids)}.json"
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        import json
         with open(output_file, "w") as f:
             json.dump(result.to_dict(), f, indent=2)
         
