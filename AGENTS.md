@@ -87,9 +87,116 @@ docker ps -a -s               # Container sizes
 
 ## Project Overview
 
-CodeContextBench evaluates how Sourcegraph code intelligence tools improve coding agent output. It supports multiple agent implementations running against standardized benchmark task sets.
+CodeContextBench is an **observability platform** for Harbor-based agent evaluations. It manages:
+- **Abstract agent configurations** that translate to Claude Code, OpenCode, OpenHands formats
+- **Bidirectional VM sync** for pushing configs and pulling results
+- **Analysis pipeline** for comparing agent performance with IR and patch metrics
+- **Experiment tracking** for iterative improvement
 
-**See:** `docs/ARCHITECTURE.md` for detailed architecture.
+**Architecture:** See `docs/REFACTOR_PROPOSAL.md` and `docs/ARCHITECTURE.md`
+
+---
+
+## CLI Quick Reference
+
+```bash
+# Validate all configurations
+./ccb config validate
+
+# Translate an agent config to all agent-specific formats
+./ccb translate strategic-deepsearch --output-dir /tmp/test
+
+# Push configs to VM (after setting vm_host in data/sync_manifest.json)
+./ccb sync push --dry-run
+
+# Pull results from VM
+./ccb sync pull --experiment=my-experiment
+
+# List experiments
+./ccb experiment list
+```
+
+---
+
+## New Directory Structure
+
+```
+configs/                     # Abstract configurations (source of truth)
+├── agents/                  # Agent definitions (_base.yaml, baseline.yaml, strategic-deepsearch.yaml)
+├── mcp/                     # MCP endpoint definitions
+├── benchmarks/              # Benchmark set definitions
+└── experiments/             # Experiment definitions
+
+src/
+├── config/                  # Config loading and validation
+├── translate/               # Agent config translators
+├── sync/                    # VM push/pull operations
+├── ir_sdlc/                 # IR-SDLC benchmark components (from IR-SDLC-Factory)
+├── ingest/                  # Result parsing (TODO)
+└── analysis/                # Comparison and LLM judge (TODO)
+
+data/
+├── translated_configs/      # Generated agent-specific configs
+├── results/                 # Synced results from VM
+└── sync_manifest.json       # Sync tracking
+```
+
+---
+
+## VM Operations
+
+**VM runs benchmarks, local interprets results.**
+
+### Setup VM Host
+Edit `data/sync_manifest.json`:
+```json
+{
+  "vm_host": "user@vm-hostname",
+  "vm_path": "~/evals"
+}
+```
+
+### Workflow
+1. Edit abstract config in `configs/agents/`
+2. Run `./ccb sync push` to translate and push to VM
+3. Run experiments on VM via SSH
+4. Run `./ccb sync pull` to fetch results
+5. Analyze in dashboard or CLI
+
+---
+
+## Agent Configuration
+
+Abstract configs in `configs/agents/` are framework-agnostic:
+
+```yaml
+agent_id: strategic-deepsearch
+extends: _base
+
+mcp_endpoints:
+  - sourcegraph-v1
+  - sourcegraph-deepsearch
+
+mcp_tools:
+  - sg_keyword_search
+  - deepsearch
+
+prompts:
+  system: |
+    Use Deep Search at critical checkpoints...
+  claude_md: |
+    # Sourcegraph Guide...
+
+overrides:
+  claudecode:
+    env:
+      FORCE_AUTO_BACKGROUND_TASKS: "1"
+```
+
+Translators convert to:
+- **Claude Code**: `.mcp.json` + `CLAUDE.md`
+- **OpenCode**: `opencode.jsonc` + `skills/`
+- **OpenHands**: `config.toml`
 
 ---
 

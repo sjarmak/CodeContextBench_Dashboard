@@ -1,0 +1,13 @@
+# Sourcegraph Deep Search endpoint
+endpoint_id: sourcegraph-deepsearch
+display_name: "Sourcegraph Deep Search"
+url: https://sourcegraph.sourcegraph.com/.api/mcp/deepsearch
+
+auth:
+  type: token
+  env_var: SOURCEGRAPH_ACCESS_TOKEN
+  header_format: "token {token}"
+
+tools:
+  - id: deepsearch
+    description: AI-powered semantic code search with deep understanding

@@ -1,0 +1,25 @@
+# Sourcegraph MCP v1 endpoint
+endpoint_id: sourcegraph-v1
+display_name: "Sourcegraph MCP v1"
+url: https://sourcegraph.sourcegraph.com/.api/mcp/v1
+
+auth:
+  type: token
+  env_var: SOURCEGRAPH_ACCESS_TOKEN
+  header_format: "token {token}"
+
+tools:
+  - id: sg_keyword_search
+    description: Fast keyword-based search across large codebases
+  - id: sg_nls_search
+    description: Natural language semantic search
+  - id: sg_read_file
+    description: Read file contents with full context
+  - id: sg_list_repos
+    description: List available repositories
+  - id: sg_list_files
+    description: Find files by pattern
+  - id: sg_go_to_definition
+    description: Navigate to symbol definitions
+  - id: sg_commit_search
+    description: Search commit history

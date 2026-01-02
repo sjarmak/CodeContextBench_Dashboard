@@ -1,0 +1,30 @@
+# Base agent configuration - inherited by all agents
+agent_id: _base
+display_name: "Base Agent"
+description: "Base configuration inherited by all agents"
+
+# Default model
+default_model: anthropic/claude-haiku-4-5-20251001
+allowed_models:
+  - anthropic/claude-haiku-4-5-20251001
+  - anthropic/claude-sonnet-4-20250514
+
+# Empty MCP by default
+mcp_endpoints: []
+mcp_tools: []
+
+# Empty prompts by default
+prompts:
+  system: ""
+  claude_md: ""
+
+# Agent-specific overrides
+overrides:
+  claudecode:
+    env:
+      FORCE_AUTO_BACKGROUND_TASKS: "1"
+      ENABLE_BACKGROUND_TASKS: "1"
+  opencode:
+    model_mapping:
+      anthropic/claude-haiku-4-5-20251001: claude-3-5-haiku
+  openhands: {}

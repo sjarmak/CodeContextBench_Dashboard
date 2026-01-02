@@ -1,0 +1,4 @@
+#!/bin/bash
+# CodeContextBench CLI wrapper
+cd "$(dirname "$0")"
+python -m cli.main "$@"

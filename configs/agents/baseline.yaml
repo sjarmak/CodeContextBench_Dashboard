@@ -1,0 +1,25 @@
+# Baseline agent - no MCP, just raw Claude Code capabilities
+agent_id: baseline
+display_name: "Baseline Claude Code"
+description: "Claude Code with autonomous mode, no MCP integration"
+extends: _base
+
+# No MCP
+mcp_endpoints: []
+mcp_tools: []
+
+prompts:
+  system: |
+    You MUST complete this task by making real code changes.
+    Use the tools available to you to explore the codebase,
+    understand the problem, and implement a solution.
+  
+  claude_md: |
+    # Task Instructions
+    
+    This is a coding task. You have access to:
+    - Bash for running commands
+    - Read/Write for file operations
+    - Grep/Glob for searching
+    
+    Make real code changes to solve the problem.

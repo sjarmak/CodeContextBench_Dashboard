@@ -1,0 +1,9 @@
+{
+  "last_push": null,
+  "last_pull": null,
+  "vm_host": "instance-20251230-155636.us-central1-f.benchmarks-482815",
+  "vm_path": "~/evals",
+  "local_configs_path": "data/translated_configs",
+  "local_results_path": "data/results",
+  "history": []
+}

@@ -1,0 +1,14 @@
+# SWE-bench Verified benchmark
+benchmark_id: swebench-verified
+display_name: "SWE-bench Verified"
+description: "Verified subset of SWE-bench with human-validated tasks"
+
+source: harbor
+registry_url: https://raw.githubusercontent.com/laude-institute/harbor/refs/heads/main/registry.json
+dataset_name: swebench-verified
+dataset_version: "1.0"
+
+task_filter:
+  limit: null  # Use all tasks
+  include: []
+  exclude: []

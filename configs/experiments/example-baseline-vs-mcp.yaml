@@ -1,0 +1,27 @@
+# Example experiment configuration
+experiment_id: example-baseline-vs-mcp
+name: "Baseline vs Strategic Deep Search Comparison"
+description: "Compare baseline Claude Code against Strategic Deep Search on SWE-bench Verified"
+
+hypothesis: |
+  Strategic use of Deep Search will improve task completion rate
+  by providing better initial context for understanding large codebases.
+
+# Agents to compare
+agents:
+  - baseline
+  - strategic-deepsearch
+
+# Benchmark
+benchmark: swebench-verified
+
+# Execution settings
+execution:
+  n_attempts: 1
+  timeout_multiplier: 1.0
+  concurrent_trials: 1
+  model: anthropic/claude-haiku-4-5-20251001
+
+# Tracking
+status: pending
+created_by: example

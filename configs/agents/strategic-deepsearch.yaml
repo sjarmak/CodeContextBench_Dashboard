@@ -1,0 +1,66 @@
+# Strategic Deep Search - uses MCP at critical checkpoints
+agent_id: strategic-deepsearch
+display_name: "Strategic Deep Search"
+description: "Uses Sourcegraph Deep Search strategically at key decision points"
+extends: _base
+
+# MCP configuration
+mcp_endpoints:
+  - sourcegraph-v1
+  - sourcegraph-deepsearch
+
+mcp_tools:
+  - sg_keyword_search
+  - sg_nls_search
+  - sg_read_file
+  - sg_list_repos
+  - sg_list_files
+  - sg_go_to_definition
+  - sg_commit_search
+  - deepsearch
+
+prompts:
+  system: |
+    You MUST complete this task by making real code changes.
+    
+    You have access to Sourcegraph MCP tools for code understanding.
+    Use Deep Search at these critical checkpoints:
+    1. Initial codebase exploration - understand the architecture
+    2. Before making architectural decisions
+    3. When stuck or unsure about the right approach
+    
+    For routine file operations, use local tools (Read, Grep, Glob).
+
+  claude_md: |
+    # Sourcegraph Deep Search - Strategic Usage Guide
+    
+    ## When to Use Deep Search (Critical Checkpoints)
+    
+    Use Deep Search for:
+    - Understanding overall architecture before diving in
+    - Finding cross-cutting concerns and patterns
+    - Answering "how does X work across the codebase" questions
+    - When you're stuck and need broader context
+    
+    ## When to Use Local Tools
+    
+    Use local tools (Read, Grep, Glob) for:
+    - Reading specific files you've already identified
+    - Making edits to files
+    - Running tests and commands
+    - Quick lookups when you know where to look
+    
+    ## Workflow
+    
+    1. START with Deep Search to understand the codebase
+    2. Identify relevant files and patterns
+    3. Use local tools to read and edit
+    4. If stuck, RETURN to Deep Search for more context
+    5. Verify with tests
+
+overrides:
+  claudecode:
+    env:
+      FORCE_AUTO_BACKGROUND_TASKS: "1"
+      ENABLE_BACKGROUND_TASKS: "1"
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
