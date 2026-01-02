@@ -99,11 +99,14 @@ def main():
         "Run Results",
     ]
 
-    # Analysis & comparison
+    # Analysis & comparison (Phase 4 Analysis Layer)
     nav_items_analysis = [
-        "Comparison Table",
-        "Agent Comparison",
-        "Deep Search Analytics",
+        "Analysis Hub",
+        "Comparison Analysis",
+        "Statistical Analysis",
+        "Time-Series Analysis",
+        "Cost Analysis",
+        "Failure Analysis",
     ]
 
     # Advanced views
@@ -165,6 +168,20 @@ def main():
         show_evaluation_runner()
     elif page == "Run Results":
         show_run_results()
+    # Phase 4 Analysis Layer views
+    elif page == "Analysis Hub":
+        show_analysis_hub()
+    elif page == "Comparison Analysis":
+        show_comparison_analysis()
+    elif page == "Statistical Analysis":
+        show_statistical_analysis()
+    elif page == "Time-Series Analysis":
+        show_timeseries_analysis()
+    elif page == "Cost Analysis":
+        show_cost_analysis()
+    elif page == "Failure Analysis":
+        show_failure_analysis()
+    # Legacy views (kept for compatibility)
     elif page == "Comparison Table":
         show_comparison_enhanced()
     elif page == "Agent Comparison":
@@ -290,6 +307,43 @@ def show_run_results():
     """Run results viewer page."""
     from views.run_results import show_run_results as show_results
     show_results()
+
+
+# Phase 4 Analysis Layer view functions
+def show_analysis_hub():
+    """Analysis hub entry point."""
+    from views.analysis_hub import show_analysis_hub as show_hub
+    show_hub()
+
+
+def show_comparison_analysis():
+    """Experiment comparison analysis view."""
+    from views.analysis_comparison import show_comparison_analysis as show_comp
+    show_comp()
+
+
+def show_statistical_analysis():
+    """Statistical significance analysis view."""
+    from views.analysis_statistical import show_statistical_analysis as show_stat
+    show_stat()
+
+
+def show_timeseries_analysis():
+    """Time-series trend analysis view."""
+    from views.analysis_timeseries import show_timeseries_analysis as show_ts
+    show_ts()
+
+
+def show_cost_analysis():
+    """Cost analysis view."""
+    from views.analysis_cost import show_cost_analysis as show_cost
+    show_cost()
+
+
+def show_failure_analysis():
+    """Failure pattern analysis view."""
+    from views.analysis_failure import show_failure_analysis as show_failure
+    show_failure()
 
 
 def show_comparison_enhanced():
