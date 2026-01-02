@@ -100,20 +100,23 @@ CodeContextBench is an **observability platform** for Harbor-based agent evaluat
 ## CLI Quick Reference
 
 ```bash
-# Validate all configurations
+# Config management
 ./ccb config validate
 
-# Translate an agent config to all agent-specific formats
+# Agent translation
 ./ccb translate strategic-deepsearch --output-dir /tmp/test
 
-# Push configs to VM (after setting vm_host in data/sync_manifest.json)
+# VM synchronization (after setting vm_host in data/sync_manifest.json)
 ./ccb sync push --dry-run
-
-# Pull results from VM
 ./ccb sync pull --experiment=my-experiment
 
-# List experiments
+# Experiments
 ./ccb experiment list
+
+# Ingestion pipeline
+./ccb ingest                    # Ingest all experiments
+./ccb ingest exp001             # Ingest specific experiment
+./ccb ingest exp001 --verbose   # Verbose error output
 ```
 
 ---
@@ -132,12 +135,16 @@ src/
 ├── translate/               # Agent config translators
 ├── sync/                    # VM push/pull operations
 ├── ir_sdlc/                 # IR-SDLC benchmark components (from IR-SDLC-Factory)
-├── ingest/                  # Result parsing (TODO)
+├── ingest/                  # Result parsing and metrics extraction
+│   ├── harbor_parser.py     # Parse Harbor result.json files
+│   ├── transcript_parser.py # Extract tool usage from transcripts
+│   └── database.py          # SQLite metrics storage
 └── analysis/                # Comparison and LLM judge (TODO)
 
 data/
 ├── translated_configs/      # Generated agent-specific configs
 ├── results/                 # Synced results from VM
+├── metrics.db               # SQLite database with ingested metrics
 └── sync_manifest.json       # Sync tracking
 ```
 
@@ -248,6 +255,29 @@ Before closing a bead with complex changes:
 ls -1 | grep -E "\.(md|json|py|sh|txt)$" | grep -v -E "^(README|AGENTS|setup|pyproject|LICENSE|\.)"
 # Should return nothing
 ```
+
+---
+
+## Observability Platform Implementation Status
+
+| Phase | Component | Status | Key Files |
+|-------|-----------|--------|-----------|
+| **Phase 1** | Core Infrastructure | ✓ Complete | configs/, src/config/, src/translate/, src/sync/ |
+| **Phase 2** | Ingestion Pipeline | ✓ Complete | src/ingest/, docs/INGESTION_PIPELINE.md |
+| **Phase 3** | Analysis Layer | TODO | src/analysis/ |
+| **Phase 4** | Dashboard Refresh | TODO | dashboard/ |
+| **Phase 5** | IR-SDLC Integration | TODO | src/ir_sdlc/ (enhance) |
+| **Phase 6** | Recommendation Engine | TODO | src/recommend/ |
+
+**Phase 2 Deliverables:**
+- `src/ingest/harbor_parser.py`: Parse Harbor result.json files (HarborResult, HarborTaskMetadata, HarborVerifierResult)
+- `src/ingest/transcript_parser.py`: Extract tool usage from transcripts (TranscriptMetrics, AgentToolProfile, ToolCategory)
+- `src/ingest/database.py`: SQLite metrics storage (MetricsDatabase with 3 tables)
+- `./ccb ingest` CLI command with experiment discovery and stats
+- `docs/INGESTION_PIPELINE.md`: Complete documentation and integration guide
+- 25+ unit tests with 600+ lines
+
+See `PHASE_2_SUMMARY.md` for detailed completion report.
 
 ---
 
@@ -550,3 +580,64 @@ ds list --first 5
 ```
 
 Use `--async` for complex questions on large codebases.
+
+---
+
+## Phase 3: Analysis Layer - Status
+
+**Completed:** Full analysis layer implementation with 4 core components
+
+### Components Implemented
+1. **ExperimentComparator** - Baseline vs agent performance comparison
+   - Metrics aggregation (pass rate, duration, tool usage, rewards)
+   - Delta computation with MCP/efficiency impact interpretation
+   - Best/worst agent ranking
+
+2. **IRAnalyzer** - Information retrieval metrics analysis
+   - Precision@k, Recall@k, MRR, NDCG, MAP computation
+   - SDLC-specific metrics (file-level recall, cross-module coverage, context efficiency)
+   - Agent ranking by metric
+
+3. **FailureAnalyzer** - Failure pattern detection
+   - High-difficulty task concentration
+   - Category-specific failures
+   - Duration-related timeouts
+   - Low-quality solutions
+
+4. **RecommendationEngine** - Prioritized improvement recommendations
+   - Quick wins (high impact + low effort)
+   - High/medium/low priority recommendations
+   - Category-based (prompting, tools, config, experiment)
+
+### CLI Commands
+```bash
+ccb analyze compare <exp_id> [--baseline agent]  # Compare agents
+ccb analyze failures <exp_id> [--agent name]     # Analyze failures
+ccb analyze ir <exp_id> [--baseline agent]       # Evaluate IR metrics
+ccb analyze recommend <exp_id> --agent name      # Generate recommendations
+```
+
+### Test Coverage
+- 27 test cases passing
+- Realistic test data with multiple agents and failure scenarios
+- Metric computation, pattern detection, prioritization validation
+
+### Known Issues Fixed
+1. **SQL Schema**: Fixed inline index declarations (invalid syntax) → separate CREATE INDEX statements
+2. **Tool Usage Queries**: Fixed queries to use proper JOIN with harbor_results (no agent_name column in tool_usage)
+3. **Test Data**: Ensured proper job_id linking between harbor_results and tool_usage tables
+4. **Duration Fields**: Ensured HarborResult.duration_seconds properly set in test fixtures
+
+### Files Modified
+- `src/analysis/comparator.py` - Fixed tool usage SQL queries
+- `src/analysis/ir_analyzer.py` - Fixed tool usage SQL queries
+- `tests/test_analysis_comparator.py` - Fixed test data (job_ids, duration_seconds)
+- `tests/test_analysis_failure_analyzer.py` - Fixed test data (duration_seconds)
+- `tests/test_analysis_recommendation_engine.py` - Fixed test data (job_ids, duration_seconds)
+
+### Next Steps (Phase 4)
+- LLM-as-judge: Quality evaluation beyond pass/fail
+- Statistical testing: Add significance tests to comparisons
+- Time-series analysis: Track improvement over iterations
+- Cost analysis: Measure API spending and resource efficiency
+- Dashboard: Visualize comparisons, patterns, and recommendations

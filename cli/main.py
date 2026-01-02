@@ -9,6 +9,7 @@ Usage:
     ccb experiment list
     ccb experiment status <experiment_id>
     ccb config validate
+    ccb ingest [<experiment_id>] [-v|--verbose]
 """
 
 import argparse
@@ -222,6 +223,125 @@ def cmd_config_validate(args):
         return 0
 
 
+def cmd_ingest(args):
+    """Ingest experiment results."""
+    from src.ingest import HarborResultParser, TranscriptParser, MetricsDatabase
+    from pathlib import Path
+    
+    project_root = get_project_root()
+    results_dir = project_root / "data" / "results"
+    db_path = project_root / "data" / "metrics.db"
+    
+    if not results_dir.exists():
+        print(f"Error: Results directory not found: {results_dir}")
+        return 1
+    
+    # Find experiment directories
+    experiment_id = args.experiment
+    
+    if experiment_id:
+        exp_dir = results_dir / experiment_id
+        if not exp_dir.exists():
+            print(f"Error: Experiment not found: {experiment_id}")
+            return 1
+        experiments = [exp_dir]
+    else:
+        # Ingest all experiments
+        experiments = [d for d in results_dir.iterdir() if d.is_dir()]
+    
+    if not experiments:
+        print(f"No experiments found in {results_dir}")
+        return 0
+    
+    # Initialize database
+    db = MetricsDatabase(db_path)
+    parser = HarborResultParser()
+    transcript_parser = TranscriptParser()
+    
+    total_tasks = 0
+    successful = 0
+    
+    for exp_path in experiments:
+        exp_id = exp_path.name
+        print(f"\nIngesting experiment: {exp_id}")
+        
+        # Find job directories
+        for job_dir in exp_path.iterdir():
+            if not job_dir.is_dir() or job_dir.name.startswith("."):
+                continue
+            
+            job_id = job_dir.name
+            result_file = job_dir / "result.json"
+            transcript_file = job_dir / "claude-code.txt"
+            
+            if not result_file.exists():
+                print(f"  ⚠ {job_id}: result.json not found")
+                continue
+            
+            total_tasks += 1
+            
+            try:
+                # Parse Harbor result
+                harbor_result = parser.parse_file(result_file)
+                db.store_harbor_result(harbor_result, exp_id, job_id)
+                
+                # Parse transcript if available
+                if transcript_file.exists():
+                    transcript_metrics = transcript_parser.parse_file(transcript_file)
+                    db.store_tool_usage(harbor_result.task_id, transcript_metrics, exp_id, job_id)
+                
+                status = "✓" if harbor_result.passed else "✗"
+                print(f"  {status} {job_id}")
+                successful += 1
+                
+            except Exception as e:
+                print(f"  ✗ {job_id}: {e}")
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+        
+        # Update experiment summary
+        db.update_experiment_summary(exp_id)
+    
+    print(f"\n✓ Ingested {successful}/{total_tasks} tasks")
+    
+    # Print stats
+    if successful > 0:
+        print(f"\nDatabase: {db_path}")
+        stats = db.get_stats()
+        print(f"\nOverall Stats:")
+        print(f"  Pass rate: {stats['harbor']['pass_rate']:.1%}")
+        print(f"  Avg duration: {stats['harbor']['avg_duration_seconds']:.1f}s")
+        print(f"\nTool Usage:")
+        print(f"  Avg MCP calls: {stats['tool_usage']['avg_mcp_calls']:.1f}")
+        print(f"  Avg Deep Search calls: {stats['tool_usage']['avg_deep_search_calls']:.1f}")
+        print(f"  Avg Local calls: {stats['tool_usage']['avg_local_calls']:.1f}")
+    
+    return 0 if successful > 0 else 1
+
+
+def cmd_analyze(args):
+    """Dispatch to analysis subcommands."""
+    from cli.analyze_cmd import (
+        cmd_analyze_compare,
+        cmd_analyze_failures,
+        cmd_analyze_ir,
+        cmd_analyze_recommend,
+    )
+    
+    if args.analyze_command == "compare":
+        return cmd_analyze_compare(args)
+    elif args.analyze_command == "failures":
+        return cmd_analyze_failures(args)
+    elif args.analyze_command == "ir":
+        return cmd_analyze_ir(args)
+    elif args.analyze_command == "recommend":
+        return cmd_analyze_recommend(args)
+    else:
+        print("Unknown analyze command")
+        return 1
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="CodeContextBench CLI - Observability platform for Harbor evaluations"
@@ -259,6 +379,43 @@ def main():
     
     config_subparsers.add_parser("validate", help="Validate all configs")
     
+    # ingest command
+    ingest_parser = subparsers.add_parser("ingest", help="Ingest evaluation results")
+    ingest_parser.add_argument(
+        "experiment",
+        nargs="?",
+        help="Specific experiment ID to ingest (ingests all if not specified)"
+    )
+    ingest_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Show detailed error messages"
+    )
+    
+    # analyze command
+    analyze_parser = subparsers.add_parser("analyze", help="Analyze evaluation results")
+    analyze_subparsers = analyze_parser.add_subparsers(dest="analyze_command")
+    
+    compare_parser = analyze_subparsers.add_parser("compare", help="Compare agents")
+    compare_parser.add_argument("experiment_id", help="Experiment ID")
+    compare_parser.add_argument("--baseline", help="Baseline agent (optional)")
+    compare_parser.add_argument("-v", "--verbose", action="store_true")
+    
+    failures_parser = analyze_subparsers.add_parser("failures", help="Analyze failures")
+    failures_parser.add_argument("experiment_id", help="Experiment ID")
+    failures_parser.add_argument("--agent", help="Specific agent to analyze")
+    failures_parser.add_argument("-v", "--verbose", action="store_true")
+    
+    ir_parser = analyze_subparsers.add_parser("ir", help="Analyze IR metrics")
+    ir_parser.add_argument("experiment_id", help="Experiment ID")
+    ir_parser.add_argument("--baseline", help="Baseline agent (optional)")
+    ir_parser.add_argument("-v", "--verbose", action="store_true")
+    
+    rec_parser = analyze_subparsers.add_parser("recommend", help="Generate recommendations")
+    rec_parser.add_argument("experiment_id", help="Experiment ID")
+    rec_parser.add_argument("--agent", required=True, help="Agent to analyze")
+    rec_parser.add_argument("-v", "--verbose", action="store_true")
+    
     args = parser.parse_args()
     
     if args.command == "sync":
@@ -274,6 +431,10 @@ def main():
     elif args.command == "config":
         if args.config_command == "validate":
             return cmd_config_validate(args)
+    elif args.command == "ingest":
+        return cmd_ingest(args)
+    elif args.command == "analyze":
+        return cmd_analyze(args)
     else:
         parser.print_help()
         return 0
