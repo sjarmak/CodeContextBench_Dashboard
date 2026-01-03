@@ -179,10 +179,12 @@ class AnalysisLoader:
         
         try:
             analyzer = StatisticalAnalyzer(self.db)
-            result = analyzer.analyze_comparison(
+            # Convert confidence level to alpha
+            alpha = 1 - confidence_level
+            result = analyzer.analyze_statistical_significance(
                 experiment_id,
                 baseline_agent=baseline_agent,
-                confidence_level=confidence_level,
+                alpha=alpha,
             )
             self._cache[cache_key] = result
             return result
@@ -246,7 +248,7 @@ class AnalysisLoader:
         
         try:
             analyzer = CostAnalyzer(self.db)
-            result = analyzer.analyze_experiment(
+            result = analyzer.analyze_costs(
                 experiment_id,
                 baseline_agent=baseline_agent,
             )
