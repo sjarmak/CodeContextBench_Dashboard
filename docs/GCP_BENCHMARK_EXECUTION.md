@@ -12,180 +12,276 @@ This document covers running CodeContextBench benchmarks on GCP virtual machines
 - All agent variants in parallel
 - Extended timeouts for large codebases
 - Comprehensive metrics collection
-- Cost tracking and optimization
+
+The GCP VM has pre-configured:
+- Harbor framework and Podman container runtime
+- Python 3.12 environment
+- Sourcegraph and Anthropic credentials
+- GCS bucket access for artifact/result storage
 
 ---
 
-## TODO: Complete These Sections
+## VM Access & Credentials
 
-### VM Provisioning & Setup
+### SSH Access to GCP VM
 
-**TODO: Provide:**
-- [ ] GCP project ID and organization
-- [ ] Recommended instance type (CPU, memory, disk)
-- [ ] Base image (Container-Optimized OS, Ubuntu, custom?)
-- [ ] Disk size calculations for benchmark tasks
-- [ ] Network configuration (VPC, subnets, firewall rules)
-- [ ] SSH key setup and authentication
-- [ ] Service account configuration for artifact storage
+Use `gcloud compute ssh` to access the VM:
 
-**Example Template (update):**
 ```bash
-# TODO: Fill in your GCP project details
-GCP_PROJECT_ID="your-project-id"
-GCP_ZONE="your-zone"
-VM_NAME="codebench-executor-01"
-MACHINE_TYPE="n1-standard-8"  # 8 vCPU, 30GB RAM - adjust based on needs
-BOOT_DISK_SIZE="200GB"        # Adjust for benchmark corpus
-
-# TODO: Create VM with your configuration
-gcloud compute instances create $VM_NAME \
-  --project=$GCP_PROJECT_ID \
-  --zone=$GCP_ZONE \
-  --machine-type=$MACHINE_TYPE \
-  --boot-disk-size=$BOOT_DISK_SIZE \
-  # TODO: Add remaining configuration
+gcloud compute ssh <username>@<instance-name> \
+  --zone <zone> \
+  --project <project-id>
 ```
 
-### VM Environment Configuration
+**Note**: Credentials and project details are sensitive. See project team for VM access.
 
-**TODO: Document:**
-- [ ] Harbor installation and configuration
-- [ ] Claude Code CLI setup
-- [ ] Podman/Docker runtime configuration
-- [ ] Storage mounting for benchmark artifacts
-- [ ] Environment variables and secrets management
-- [ ] Telemetry and monitoring agent installation
+### On-VM Credentials
 
-**Example template:**
+The VM has pre-configured:
+- `ANTHROPIC_API_KEY` - sourced from secure storage
+- `SOURCEGRAPH_ACCESS_TOKEN` - sourced from secure storage
+- GCS service account credentials for artifact/result upload
+
+**Do NOT store credentials in code or logs.**
+
+### VM Environment: Harbor & Podman
+
+The VM is pre-configured with:
+
+**Framework & Runtime:**
+- Harbor framework for task orchestration
+- Podman container runtime (no Docker Desktop required)
+- Python 3.12 environment
+
+**Verify Environment:**
+
 ```bash
 # SSH into VM
-gcloud compute ssh $VM_NAME --zone=$GCP_ZONE
+gcloud compute ssh <username>@<instance-name> --zone <zone> --project <project-id>
 
-# TODO: Install dependencies
-# - Python 3.12+
-# - Harbor framework
-# - Docker/Podman
-# - Required Python packages
-
-# TODO: Configure credentials
-# - ANTHROPIC_API_KEY
-# - SOURCEGRAPH_ACCESS_TOKEN
-# - SOURCEGRAPH_URL
-# - GCS credentials for results upload
-
-# TODO: Verify installation
+# Check Harbor
 harbor --version
-# Should show version info
+harbor validate  # Verify framework setup
+
+# Check Podman
+podman --version
+podman ps  # List containers (should be empty initially)
+
+# Check environment
+python --version  # Should be 3.12+
+echo $ANTHROPIC_API_KEY | head -c 5  # Should show first 5 chars of key
+echo $SOURCEGRAPH_ACCESS_TOKEN | head -c 5  # Should show first 5 chars of token
 ```
 
-### Artifact Deployment
+### Benchmark Adapters on VM
 
-**TODO: Specify:**
-- [ ] How adapters are copied to VM (GCS, git, artifact registry?)
-- [ ] Directory structure on VM for benchmarks
-- [ ] Verification steps before benchmark execution
-- [ ] Versioning strategy for deployed adapters
+Adapters are deployed to the VM before execution.
 
-**Example workflow:**
+**VM Directory Structure:**
+
+```
+/home/<username>/CodeContextBench/
+├── benchmarks/          # Task definitions and adapters
+│   ├── big_code_mcp/
+│   ├── github_mined/
+│   ├── dependeval/
+│   └── tac_mcp_value/
+├── agents/              # Agent implementations
+├── src/                 # Core library
+└── jobs/                # Execution results (populated during runs)
+```
+
+**Deployment via Git:**
+
 ```bash
-# TODO: Choose deployment method and document
-# Option A: Copy from GCS bucket
-# Option B: Clone from git repository
-# Option C: Upload via gcloud compute scp
+# SSH into VM
+gcloud compute ssh <username>@<instance-name> --zone <zone> --project <project-id>
 
-# Example: GCS-based deployment (TODO: implement)
-gsutil -m cp -r gs://your-bench-bucket/benchmarks/* /vm/benchmarks/
+# Clone or update repo (adapters come with the codebase)
+cd ~/CodeContextBench
+git pull origin main
 
-# Verify deployment
-ls -la /vm/benchmarks/
+# Verify adapters are present
+ls -la benchmarks/
+```
+
+**Verification:**
+
+```bash
+# List available adapters
+find benchmarks -name "task.toml" | wc -l  # Count tasks
+
+# Validate a specific adapter
+harbor validate --path benchmarks/github_mined
 ```
 
 ### Benchmark Execution
 
-**TODO: Document:**
-- [ ] Command structure for running agent matrix
-- [ ] Task grouping/batching strategy
-- [ ] Timeout configurations per task type
-- [ ] Parallel execution settings
-- [ ] Progress monitoring and logging
-- [ ] Failure recovery and retry logic
+Run benchmark evaluations using Harbor on the VM.
 
-**Example execution template (TODO: complete):**
+**Agents Available:**
+
+- `BaselineClaudeCodeAgent` (no Sourcegraph) — control group
+- `StrategicDeepSearchAgent` (MCP + selective Deep Search)
+- `DeepSearchFocusedAgent` (MCP + aggressive Deep Search)
+- `MCPNonDeepSearchAgent` (MCP + keyword/NLS only)
+- `FullToolkitAgent` (MCP + all tools)
+
+**Run a Benchmark:**
+
 ```bash
-# TODO: SSH into VM and run benchmarks
+# SSH into VM
+gcloud compute ssh <username>@<instance-name> --zone <zone> --project <project-id>
 
-# TODO: Configure execution parameters
-AGENTS=("baseline" "strategic" "aggressive" "nodeep" "full-toolkit")
-BENCHMARKS=("big_code_mcp" "github_mined" "dependeval" "tac_mcp_value")
-TASKS_PER_BENCHMARK=5  # Adjust based on VM capacity
+# Navigate to repo
+cd ~/CodeContextBench
 
-# TODO: Run full matrix (update with actual commands)
-for benchmark in ${BENCHMARKS[@]}; do
-  for agent in ${AGENTS[@]}; do
-    harbor run \
-      --path benchmarks/$benchmark \
-      --agent-import-path agents.mcp_variants:${agent} \
-      --model anthropic/claude-haiku-4-5-20251001 \
-      # TODO: Add remaining flags for VM execution
-  done
-done
+# Run a subset of tasks with baseline agent (fast verification)
+harbor run \
+  --path benchmarks/github_mined \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 5  # Run 5 tasks
 
-# TODO: Document expected outputs
-# - jobs/<timestamp>/ directories
-# - Metrics files
-# - Log files
-# - Error tracking
+# Results will be in:
+ls -la jobs/
 ```
 
-### Execution Monitoring
+**Run Full Benchmark Suite:**
 
-**TODO: Provide:**
-- [ ] VM metrics to monitor (CPU, memory, disk I/O, network)
-- [ ] Agent execution progress tracking
-- [ ] Real-time log aggregation
-- [ ] Alert thresholds for failures
-- [ ] Dashboard for live execution status
-
-**Example monitoring (TODO: implement):**
 ```bash
-# Monitor VM resources during execution
-watch -n 5 'gcloud compute ssh $VM_NAME --zone=$GCP_ZONE -- \
-  "free -h && df -h /vm && ps aux | grep harbor"'
-
-# TODO: Set up centralized logging
-# - Cloud Logging integration
-# - Custom metrics export
-# - Alerting policies
-
-# TODO: Document how to track job progress
+# TODO: Define the full matrix command
+# - Which agents to test
+# - Which benchmarks to run
+# - How to batch/parallelize
+# - Timeout settings per benchmark type
+# - Resource monitoring during execution
 ```
+
+**Monitor Execution:**
+
+```bash
+# Check running containers
+podman ps
+
+# View Harbor logs
+tail -f jobs/<timestamp>/job.log
+
+# Monitor disk usage
+df -h
+du -sh jobs/
+```
+
+**Expected Outputs:**
+
+```
+jobs/<timestamp>/
+├── config.json          # Execution configuration
+├── result.json          # Aggregated results
+├── job.log              # Execution log
+└── <task-id>_<suffix>/  # Per-task results
+    ├── metrics.json     # Metrics (token usage, success, etc.)
+    ├── trace.json       # Execution trace
+    └── logs/            # Task-specific logs
+```
+
+### Execution Monitoring & Management
+
+**On-VM Monitoring:**
+
+```bash
+# SSH into VM
+gcloud compute ssh <username>@<instance-name> --zone <zone> --project <project-id>
+
+# Monitor containers in real-time
+watch podman ps -a --format "{{.ID}} {{.Status}} {{.Names}}"
+
+# Check Harbor job status
+tail -f ~/CodeContextBench/jobs/*/job.log
+
+# Monitor disk usage (ensure enough space for benchmark artifacts)
+watch df -h
+
+# Monitor memory and CPU
+free -h
+top
+```
+
+**Stopping/Resuming Execution:**
+
+```bash
+# List running containers
+podman ps -a
+
+# Stop a specific container (graceful shutdown)
+podman stop <container-id>
+
+# Force stop (if stuck)
+podman kill <container-id>
+
+# Clean up stopped containers
+podman system prune -f
+```
+
+**TODO: GCP Cloud Logging Integration**
+- [ ] Configure Cloud Logging agent on VM
+- [ ] Export Harbor logs to Cloud Logging
+- [ ] Set up Cloud Monitoring alerts for resource usage
+- [ ] Create dashboards for execution progress
 
 ### Results Retrieval & Storage
 
-**TODO: Specify:**
-- [ ] Where results are stored on VM (`jobs/` directory structure?)
-- [ ] Results upload to GCS bucket
-- [ ] Archival strategy for old runs
-- [ ] Results download to local machine
-- [ ] Storage lifecycle policies (retention, deletion)
+**Results Location on VM:**
 
-**Example retrieval (TODO: implement):**
+```
+~/CodeContextBench/jobs/<timestamp>/
+├── config.json         # Run configuration
+├── result.json         # Aggregated metrics
+├── job.log             # Execution log
+└── <task-dir>/         # Per-task outputs
+    ├── metrics.json
+    ├── trace.json
+    └── logs/
+```
+
+**Download Results to Local Machine:**
+
 ```bash
-# Option 1: Download from VM via SSH
+# Copy entire experiment from VM to local
 gcloud compute scp \
   --recurse \
-  $VM_NAME:/vm/jobs/<experiment> \
-  ./jobs/<experiment>
+  <username>@<instance-name>:~/CodeContextBench/jobs/<timestamp> \
+  ./jobs/<timestamp> \
+  --zone <zone> \
+  --project <project-id>
 
-# Option 2: Download from GCS bucket
-gsutil -m cp -r gs://your-bench-bucket/results/<experiment> ./jobs/
-
-# TODO: Document verification steps
-# - Check all task results present
-# - Verify metrics files
-# - Validate JSON structure
+# Or: Copy only metrics (smaller, faster)
+gcloud compute scp \
+  --recurse \
+  <username>@<instance-name>:~/CodeContextBench/jobs/<timestamp>/ \
+  ./jobs/<timestamp>/ \
+  --zone <zone> \
+  --project <project-id>
 ```
+
+**Verify Downloaded Results:**
+
+```bash
+# Check directory structure
+ls -la jobs/<timestamp>/
+
+# Verify all metric files are present
+find jobs/<timestamp> -name "metrics.json" | wc -l
+
+# Validate JSON structure
+python -m json.tool jobs/<timestamp>/config.json
+python -m json.tool jobs/<timestamp>/result.json
+```
+
+**TODO: GCS Bucket Storage**
+- [ ] Auto-upload completed runs to GCS bucket
+- [ ] Archival and lifecycle policies
+- [ ] Access controls and versioning
 
 ---
 
@@ -254,33 +350,53 @@ Total cost per benchmark cycle: ~$5-10
 
 ## Troubleshooting
 
-**TODO: Document solutions for:**
-- [ ] Harbor connection failures
-- [ ] Agent crashes or timeouts
-- [ ] Disk space issues during execution
-- [ ] Network connectivity problems
-- [ ] Credential/authentication failures
-- [ ] Results upload/download failures
+**Check Harbor & Podman:**
 
-**Example troubleshooting template:**
 ```bash
 # SSH into VM
-gcloud compute ssh $VM_NAME --zone=$GCP_ZONE
+gcloud compute ssh <username>@<instance-name> --zone <zone> --project <project-id>
 
-# Check Harbor status
+# Verify Harbor
 harbor --version
-harbor validate  # TODO: verify this command exists
+harbor validate --path benchmarks/github_mined
 
-# Check agent installation
-python -c "from agents.mcp_variants import StrategicDeepSearchAgent"
+# Check Podman runtime
+podman ps -a  # List all containers
+podman ps     # List running containers
 
-# Monitor resource usage
-df -h /vm
-free -h
-ps aux | grep harbor
-
-# TODO: Document specific error messages and solutions
+# View container logs
+podman logs <container-id>
 ```
+
+**Common Issues:**
+
+| Issue | Diagnosis | Solution |
+|-------|-----------|----------|
+| "Harbor not found" | Framework not installed | Contact team; VM should have Harbor pre-installed |
+| Container exits immediately | Check pod logs: `podman logs <id>` | Review error, check agent implementation |
+| "Out of disk space" | `df -h` shows 100% usage | Stop containers (`podman stop -a`), clean up old runs, expand disk |
+| Credential errors | `echo $ANTHROPIC_API_KEY` shows empty | Credentials not loaded; verify VM environment setup |
+| Network timeouts | Task hangs during execution | Check VM network, Sourcegraph availability, Internet connectivity |
+| Metrics not captured | `metrics.json` missing from results | Verify Harbor is capturing metrics; check config |
+
+**Manual Cleanup:**
+
+```bash
+# Stop all containers
+podman stop -a
+
+# Remove stopped containers
+podman rm -a
+
+# Prune unused images and volumes
+podman system prune -a --volumes
+```
+
+**TODO: Extended Troubleshooting**
+- [ ] Common Harbor errors and solutions
+- [ ] Agent-specific failure patterns
+- [ ] VM resource limit debugging
+- [ ] Data corruption recovery
 
 ---
 
