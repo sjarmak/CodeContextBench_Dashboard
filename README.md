@@ -104,13 +104,13 @@ Quick reference:
 
 ## Project Components
 
-### Adapter Generation & Verification
+### Adapter Generation & Verification (Local)
 
 - **`benchmarks/`** — Task definitions and Harbor-compatible adapters (50+ tasks)
 - **`scripts/init_benchmarks.py`** — Generate and validate adapters
-- **Local Harbor runs** — Baseline verification before GCP deployment
+- **Local Harbor runs** — **BaselineClaudeCodeAgent only** for quick validation
 
-### Dashboard & Analysis
+### Dashboard & Analysis (Local)
 
 - **`dashboard/`** — Streamlit web UI for results visualization
   - Experiment browser, agent comparison, cost analysis, tool usage
@@ -118,10 +118,15 @@ Quick reference:
 - **`src/analysis/`** — Metrics extraction and LLM judge assessment
 - **`src/ingest/`** — Result parsing and database integration
 
-### Agents
+### Agents (Local vs. VM)
 
-- **`agents/claude_baseline_agent.py`** — Claude Code without Sourcegraph (control)
-- **`agents/mcp_variants.py`** — 4 MCP variants with different Deep Search configurations
+**Local (Adapter Verification)**:
+- **`agents/claude_baseline_agent.py`** — Only agent tested locally (quick checks)
+
+**GCP VM (Full Evaluation)**:
+- **`agents/claude_baseline_agent.py`** — Baseline (no Sourcegraph)
+- **`agents/mcp_variants.py`** — 4 MCP variants (different Deep Search strategies)
+  - Tested together on VM in full matrix evaluation
 
 ### GCP VM Infrastructure
 
@@ -144,22 +149,29 @@ Quick reference:
 
 ### Phase 2: Baseline Verification (Local)
 
-1. Execute adapter with `BaselineClaudeCodeAgent` locally:
-   ```bash
-   harbor run --path benchmarks/<name> \
-     --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
-     -n 1
-   ```
-2. Verify metrics extraction: Check `jobs/<timestamp>/metrics.json`
-3. Verify dashboard ingestion: `python scripts/ingest_results.py jobs/<timestamp>`
+Test adapter validity with **BaselineClaudeCodeAgent only** (no Sourcegraph):
+
+```bash
+harbor run --path benchmarks/<name> \
+  --agent-import-path agents.claude_baseline_agent:BaselineClaudeCodeAgent \
+  --model anthropic/claude-haiku-4-5-20251001 \
+  -n 1
+```
+
+Verify:
+- Metrics extraction works: `jobs/<timestamp>/metrics.json` present
+- Dashboard ingestion pipeline: `python scripts/ingest_results.py jobs/<timestamp>`
+
+**Note**: Local verification is quick validation only. Full agent matrix testing (baseline + 4 MCP variants) happens on GCP VM.
 
 ### Phase 3: GCP VM Execution (Remote)
 
 [**See docs/GCP_BENCHMARK_EXECUTION.md for:**](docs/GCP_BENCHMARK_EXECUTION.md)
-- VM provisioning and SSH setup
-- Adapter deployment via artifact upload
-- Full agent matrix execution (baseline + 4 MCP variants)
-- Monitoring and progress tracking
+- VM access via `gcloud compute ssh`
+- Adapter deployment via git
+- **Full agent matrix execution** (1 baseline + 4 MCP variants)
+- Benchmark configuration and agent selection
+- Execution monitoring with Podman
 - Results download and storage
 
 ### Phase 4: Results Ingestion & Analysis (Local)

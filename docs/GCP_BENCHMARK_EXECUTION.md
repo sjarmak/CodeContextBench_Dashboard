@@ -115,11 +115,31 @@ find benchmarks -name "task.toml" | wc -l  # Count tasks
 harbor validate --path benchmarks/github_mined
 ```
 
+### Benchmark Execution Configuration
+
+**TODO: Benchmark Setup & Agent Matrix (for another agent)**
+
+Document the following for GCP VM benchmark runs:
+
+- [ ] **Which benchmarks are tested** (big_code_mcp, github_mined, dependeval, tac_mcp_value, etc.)
+- [ ] **Which agents tested on VM** (complete agent configuration):
+  - `BaselineClaudeCodeAgent` (no Sourcegraph) — control group
+  - `StrategicDeepSearchAgent` (MCP + selective Deep Search)
+  - `DeepSearchFocusedAgent` (MCP + aggressive Deep Search)
+  - `MCPNonDeepSearchAgent` (MCP + keyword/NLS only)
+  - `FullToolkitAgent` (MCP + all tools)
+- [ ] **Task selection strategy** (all tasks, subset, sampling method)
+- [ ] **Timeout settings per benchmark type** (large codebase vs. small)
+- [ ] **Agent-specific prompt configurations** (system prompts, tool guidance, etc.)
+- [ ] **Expected duration per agent** (hours to complete full matrix)
+- [ ] **Resource requirements** (CPU, memory, disk usage per agent/benchmark)
+- [ ] **Parallelization strategy** (concurrent agents, sequential, batching)
+
 ### Benchmark Execution
 
 Run benchmark evaluations using Harbor on the VM.
 
-**Agents Available:**
+**Available Agents:**
 
 - `BaselineClaudeCodeAgent` (no Sourcegraph) — control group
 - `StrategicDeepSearchAgent` (MCP + selective Deep Search)
@@ -149,13 +169,19 @@ ls -la jobs/
 
 **Run Full Benchmark Suite:**
 
+See **[Benchmark Execution Configuration](#benchmark-execution-configuration)** (above) for full details on which agents/benchmarks are tested. Once configured, run:
+
 ```bash
-# TODO: Define the full matrix command
-# - Which agents to test
-# - Which benchmarks to run
-# - How to batch/parallelize
-# - Timeout settings per benchmark type
-# - Resource monitoring during execution
+# Example: Run baseline + 4 MCP variants on github_mined benchmark
+# (Exact commands depend on benchmark setup configuration)
+
+for agent in baseline strategic aggressive nodeep full-toolkit; do
+  harbor run \
+    --path benchmarks/github_mined \
+    --agent-import-path agents.mcp_variants:${agent} \
+    --model anthropic/claude-haiku-4-5-20251001 \
+    # Additional flags TBD based on benchmark configuration
+done
 ```
 
 **Monitor Execution:**
