@@ -13,6 +13,7 @@ from pathlib import Path
 import sys
 import json
 from datetime import datetime
+import os
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -20,10 +21,289 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from benchmark.database import RunManager, TaskManager
 from benchmark.trace_parser import TraceParser
 
+# External jobs directory - configurable via environment or default
+EXTERNAL_JOBS_DIR = Path(os.environ.get(
+    "CCB_EXTERNAL_JOBS_DIR",
+    os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs")
+))
+
+
+def load_external_experiments() -> list:
+    """Load experiments from external jobs directory."""
+    experiments = []
+    
+    if not EXTERNAL_JOBS_DIR.exists():
+        return experiments
+    
+    for exp_dir in sorted(EXTERNAL_JOBS_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
+        if not exp_dir.is_dir() or exp_dir.name.startswith('.'):
+            continue
+        
+        result_file = exp_dir / "result.json"
+        config_file = exp_dir / "config.json"
+        
+        if result_file.exists():
+            try:
+                with open(result_file) as f:
+                    result = json.load(f)
+                
+                config = {}
+                if config_file.exists():
+                    with open(config_file) as f:
+                        config = json.load(f)
+                
+                experiments.append({
+                    "path": exp_dir,
+                    "name": exp_dir.name,
+                    "result": result,
+                    "config": config,
+                })
+            except Exception as e:
+                st.warning(f"Failed to load {exp_dir.name}: {e}")
+    
+    return experiments
+
+
+def load_external_tasks(exp_dir: Path, result: dict) -> list:
+    """Load task instances from an external experiment directory."""
+    tasks = []
+    
+    # Get evals info from result.json
+    stats = result.get("stats", {})
+    evals = stats.get("evals", {})
+    
+    # Scan for instance directories (they contain agent/ subdirectory)
+    for item in exp_dir.iterdir():
+        if not item.is_dir() or item.name.startswith('.'):
+            continue
+        
+        agent_dir = item / "agent"
+        if not agent_dir.exists():
+            continue
+        
+        # This is a task instance directory
+        instance_name = item.name
+        
+        # Load instance result.json if exists
+        instance_result = {}
+        instance_result_file = item / "result.json"
+        if instance_result_file.exists():
+            try:
+                with open(instance_result_file) as f:
+                    instance_result = json.load(f)
+            except:
+                pass
+        
+        # Find trace file (claude-code.txt for SWEBench agents)
+        claude_file = agent_dir / "claude-code.txt"
+        trajectory_file = agent_dir / "trajectory.json"
+        
+        # Determine reward from instance result
+        reward = instance_result.get("reward", "N/A")
+        if reward == "N/A":
+            # Try to find from overall stats
+            for eval_name, eval_data in evals.items():
+                reward_stats = eval_data.get("reward_stats", {}).get("reward", {})
+                for reward_val, instances in reward_stats.items():
+                    if instance_name in instances:
+                        reward = float(reward_val)
+                        break
+        
+        tasks.append({
+            "task_name": instance_name,
+            "agent_name": list(evals.keys())[0] if evals else "unknown",
+            "status": "completed",
+            "reward": reward,
+            "total_tokens": instance_result.get("metrics", {}).get("total_tokens", "N/A"),
+            "execution_time": instance_result.get("execution_time", 0),
+            "instance_dir": item,
+            "claude_file": claude_file if claude_file.exists() else None,
+            "trajectory_file": trajectory_file if trajectory_file.exists() else None,
+            "result_path": str(instance_result_file) if instance_result_file.exists() else None,
+        })
+    
+    return tasks
+
 
 def show_run_results():
     """Main run results page."""
     st.title("Run Results")
+    
+    # Load experiments from external jobs directory
+    external_experiments = load_external_experiments()
+    
+    if not external_experiments:
+        st.info(f"No experiments found in {EXTERNAL_JOBS_DIR}")
+        st.caption("Set CCB_EXTERNAL_JOBS_DIR environment variable to change the jobs directory.")
+        return
+    
+    st.caption(f"📁 Loading from: {EXTERNAL_JOBS_DIR}")
+
+    # Experiment selector
+    exp_names = [exp["name"] for exp in external_experiments]
+    selected_name = st.selectbox("Select Experiment", exp_names)
+    
+    if not selected_name:
+        return
+    
+    selected_exp = next((e for e in external_experiments if e["name"] == selected_name), None)
+    if not selected_exp:
+        return
+    
+    st.markdown("---")
+    
+    # Display experiment overview
+    show_external_run_overview(selected_exp)
+    
+    st.markdown("---")
+    
+    # Display task results
+    show_external_task_results(selected_exp)
+
+
+def show_external_run_overview(exp_data):
+    """Display overview for external experiment."""
+    st.subheader("Experiment Overview")
+    
+    result = exp_data["result"]
+    config = exp_data["config"]
+    
+    stats = result.get("stats", {})
+    evals = stats.get("evals", {})
+    
+    # Extract benchmark/dataset info from config
+    datasets = config.get("datasets", [])
+    benchmark_name = "Unknown"
+    benchmark_version = ""
+    if datasets:
+        first_dataset = datasets[0]
+        benchmark_name = first_dataset.get("name", "Unknown")
+        benchmark_version = first_dataset.get("version", "")
+    
+    # Extract agent info
+    agent_name = "Unknown"
+    if evals:
+        agent_name = list(evals.keys())[0].split("__")[0]
+    elif config.get("agents"):
+        agent_name = config["agents"][0].get("name", "Unknown")
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        st.metric("Total Trials", result.get("n_total_trials", 0))
+    
+    with col2:
+        n_errors = stats.get("n_errors", 0)
+        st.metric("Errors", n_errors)
+    
+    with col3:
+        # Calculate success rate from evals
+        if evals:
+            first_eval = next(iter(evals.values()))
+            metrics = first_eval.get("metrics", [{}])
+            mean_reward = metrics[0].get("mean", 0) if metrics else 0
+            st.metric("Mean Reward", f"{mean_reward:.2f}")
+        else:
+            st.metric("Mean Reward", "N/A")
+    
+    with col4:
+        st.metric("Agent", agent_name)
+    
+    with col5:
+        benchmark_display = f"{benchmark_name}@{benchmark_version}" if benchmark_version else benchmark_name
+        st.metric("Benchmark", benchmark_display)
+    
+    # Timing info
+    if result.get("started_at"):
+        st.write(f"**Started:** {result['started_at'][:19]}")
+    if result.get("finished_at"):
+        st.write(f"**Finished:** {result['finished_at'][:19]}")
+    
+    # Config details
+    if config:
+        with st.expander("Configuration"):
+            st.json(config)
+
+
+def show_external_task_results(exp_data):
+    """Display task results for external experiment."""
+    st.subheader("Task Results")
+    
+    tasks = load_external_tasks(exp_data["path"], exp_data["result"])
+    
+    if not tasks:
+        st.info("No task instances found.")
+        return
+    
+    # Create summary table
+    task_data = []
+    for task in tasks:
+        task_data.append({
+            "Task": task["task_name"],
+            "Agent": task["agent_name"].split("__")[0] if "__" in task["agent_name"] else task["agent_name"],
+            "Status": task["status"],
+            "Reward": task.get("reward", "N/A"),
+        })
+    
+    st.dataframe(task_data, use_container_width=True, hide_index=True)
+    
+    st.markdown("---")
+    
+    # Task detail selector
+    task_names = [t["task_name"] for t in tasks]
+    selected_task = st.selectbox("View Task Details", task_names)
+    
+    if selected_task:
+        task_detail = next((t for t in tasks if t["task_name"] == selected_task), None)
+        if task_detail:
+            show_external_task_detail(exp_data, task_detail)
+
+
+def show_external_task_detail(exp_data, task):
+    """Display detailed task results for external experiment."""
+    st.subheader(f"Task: {task['task_name']}")
+    
+    # Metrics
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Result", task.get("reward", "N/A"))
+    
+    with col2:
+        st.metric("Status", task["status"])
+    
+    with col3:
+        st.metric("Agent", task["agent_name"].split("__")[0] if "__" in task["agent_name"] else task["agent_name"])
+    
+    st.markdown("---")
+    
+    # Tabs for different views
+    tabs = st.tabs(["Agent Trace", "Result Details"])
+    
+    with tabs[0]:
+        if task.get("claude_file"):
+            show_claude_code_trace(task["claude_file"])
+        elif task.get("trajectory_file"):
+            show_agent_trace([], [task["trajectory_file"]])
+        else:
+            st.info("No trace file found.")
+    
+    with tabs[1]:
+        if task.get("result_path"):
+            try:
+                with open(task["result_path"]) as f:
+                    result_data = json.load(f)
+                st.json(result_data)
+            except Exception as e:
+                st.error(f"Failed to load result: {e}")
+        else:
+            st.info("No result file found.")
+
+
+# Keep original database-backed functions below for compatibility
+def show_run_results_database():
+    """Original database-backed run results page (kept for reference)."""
+    st.title("Run Results (Database)")
 
     # Get all runs
     runs = RunManager.list_all()
@@ -161,20 +441,48 @@ def show_task_detail(run_data, task):
 
     st.markdown("---")
 
-    # Find task output directory
-    output_dir = Path(run_data.get("output_dir", f"jobs/{run_data['run_id']}"))
-    # Sanitize agent name same way as orchestrator (replace : with __, / with _)
-    safe_agent_name = task['agent_name'].replace(":", "__").replace("/", "_")
-    task_output_dir = output_dir / f"{task['task_name']}_{safe_agent_name}"
+    # Try to find task output files
+    # First check if paths are stored in the database (e.g., from SWEBench imports)
+    result_path = task.get("result_path")
+    trajectory_path = task.get("trajectory_path")
+    
+    result_files = []
+    trajectory_files = []
+    claude_files = []
+    task_output_dir = None
+    
+    if result_path and Path(result_path).exists():
+        result_files = [Path(result_path)]
+        # Derive task output dir from result path (parent of result.json)
+        task_output_dir = Path(result_path).parent
+    
+    if trajectory_path and Path(trajectory_path).exists():
+        traj_path = Path(trajectory_path)
+        # trajectory_path might be claude-code.txt (SWEBench) or trajectory.json (Harbor)
+        if traj_path.suffix == ".txt":
+            claude_files = [traj_path]
+        else:
+            trajectory_files = [traj_path]
+        # Set task_output_dir if not already set
+        if task_output_dir is None:
+            task_output_dir = traj_path.parent
+    
+    # Fallback to constructed path if no stored paths
+    if not result_files and not trajectory_files and not claude_files:
+        output_dir = Path(run_data.get("output_dir", f"jobs/{run_data['run_id']}"))
+        # Sanitize agent name same way as orchestrator (replace : with __, / with _)
+        safe_agent_name = task['agent_name'].replace(":", "__").replace("/", "_")
+        task_output_dir = output_dir / f"{task['task_name']}_{safe_agent_name}"
 
-    if not task_output_dir.exists():
-        st.warning(f"Task output directory not found: {task_output_dir}")
-        return
+        if not task_output_dir.exists():
+            st.warning(f"Task output directory not found: {task_output_dir}")
+            st.info("This may be an imported evaluation. Check if the source files exist.")
+            return
 
-    # Look for trajectory and result files
-    trajectory_files = list(task_output_dir.rglob("trajectory.json"))
-    result_files = list(task_output_dir.rglob("result.json"))
-    claude_files = list(task_output_dir.rglob("claude.txt"))
+        # Look for trajectory and result files
+        trajectory_files = list(task_output_dir.rglob("trajectory.json"))
+        result_files = list(task_output_dir.rglob("result.json"))
+        claude_files = list(task_output_dir.rglob("claude.txt"))
 
     # Tabs for different views
     tabs = st.tabs(["Agent Trace", "Result Details", "Checklist", "LLM Judge", "Task Report"])
@@ -199,6 +507,12 @@ def show_agent_trace(claude_files, trajectory_files):
     """Display agent execution trace."""
     st.subheader("Agent Trace")
 
+    # Handle SWEBench JSONL format (claude-code.txt)
+    if claude_files and not trajectory_files:
+        show_claude_code_trace(claude_files[0])
+        return
+
+    # Handle Harbor trajectory.json format
     if not trajectory_files:
         st.info("No trajectory file found.")
         return
@@ -259,6 +573,247 @@ def show_agent_trace(claude_files, trajectory_files):
 
     except Exception as e:
         st.error(f"Failed to parse trajectory: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+
+
+def show_claude_code_trace(claude_file: Path):
+    """Display agent trace from SWEBench claude-code.txt JSONL format."""
+    
+    # Parse the JSONL transcript
+    messages = []
+    tool_calls = {}
+    total_input_tokens = 0
+    total_output_tokens = 0
+    total_cache_read = 0
+    model = None
+    files_read = []
+    edits_made = []
+    bash_commands = []
+    
+    try:
+        with open(claude_file) as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                
+                msg_type = record.get("type")
+                
+                if msg_type == "assistant":
+                    message = record.get("message", {})
+                    
+                    # Extract model
+                    if not model:
+                        model = message.get("model")
+                    
+                    # Extract tokens
+                    usage = message.get("usage", {})
+                    total_input_tokens += usage.get("input_tokens", 0)
+                    total_output_tokens += usage.get("output_tokens", 0)
+                    total_cache_read += usage.get("cache_read_input_tokens", 0)
+                    
+                    # Extract content
+                    content = message.get("content", [])
+                    for item in content:
+                        if isinstance(item, dict):
+                            item_type = item.get("type")
+                            
+                            if item_type == "text":
+                                text = item.get("text", "")
+                                if text.strip():
+                                    messages.append({
+                                        "type": "assistant_text",
+                                        "content": text,
+                                        "line": line_num,
+                                    })
+                            
+                            elif item_type == "tool_use":
+                                tool_name = item.get("name", "unknown")
+                                tool_input = item.get("input", {})
+                                tool_id = item.get("id", "")
+                                
+                                tool_calls[tool_name] = tool_calls.get(tool_name, 0) + 1
+                                
+                                messages.append({
+                                    "type": "tool_call",
+                                    "tool_name": tool_name,
+                                    "tool_input": tool_input,
+                                    "tool_id": tool_id,
+                                    "line": line_num,
+                                })
+                                
+                                # Track specific tools
+                                if tool_name == "Read":
+                                    file_path = tool_input.get("file_path", "")
+                                    if file_path:
+                                        files_read.append(file_path)
+                                
+                                elif tool_name == "Edit":
+                                    edits_made.append({
+                                        "file": tool_input.get("file_path", ""),
+                                        "old": tool_input.get("old_string", "")[:200],
+                                        "new": tool_input.get("new_string", "")[:200],
+                                    })
+                                
+                                elif tool_name == "Bash":
+                                    cmd = tool_input.get("command", "")
+                                    if cmd:
+                                        bash_commands.append(cmd)
+                
+                elif msg_type == "user":
+                    message = record.get("message", {})
+                    content = message.get("content", [])
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "tool_result":
+                            tool_id = item.get("tool_use_id", "")
+                            result_content = item.get("content", "")
+                            if isinstance(result_content, str):
+                                messages.append({
+                                    "type": "tool_result",
+                                    "tool_id": tool_id,
+                                    "content": result_content[:500] if len(result_content) > 500 else result_content,
+                                    "truncated": len(result_content) > 500,
+                                    "line": line_num,
+                                })
+        
+        # Display Summary
+        with st.expander("📊 Execution Summary", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("**Token Usage**")
+                st.write(f"- Input: {total_input_tokens:,}")
+                st.write(f"- Output: {total_output_tokens:,}")
+                st.write(f"- Cache Read: {total_cache_read:,}")
+                st.write(f"- **Total: {total_input_tokens + total_output_tokens:,}**")
+            
+            with col2:
+                st.markdown("**Tool Usage**")
+                for tool_name, count in sorted(tool_calls.items(), key=lambda x: -x[1])[:10]:
+                    st.write(f"- {tool_name}: {count}")
+            
+            with col3:
+                st.markdown("**Activity**")
+                st.write(f"- Files Read: {len(files_read)}")
+                st.write(f"- Edits Made: {len(edits_made)}")
+                st.write(f"- Bash Commands: {len(bash_commands)}")
+                if model:
+                    st.write(f"- Model: {model}")
+        
+        st.markdown("---")
+        
+        # Tabs for different views
+        tabs = st.tabs(["💬 Conversation", "🔧 Tool Calls", "📝 Code Changes", "🖥️ Bash Commands", "📄 Raw"])
+        
+        with tabs[0]:
+            show_claude_conversation(messages)
+        
+        with tabs[1]:
+            show_claude_tool_calls(messages, tool_calls)
+        
+        with tabs[2]:
+            show_claude_edits(edits_made)
+        
+        with tabs[3]:
+            show_claude_bash(bash_commands)
+        
+        with tabs[4]:
+            with st.expander("Raw JSONL (first 50 lines)", expanded=False):
+                with open(claude_file) as f:
+                    lines = f.readlines()[:50]
+                st.code("".join(lines), language="json")
+    
+    except Exception as e:
+        st.error(f"Failed to parse claude-code.txt: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+
+
+def show_claude_conversation(messages):
+    """Display conversation from claude-code.txt."""
+    st.markdown("### Agent Conversation")
+    
+    for msg in messages:
+        msg_type = msg.get("type")
+        
+        if msg_type == "assistant_text":
+            with st.chat_message("assistant"):
+                st.markdown(msg["content"][:2000])
+                if len(msg["content"]) > 2000:
+                    st.caption("...(truncated)")
+        
+        elif msg_type == "tool_call":
+            tool_name = msg["tool_name"]
+            with st.expander(f"🔧 Tool: **{tool_name}**", expanded=False):
+                st.json(msg["tool_input"])
+        
+        elif msg_type == "tool_result":
+            with st.expander(f"📤 Tool Result", expanded=False):
+                content = msg["content"]
+                if msg.get("truncated"):
+                    st.code(content + "\n...(truncated)")
+                else:
+                    st.code(content)
+
+
+def show_claude_tool_calls(messages, tool_calls):
+    """Display tool call summary from claude-code.txt."""
+    st.markdown("### Tool Call Summary")
+    
+    # Summary chart
+    if tool_calls:
+        import pandas as pd
+        df = pd.DataFrame([
+            {"Tool": k, "Calls": v} 
+            for k, v in sorted(tool_calls.items(), key=lambda x: -x[1])
+        ])
+        st.bar_chart(df.set_index("Tool"))
+    
+    st.markdown("### Tool Call Details")
+    
+    tool_messages = [m for m in messages if m.get("type") == "tool_call"]
+    
+    for i, msg in enumerate(tool_messages, 1):
+        tool_name = msg["tool_name"]
+        with st.expander(f"{i}. {tool_name}", expanded=False):
+            st.json(msg["tool_input"])
+
+
+def show_claude_edits(edits_made):
+    """Display code edits from claude-code.txt."""
+    st.markdown("### Code Changes")
+    
+    if not edits_made:
+        st.info("No code edits found in this trace.")
+        return
+    
+    for i, edit in enumerate(edits_made, 1):
+        with st.expander(f"Edit {i}: `{edit['file']}`", expanded=i == 1):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Before:**")
+                st.code(edit["old"] if edit["old"] else "(empty)", language="python")
+            with col2:
+                st.markdown("**After:**")
+                st.code(edit["new"] if edit["new"] else "(empty)", language="python")
+
+
+def show_claude_bash(bash_commands):
+    """Display bash commands from claude-code.txt."""
+    st.markdown("### Bash Commands")
+    
+    if not bash_commands:
+        st.info("No bash commands found in this trace.")
+        return
+    
+    for i, cmd in enumerate(bash_commands, 1):
+        st.code(f"$ {cmd}", language="bash")
         import traceback
         st.code(traceback.format_exc())
 

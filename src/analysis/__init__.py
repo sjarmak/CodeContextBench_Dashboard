@@ -18,6 +18,7 @@ from .cost_analyzer import CostAnalyzer, CostAnalysisResult
 from .failure_analyzer import FailureAnalyzer, FailurePattern
 from .recommendation_engine import RecommendationEngine, Recommendation
 from .time_series_analyzer import TimeSeriesAnalyzer, TimeSeriesAnalysisResult
+from .llm_judge_analyzer import LLMJudgeAnalyzer, LLMJudgeAnalysisResult
 
 __all__ = [
     "ExperimentComparator",
@@ -34,4 +35,6 @@ __all__ = [
     "Recommendation",
     "TimeSeriesAnalyzer",
     "TimeSeriesAnalysisResult",
+    "LLMJudgeAnalyzer",
+    "LLMJudgeAnalysisResult",
 ]

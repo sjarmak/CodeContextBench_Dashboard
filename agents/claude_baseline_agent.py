@@ -47,93 +47,31 @@ class BaselineClaudeCodeAgent(ClaudeCode):
         1. Add autonomous environment variables (FORCE_AUTO_BACKGROUND_TASKS, ENABLE_BACKGROUND_TASKS)
         2. Use --permission-mode acceptEdits to enable file modifications
         3. Explicitly whitelist all necessary tools (Read, Edit, Write, Bash, Grep, Glob)
-        4. Prepend MCP usage instructions to task prompt (if MCP enabled)
 
         The autonomous environment variables are the critical control mechanism that makes
         Claude Code operate in implementation mode instead of planning/analysis mode.
         """
 
-        # Prepend MCP instructions to task prompt if MCP is enabled
-        mcp_type = os.environ.get("BASELINE_MCP_TYPE", "none").lower()
-        if mcp_type == "sourcegraph":
-            mcp_prefix = """# CRITICAL: Use Sourcegraph MCP Tools First
-
-You have Sourcegraph MCP tools available. You MUST use them to understand the codebase before making changes.
-
-## Required First Steps:
-1. Call `mcp__sourcegraph__sg_keyword_search` or `mcp__sourcegraph__sg_nls_search` to find relevant code
-2. Review the search results to understand code structure
-3. Use `mcp__sourcegraph__sg_read_file` to read specific files from results
-4. THEN use local tools (Read, Edit, Write) to make changes
-
-## Available MCP Tools:
-- `mcp__sourcegraph__sg_keyword_search` - Exact string/regex matching (USE THIS FIRST for specific symbols)
-- `mcp__sourcegraph__sg_nls_search` - Natural language search (USE THIS for conceptual queries)
-- `mcp__sourcegraph__sg_read_file` - Read indexed files
-
-Note: You do NOT have deep search. Use keyword or NLS search for code discovery.
-
----
-
-"""
-            instruction = mcp_prefix + instruction
-        elif mcp_type == "deepsearch":
-            mcp_prefix = """# CRITICAL: Use Deep Search MCP Tool First
-
-You have Deep Search MCP available. You MUST use it to understand the codebase before making changes.
-
-## Required First Steps:
-1. Call `mcp__deepsearch__deepsearch` to find relevant code semantically
-2. Review the search results to understand code structure
-3. THEN use local tools (Read, Edit, Write) to make changes
-
-## Available MCP Tool:
-- `mcp__deepsearch__deepsearch` - Deep semantic code search (USE THIS FIRST)
-
----
-
-"""
-            instruction = mcp_prefix + instruction
-
-        # Get parent's commands with modified instruction
+        # Get parent's commands
         parent_commands = super().create_run_agent_commands(instruction)
-        
+
         # All tools Claude needs for implementation
-        # Include MCP tools based on configuration:
-        # - Sourcegraph MCP: keyword, NLS, read_file (NO deep search)
-        # - Deep Search MCP: ONLY deep search
+        # Include MCP tools for Sourcegraph integration (mcp__<server>__<tool>)
         base_tools = "Bash,Read,Edit,Write,Grep,Glob,Skill,TodoWrite,Task,TaskOutput"
-
-        # Add MCP tools based on type
-        if mcp_type == "sourcegraph":
-            # Sourcegraph MCP: traditional search tools only (no deep search)
-            mcp_tools = "mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file"
-        elif mcp_type == "deepsearch":
-            # Deep Search MCP: only deep search
-            mcp_tools = "mcp__deepsearch__deepsearch"
-        else:
-            # No MCP
-            mcp_tools = ""
-
-        allowed_tools = f"{base_tools},{mcp_tools}" if mcp_tools else base_tools
-        
-        # Check if MCP is configured
-        mcp_type = os.environ.get("BASELINE_MCP_TYPE", "none").lower()
-        mcp_config_flag = ""
-        if mcp_type in ["sourcegraph", "deepsearch"]:
-            mcp_config_flag = "--mcp-config /logs/agent/sessions/.mcp.json "
+        mcp_tools = "mcp__sourcegraph__sg_deepsearch,mcp__sourcegraph__sg_keyword_search,mcp__sourcegraph__sg_nls_search,mcp__sourcegraph__sg_read_file,mcp__deepsearch__deepsearch"
+        allowed_tools = f"{base_tools},{mcp_tools}"
 
         # Modify the Claude command to enable implementation mode with full tool access
         result = []
         for cmd in parent_commands:
             if cmd.command and "claude " in cmd.command:
-                # Inject --permission-mode, --allowedTools, and --mcp-config (if MCP enabled)
+                # Inject both --permission-mode and --allowedTools
                 # This enables actual code changes and ensures tools are available
                 modified_command = cmd.command.replace(
                     "claude ",
-                    f"claude --permission-mode acceptEdits {mcp_config_flag}--allowedTools {allowed_tools} "
+                    f"claude --permission-mode acceptEdits --allowedTools {allowed_tools} "
                 )
-                
+
                 # CRITICAL: Add autonomous environment variables
                 # These are undocumented Claude CLI flags that enable headless/autonomous operation
                 # Without these, Claude Code defaults to interactive planning mode
@@ -144,10 +82,6 @@ You have Deep Search MCP available. You MUST use it to understand the codebase b
                     'ENABLE_BACKGROUND_TASKS': '1'
                 }
 
-                # Add SSL workaround for MCP HTTP transport (Node.js fetch() SSL issues in Docker)
-                if mcp_type in ["sourcegraph", "deepsearch"]:
-                    env_with_autonomous['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
-                
                 self.logger.info(f"Modified command for autonomous implementation mode with tool whitelist")
                 self.logger.info(f"Tools enabled: {allowed_tools}")
                 self.logger.info(f"Autonomous mode enabled: FORCE_AUTO_BACKGROUND_TASKS=1, ENABLE_BACKGROUND_TASKS=1")
@@ -175,11 +109,6 @@ You have Deep Search MCP available. You MUST use it to understand the codebase b
 
     async def _setup_sourcegraph_mcp(self, environment: BaseEnvironment) -> None:
         """Configure Sourcegraph MCP with all tools (keyword, NLS, Deep Search)."""
-        # Set NODE_TLS_REJECT_UNAUTHORIZED globally in container for MCP subprocess
-        # This works around Node.js fetch() SSL certificate validation issues in Docker
-        await environment.exec('export NODE_TLS_REJECT_UNAUTHORIZED=0')
-        self.logger.info("BaselineClaudeCodeAgent: Set NODE_TLS_REJECT_UNAUTHORIZED=0 globally for MCP")
-
         sg_url = os.environ.get("SOURCEGRAPH_URL") or os.environ.get("SRC_ENDPOINT") or ""
         sg_token = os.environ.get("SOURCEGRAPH_ACCESS_TOKEN") or os.environ.get("SRC_ACCESS_TOKEN") or ""
 
@@ -191,14 +120,13 @@ You have Deep Search MCP available. You MUST use it to understand the codebase b
             sg_url = f"https://{sg_url}"
         sg_url = sg_url.rstrip("/")
 
-        # Sourcegraph HTTP MCP config
-        # Note: SSL workaround (NODE_TLS_REJECT_UNAUTHORIZED=0) is set in command environment
+        # Full Sourcegraph MCP config
         mcp_config = {
             "mcpServers": {
                 "sourcegraph": {
                     "type": "http",
                     "url": f"{sg_url}/.api/mcp/v1",
-                    "headers": {"Authorization": f"token {sg_token}"}
+                    "headers": {"Authorization": f"token {sg_token}"},
                 }
             }
         }
@@ -207,12 +135,15 @@ You have Deep Search MCP available. You MUST use it to understand the codebase b
         with open(mcp_config_path, "w") as f:
             json.dump(mcp_config, f, indent=2)
 
-        # Upload to CLAUDE_CONFIG_DIR (where Claude Code looks for MCP config)
-        # Harbor sets CLAUDE_CONFIG_DIR=/logs/agent/sessions
+        # Upload to /app/ (working directory)
         await environment.upload_file(
-            source_path=mcp_config_path, target_path="/logs/agent/sessions/.mcp.json"
+            source_path=mcp_config_path, target_path="/app/.mcp.json"
         )
-        self.logger.info(f"BaselineClaudeCodeAgent: Sourcegraph MCP configured at /logs/agent/sessions/ ({sg_url})")
+        # Also upload to home for Claude Code discovery
+        await environment.upload_file(
+            source_path=mcp_config_path, target_path="/root/.mcp.json"
+        )
+        self.logger.info(f"BaselineClaudeCodeAgent: Sourcegraph MCP configured at /app/ and /root/ ({sg_url})")
 
         # Upload CLAUDE.md with Sourcegraph instructions
         claude_md_content = """# MANDATORY: Use Sourcegraph MCP Tools
@@ -250,9 +181,9 @@ Local tools (Grep, Glob, Read) should be used AFTER MCP identifies relevant file
             f.write(claude_md_content)
 
         await environment.upload_file(
-            source_path=claude_md_path, target_path="/testbed/CLAUDE.md"
+            source_path=claude_md_path, target_path="/app/CLAUDE.md"
         )
-        self.logger.info("BaselineClaudeCodeAgent: Sourcegraph CLAUDE.md uploaded to /testbed")
+        self.logger.info("BaselineClaudeCodeAgent: Sourcegraph CLAUDE.md uploaded")
 
     async def _setup_deepsearch_mcp(self, environment: BaseEnvironment) -> None:
         """Configure Deep Search-only MCP endpoint."""
@@ -294,12 +225,15 @@ Local tools (Grep, Glob, Read) should be used AFTER MCP identifies relevant file
         with open(mcp_config_path, "w") as f:
             json.dump(mcp_config, f, indent=2)
 
-        # Upload to CLAUDE_CONFIG_DIR (where Claude Code looks for MCP config)
-        # Harbor sets CLAUDE_CONFIG_DIR=/logs/agent/sessions
+        # Upload to /app/ (working directory)
         await environment.upload_file(
-            source_path=mcp_config_path, target_path="/logs/agent/sessions/.mcp.json"
+            source_path=mcp_config_path, target_path="/app/.mcp.json"
         )
-        self.logger.info(f"BaselineClaudeCodeAgent: Deep Search MCP configured at /logs/agent/sessions/ ({deepsearch_url})")
+        # Also upload to home for Claude Code discovery
+        await environment.upload_file(
+            source_path=mcp_config_path, target_path="/root/.mcp.json"
+        )
+        self.logger.info(f"BaselineClaudeCodeAgent: Deep Search MCP configured at /app/ and /root/ ({deepsearch_url})")
 
         # Upload CLAUDE.md with Deep Search instructions
         claude_md_content = """# MANDATORY: Use Deep Search MCP Tool
@@ -349,6 +283,6 @@ mcp__deepsearch__deepsearch(query="TypeError combine_vars VarsWithSources dict")
             f.write(claude_md_content)
 
         await environment.upload_file(
-            source_path=claude_md_path, target_path="/testbed/CLAUDE.md"
+            source_path=claude_md_path, target_path="/app/CLAUDE.md"
         )
-        self.logger.info("BaselineClaudeCodeAgent: Deep Search CLAUDE.md uploaded to /testbed")
+        self.logger.info("BaselineClaudeCodeAgent: Deep Search CLAUDE.md uploaded")

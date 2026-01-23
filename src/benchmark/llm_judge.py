@@ -33,23 +33,29 @@ RETRIEVAL_QUALITY_PROMPT = """You are evaluating an AI coding agent's use of cod
 
 ## Evaluation Criteria
 
-Rate the agent's retrieval strategy on a scale of 1-5:
+Rate the agent's retrieval strategy on a scale of 0-4, considering PARTIAL CREDIT for good search patterns:
 
-1. **Terrible**: No relevant searches, missed obvious queries, or searched for wrong things
-2. **Poor**: Some relevant searches but missed key areas, inefficient queries
-3. **Adequate**: Found main relevant code but could have been more thorough
-4. **Good**: Comprehensive search strategy, found all key files and context
-5. **Excellent**: Optimal search strategy, efficient queries, perfect context gathering
+0. **No relevant searches**: Random exploration, missed obvious queries, or searched for completely wrong concepts
+1. **Some relevant searches**: Found some relevant areas but missed key files or gave up too early
+2. **Found main relevant code**: Located primary code areas but could be more thorough, missed secondary context
+3. **Comprehensive search strategy**: Found all key files and context, efficient query formulation
+4. **Optimal search strategy**: Efficient queries, perfect context gathering, excellent use of semantic and keyword search
 
-Consider:
-- Did the agent search for the right concepts?
-- Did it find the relevant files/functions?
-- Was the search strategy efficient (not too many redundant calls)?
-- Did it gather enough context before making changes?
+Consider these factors:
+- Did the agent search for concepts related to the problem?
+- Did it find files/functions relevant to the issue?
+- Was the search strategy reasonably efficient (not excessive redundant calls)?
+- Did it gather meaningful context before attempting changes?
+- Did it use available tools appropriately (Deep Search for semantic queries, grep for patterns)?
+
+PARTIAL CREDIT EXAMPLES:
+- Agent finds main file but misses related helper files → score 2
+- Agent does excellent semantic search but doesn't verify with local grep → score 3
+- Agent explores extensively and builds good mental model even if solution incomplete → score 3-4
 
 Respond with JSON:
 {{
-    "score": <1-5>,
+    "score": <0-4>,
     "reasoning": "<2-3 sentence explanation>",
     "strengths": ["<strength 1>", "<strength 2>"],
     "weaknesses": ["<weakness 1>", "<weakness 2>"]
@@ -64,28 +70,118 @@ CODE_QUALITY_PROMPT = """You are evaluating an AI coding agent's solution to a c
 ## Agent's Solution (Code Changes)
 {code_changes}
 
-## Task Result
-Reward: {reward} (1.0 = success, 0.0 = failure)
+## Test Harness Result
+Reward: {reward} (1.0 = all tests passed, 0.0 = some/all tests failed)
+
+**IMPORTANT**: The test harness result is only ONE input. Test harnesses can be flaky, have environment issues, or require additional setup. Your evaluation should focus primarily on the QUALITY and CORRECTNESS of the code changes themselves, not just whether tests passed.
 
 ## Evaluation Criteria
 
-Rate the solution quality on a scale of 1-5:
+Rate the solution quality on a scale of 0-4, considering PARTIAL CREDIT for work done:
 
-1. **Terrible**: Completely wrong approach, broken code, or no meaningful changes
-2. **Poor**: Partially correct but significant issues, hacky workarounds
-3. **Adequate**: Works but not ideal, some code quality issues
-4. **Good**: Correct solution, follows conventions, minor improvements possible
-5. **Excellent**: Optimal solution, clean code, follows best practices
+0. **No requirements met**: No meaningful changes, completely wrong approach, or changes that would break the codebase
+1. **Few requirements met**: Some relevant changes but fundamental misunderstanding of the problem, or changes that introduce bugs
+2. **Some requirements met**: Partial solution - agent understood the problem and made some correct changes, but solution is incomplete or misses key components
+3. **Most requirements met**: Substantially correct solution - addresses the core issue correctly, minor gaps or could be more thorough
+4. **All requirements met**: Complete and correct solution - addresses all aspects of the problem with clean, idiomatic code
 
-Consider:
-- Does the solution correctly address the task?
+Consider these factors independently of test results:
+- Does the agent demonstrate understanding of the problem?
+- Are the changes in the right direction, even if incomplete?
 - Is the code idiomatic for the language/framework?
-- Are there any bugs or edge cases missed?
-- Is the solution maintainable?
+- Is the approach sound even if execution has gaps?
+- Would the changes likely fix or improve the issue if completed?
+
+PARTIAL CREDIT EXAMPLES:
+- Agent fixes 3 of 5 affected files → score 2-3
+- Agent correctly identifies pattern but misses edge cases → score 2
+- Agent makes correct changes but test harness fails for other reasons → score 3-4
+- Agent changes wrong files entirely → score 0-1
 
 Respond with JSON:
 {{
-    "score": <1-5>,
+    "score": <0-4>,
+    "reasoning": "<2-3 sentence explanation focusing on what was done well and what was missing>",
+    "strengths": ["<strength 1>", "<strength 2>"],
+    "weaknesses": ["<weakness 1>", "<weakness 2>"]
+}}
+"""
+
+CORRECTNESS_PROMPT = """You are evaluating whether an AI coding agent's solution correctly addresses the reported issue.
+
+## Task Description
+{task_description}
+
+## Agent's Solution (Code Changes)
+{code_changes}
+
+## Test Harness Result
+Reward: {reward} (1.0 = all tests passed, 0.0 = some/all tests failed)
+
+**IMPORTANT**: The test result is informative but NOT definitive. Focus on whether the code changes WOULD correctly fix the issue based on your understanding of the problem and solution.
+
+## Evaluation Criteria
+
+Rate the CORRECTNESS of the solution on a scale of 0-4, considering partial credit:
+
+0. **Incorrect**: Solution does not address the issue, or introduces new bugs
+1. **Mostly Incorrect**: Solution shows some understanding but approach is fundamentally flawed
+2. **Partially Correct**: Solution addresses part of the issue correctly but has significant gaps or errors
+3. **Mostly Correct**: Solution correctly addresses the core issue with minor errors or edge cases missed
+4. **Fully Correct**: Solution correctly and completely addresses the issue
+
+Consider:
+- Does the solution target the right root cause?
+- Would the changes fix the reported behavior?
+- Are there any logical errors in the implementation?
+- Even if incomplete, is what was done correct?
+
+Respond with JSON:
+{{
+    "score": <0-4>,
+    "reasoning": "<2-3 sentence explanation>",
+    "strengths": ["<strength 1>", "<strength 2>"],
+    "weaknesses": ["<weakness 1>", "<weakness 2>"]
+}}
+"""
+
+COMPLETENESS_PROMPT = """You are evaluating whether an AI coding agent's solution is COMPLETE - addressing all aspects of the task.
+
+## Task Description
+{task_description}
+
+## Agent's Solution (Code Changes)
+{code_changes}
+
+## Test Harness Result
+Reward: {reward} (1.0 = all tests passed, 0.0 = some/all tests failed)
+
+**IMPORTANT**: Evaluate completeness independently of test results. A solution can be partially complete and still fail tests.
+
+## Evaluation Criteria
+
+Rate the COMPLETENESS of the solution on a scale of 0-4:
+
+0. **No requirements met**: Almost no requirements addressed (<25%)
+1. **Few requirements met**: Some requirements addressed but major gaps (25-50%)
+2. **Some requirements met**: Core requirements addressed but secondary aspects missing (50-75%)
+3. **Most requirements met**: Most requirements addressed with minor gaps (75-99%)
+4. **All requirements met**: All requirements fully addressed (100%)
+
+Consider:
+- How many of the task requirements are addressed?
+- Are all affected files/components modified?
+- Are edge cases handled?
+- Is the solution production-ready or still needs work?
+
+PARTIAL CREDIT EXAMPLES:
+- Task requires changes to 5 files, agent changes 3 correctly → score 3
+- Task has multiple requirements, agent addresses the main one fully → score 3-4
+- Agent makes correct changes but misses error handling → score 4
+
+Respond with JSON:
+{{
+    "score": <0-4>,
     "reasoning": "<2-3 sentence explanation>",
     "strengths": ["<strength 1>", "<strength 2>"],
     "weaknesses": ["<weakness 1>", "<weakness 2>"]
@@ -166,6 +262,70 @@ class LLMJudge:
 
         return JudgeAssessment(
             dimension="code_quality",
+            score=result.get("score", 0),
+            reasoning=result.get("reasoning", "Evaluation failed"),
+            strengths=result.get("strengths", []),
+            weaknesses=result.get("weaknesses", []),
+            judge_model=self.model,
+        )
+
+    def evaluate_correctness(
+        self, task_description: str, code_changes: str, trajectory: str, reward: float
+    ) -> JudgeAssessment:
+        """Evaluate the correctness of an agent's solution.
+
+        Args:
+            task_description: The task the agent was trying to solve
+            code_changes: The code changes made by the agent
+            trajectory: Agent's problem-solving trajectory
+            reward: Task reward (0.0 or 1.0)
+
+        Returns:
+            JudgeAssessment for correctness
+        """
+        prompt = CORRECTNESS_PROMPT.format(
+            task_description=task_description[:2000],
+            code_changes=code_changes[:5000],
+            trajectory=trajectory[:3000] if trajectory else "Not available",
+            reward=reward,
+        )
+
+        result = self._call_llm(prompt)
+
+        return JudgeAssessment(
+            dimension="correctness",
+            score=result.get("score", 0),
+            reasoning=result.get("reasoning", "Evaluation failed"),
+            strengths=result.get("strengths", []),
+            weaknesses=result.get("weaknesses", []),
+            judge_model=self.model,
+        )
+
+    def evaluate_completeness(
+        self, task_description: str, code_changes: str, trajectory: str, reward: float
+    ) -> JudgeAssessment:
+        """Evaluate how completely an agent addressed a task.
+
+        Args:
+            task_description: The task the agent was trying to solve
+            code_changes: The code changes made by the agent
+            trajectory: Agent's problem-solving trajectory
+            reward: Task reward (0.0 or 1.0)
+
+        Returns:
+            JudgeAssessment for completeness
+        """
+        prompt = COMPLETENESS_PROMPT.format(
+            task_description=task_description[:2000],
+            code_changes=code_changes[:5000],
+            trajectory=trajectory[:3000] if trajectory else "Not available",
+            reward=reward,
+        )
+
+        result = self._call_llm(prompt)
+
+        return JudgeAssessment(
+            dimension="completeness",
             score=result.get("score", 0),
             reasoning=result.get("reasoning", "Evaluation failed"),
             strengths=result.get("strengths", []),

@@ -167,6 +167,51 @@ class MetricsDatabase:
             # Create indexes separately
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_es_experiment ON experiment_summary(experiment_id)")
             
+            # Judge results table (for LLM-as-judge evaluations)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS judge_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_id TEXT NOT NULL,
+                    experiment_id TEXT,
+                    job_id TEXT,
+                    
+                    -- Agent info
+                    agent_name TEXT,
+                    
+                    -- Judge scores (0.0 to 1.0)
+                    code_quality REAL,
+                    correctness REAL,
+                    completeness REAL,
+                    quality REAL,
+                    efficiency REAL,
+                    overall_score REAL,
+                    
+                    -- Reasoning
+                    code_quality_reasoning TEXT,
+                    correctness_reasoning TEXT,
+                    completeness_reasoning TEXT,
+                    quality_reasoning TEXT,
+                    efficiency_reasoning TEXT,
+                    overall_reasoning TEXT,
+                    
+                    -- Metadata
+                    judge_model TEXT,
+                    tokens_used INTEGER,
+                    raw_response TEXT,
+                    evaluated_at TEXT,
+                    
+                    UNIQUE(task_id, experiment_id, job_id),
+                    FOREIGN KEY(task_id, experiment_id, job_id) 
+                        REFERENCES harbor_results(task_id, experiment_id, job_id)
+                        ON DELETE CASCADE
+                )
+            """)
+            
+            # Create indexes for judge_results
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_jr_experiment ON judge_results(experiment_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_jr_agent ON judge_results(agent_name)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_jr_overall ON judge_results(overall_score)")
+            
             conn.commit()
     
     def _connect(self) -> sqlite3.Connection:
@@ -399,6 +444,96 @@ class MetricsDatabase:
             total = result["total"] or 0
             passed = result["passed"] or 0
             return (passed / total) if total > 0 else 0.0
+    
+    def store_judge_result(
+        self,
+        task_id: str,
+        judge_result: dict,
+        experiment_id: Optional[str] = None,
+        job_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
+    ) -> None:
+        """
+        Store a judge evaluation result.
+        
+        Args:
+            task_id: Task ID
+            judge_result: Dictionary with judge scores and reasoning
+            experiment_id: Optional experiment ID
+            job_id: Optional job ID
+            agent_name: Optional agent name
+        """
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO judge_results
+                (task_id, experiment_id, job_id, agent_name,
+                 code_quality, correctness, completeness, quality, efficiency,
+                 overall_score, code_quality_reasoning, correctness_reasoning,
+                 completeness_reasoning, quality_reasoning, efficiency_reasoning,
+                 overall_reasoning, judge_model, tokens_used, raw_response, evaluated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                task_id,
+                experiment_id,
+                job_id,
+                agent_name,
+                judge_result.get("code_quality"),
+                judge_result.get("correctness"),
+                judge_result.get("completeness"),
+                judge_result.get("quality"),
+                judge_result.get("efficiency"),
+                judge_result.get("overall_score"),
+                judge_result.get("code_quality_reasoning", ""),
+                judge_result.get("correctness_reasoning", ""),
+                judge_result.get("completeness_reasoning", ""),
+                judge_result.get("quality_reasoning", ""),
+                judge_result.get("efficiency_reasoning", ""),
+                judge_result.get("overall_reasoning", ""),
+                judge_result.get("judge_model"),
+                judge_result.get("tokens_used", 0),
+                judge_result.get("raw_response", ""),
+                judge_result.get("evaluated_at", datetime.utcnow().isoformat()),
+            ))
+            conn.commit()
+    
+    def get_judge_result(
+        self,
+        task_id: str,
+        experiment_id: Optional[str] = None,
+        job_id: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Get a stored judge result."""
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM judge_results
+                WHERE task_id = ? AND experiment_id = ? AND job_id = ?
+            """, (task_id, experiment_id, job_id))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    
+    def get_judge_results_for_experiment(
+        self,
+        experiment_id: str,
+        agent_name: Optional[str] = None,
+    ) -> list[dict]:
+        """Get all judge results for an experiment."""
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            if agent_name:
+                cursor.execute("""
+                    SELECT * FROM judge_results
+                    WHERE experiment_id = ? AND agent_name = ?
+                    ORDER BY evaluated_at DESC
+                """, (experiment_id, agent_name))
+            else:
+                cursor.execute("""
+                    SELECT * FROM judge_results
+                    WHERE experiment_id = ?
+                    ORDER BY evaluated_at DESC
+                """, (experiment_id,))
+            return [dict(row) for row in cursor.fetchall()]
     
     def get_stats(self, experiment_id: Optional[str] = None) -> dict:
         """Get comprehensive statistics."""

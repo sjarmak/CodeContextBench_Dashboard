@@ -377,3 +377,29 @@ def display_cost_indicator(is_regression: bool, percent_change: float) -> str:
         return f'<span style="background: #d62728; color: white; padding: 2px 6px; border-radius: 3px;">⚠️ +{percent_change:.1f}%</span>'
     else:
         return f'<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">✓ {percent_change:+.1f}%</span>'
+
+
+def display_filter_badge(filter_name: str, value: Any, removable: bool = True) -> None:
+    """
+    Display a filter badge showing an active filter.
+    
+    Args:
+        filter_name: Name of the filter
+        value: Current filter value
+        removable: Whether to show a remove button
+    """
+    badge_html = f"""
+    <span style="
+        display: inline-block;
+        background: #e3f2fd;
+        color: #1565c0;
+        padding: 4px 8px;
+        border-radius: 16px;
+        font-size: 0.85em;
+        margin: 2px;
+    ">
+        <strong>{filter_name}:</strong> {value}
+        {' ×' if removable else ''}
+    </span>
+    """
+    st.markdown(badge_html, unsafe_allow_html=True)

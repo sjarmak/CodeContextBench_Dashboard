@@ -2,6 +2,7 @@
 Analysis Hub - Entry point for Phase 4 analysis components.
 
 Provides:
+- Auto-ingestion of results from external jobs directory
 - Database connectivity status
 - Experiment overview
 - Analysis component availability checklist
@@ -11,8 +12,67 @@ Provides:
 import streamlit as st
 from pathlib import Path
 from datetime import datetime
+import os
 
 from dashboard.utils.analysis_loader import AnalysisLoader, DatabaseNotFoundError
+
+
+# External jobs directory - same as run_results
+EXTERNAL_JOBS_DIR = Path(os.environ.get(
+    "CCB_EXTERNAL_JOBS_DIR",
+    os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs")
+))
+
+
+def auto_ingest_if_needed(db_path: Path, project_root: Path) -> tuple[bool, str]:
+    """
+    Auto-ingest results from external jobs directory if database is missing or empty.
+    
+    Returns:
+        Tuple of (success, message)
+    """
+    try:
+        # Import ingest components
+        from src.ingest.orchestrator import IngestionOrchestrator
+        
+        # Ensure data directory exists
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Check if we have results to ingest
+        if not EXTERNAL_JOBS_DIR.exists():
+            return False, f"External jobs directory not found: {EXTERNAL_JOBS_DIR}"
+        
+        experiment_dirs = [
+            d for d in EXTERNAL_JOBS_DIR.iterdir() 
+            if d.is_dir() and not d.name.startswith('.') and (d / "result.json").exists()
+        ]
+        
+        if not experiment_dirs:
+            return False, "No experiments found in external jobs directory"
+        
+        # Create orchestrator and ingest
+        orchestrator = IngestionOrchestrator(
+            db_path=db_path,
+            results_dir=EXTERNAL_JOBS_DIR,
+        )
+        
+        total_results = 0
+        for exp_dir in experiment_dirs:
+            try:
+                stats = orchestrator.ingest_experiment(
+                    experiment_id=exp_dir.name,
+                    results_dir=exp_dir,
+                )
+                total_results += stats.get("results_processed", 0)
+            except Exception as e:
+                st.warning(f"Failed to ingest {exp_dir.name}: {e}")
+        
+        return True, f"Ingested {total_results} results from {len(experiment_dirs)} experiments"
+        
+    except ImportError as e:
+        return False, f"Ingest module not available: {e}"
+    except Exception as e:
+        return False, f"Auto-ingest failed: {e}"
 
 
 def show_analysis_hub():
@@ -29,9 +89,22 @@ def show_analysis_hub():
     # Database status section
     st.subheader("1. Database Status")
     
+    # Check if database exists, auto-ingest if not
+    db_exists = db_path.exists()
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
+        if not db_exists:
+            st.info("Database not found. Auto-ingesting results...")
+            success, message = auto_ingest_if_needed(db_path, project_root)
+            if success:
+                st.success(f"✓ {message}")
+            else:
+                st.warning(message)
+                st.caption(f"Expected database at: {db_path}")
+                return
+        
         try:
             loader = AnalysisLoader(db_path)
             st.session_state.analysis_loader = loader
@@ -43,12 +116,6 @@ def show_analysis_hub():
         except DatabaseNotFoundError:
             st.error("✗ Database Not Found")
             st.caption(f"Expected at: {db_path}")
-            st.info(
-                "To create a database, run:\n"
-                "```bash\n"
-                "ccb ingest\n"
-                "```"
-            )
             return
     
     with col2:
@@ -68,6 +135,19 @@ def show_analysis_hub():
             st.metric("Experiments", len(experiments))
         except:
             st.metric("Experiments", "N/A")
+    
+    # Re-ingest button
+    st.markdown("")
+    if st.button("🔄 Re-ingest Results", help="Re-scan external jobs directory and update database"):
+        with st.spinner("Ingesting results..."):
+            success, message = auto_ingest_if_needed(db_path, project_root)
+            if success:
+                st.success(message)
+                st.rerun()
+            else:
+                st.error(message)
+    
+    st.caption(f"📁 Results from: {EXTERNAL_JOBS_DIR}")
     
     st.markdown("---")
     

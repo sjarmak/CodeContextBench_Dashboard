@@ -16,6 +16,7 @@ from src.analysis.time_series_analyzer import TimeSeriesAnalyzer, TimeSeriesAnal
 from src.analysis.cost_analyzer import CostAnalyzer, CostAnalysisResult
 from src.analysis.failure_analyzer import FailureAnalyzer, FailureAnalysisResult
 from src.analysis.ir_analyzer import IRAnalyzer, IRAnalysisResult
+from src.analysis.llm_judge_analyzer import LLMJudgeAnalyzer, LLMJudgeAnalysisResult
 from src.analysis.recommendation_engine import RecommendationEngine, RecommendationPlan
 
 
@@ -323,6 +324,41 @@ class AnalysisLoader:
         except Exception as e:
             # IR analysis may not be available for all experiments
             logger.warning(f"IR analysis not available for {experiment_id}: {e}")
+            return None
+    
+    def load_judge_results(
+        self,
+        experiment_id: str,
+        baseline_agent: Optional[str] = None,
+    ) -> LLMJudgeAnalysisResult:
+        """
+        Load LLM judge analysis results.
+        
+        Args:
+            experiment_id: ID of experiment to analyze
+            baseline_agent: Baseline agent for comparison
+            
+        Returns:
+            LLMJudgeAnalysisResult with judge scores and comparisons
+            
+        Raises:
+            ExperimentNotFoundError: If judge results not available
+        """
+        cache_key = f"judge:{experiment_id}:{baseline_agent}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
+        try:
+            analyzer = LLMJudgeAnalyzer(self.db)
+            result = analyzer.analyze_judge_scores(
+                experiment_id,
+                baseline_agent=baseline_agent,
+            )
+            self._cache[cache_key] = result
+            return result
+        except Exception as e:
+            # Judge results may not be available for all experiments
+            logger.warning(f"Judge results not available for {experiment_id}: {e}")
             return None
     
     def load_recommendations(

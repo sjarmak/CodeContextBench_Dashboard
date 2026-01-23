@@ -100,11 +100,8 @@ def init_benchmarks():
             print(f"  Skipping {bench_config['name']} (already registered)")
             continue
 
-        # Count tasks
-        task_count = len([
-            d for d in bench_path.iterdir()
-            if d.is_dir() and (d / "task.toml").exists()
-        ])
+        # Count tasks - find all task.toml or task.yaml files recursively
+        task_count = len(list(bench_path.rglob("task.toml"))) + len(list(bench_path.rglob("task.yaml")))
 
         # Register benchmark
         try:

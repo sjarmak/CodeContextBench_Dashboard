@@ -32,12 +32,9 @@ def show_benchmark_list():
     data = []
     for b in benchmarks:
         data.append({
-            "ID": b["id"],
             "Name": b["name"],
             "Folder": b["folder_name"],
             "Tasks": b.get("task_count", 0),
-            "Last Validated": b.get("last_validated", "Never")[:19] if b.get("last_validated") else "Never",
-            "Status": b.get("validation_status", "Unknown"),
         })
 
     df = pd.DataFrame(data)
