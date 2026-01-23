@@ -1,14 +1,32 @@
 # Development Guide
 
-## Setup: Development & Benchmark Environments
+## Quick Start: Running the Dashboard
 
-CodeContextBench uses two separate Python environments:
-1. **`.venv`** - Development environment (tests, utilities, analysis)
-2. **`harbor/`** - Harbor environment (for running benchmarks with Daytona)
+The simplest way to use CodeContextBench is via the dashboard:
 
-### Quick Start: Development
+```bash
+# 1. Install dependencies
+pip install -r dashboard/requirements.txt
 
-#### 1. Create Development Virtual Environment
+# 2. Ensure your environment file is set up
+# Copy .env.local.example to .env.local and fill in your API keys
+cp .env.local.example .env.local
+
+# 3. Start the dashboard
+streamlit run dashboard/app.py
+
+# 4. Open http://localhost:8501 in your browser
+```
+
+That's it! The dashboard handles all benchmark execution and result visualization.
+
+---
+
+## Development Environment Setup
+
+For development work on the codebase (new agents, analysis tools, benchmarks, etc.):
+
+### 1. Create Virtual Environment
 
 ```bash
 cd CodeContextBench
@@ -16,57 +34,38 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-#### 2. Install Dependencies
+### 2. Install Dependencies
 
 ```bash
-# Install CodeContextBench with dependencies
+# Install project in development mode
 pip install -e .
 
-# If testing NeMo integration, install from local source
-pip install -e ~/NeMo-Agent-Toolkit/
+# Install dashboard dependencies
+pip install -r dashboard/requirements.txt
+
+# Install testing tools
+pip install pytest pytest-cov
 ```
 
-#### 3. Python Version
+### 3. Python Version
 
-- **Required**: Python 3.12.11
-- Check with: `python --version`
-- Set via: `pyenv local 3.12.11` (if using pyenv)
+- **Required**: Python 3.12+ (tested on 3.12.11)
+- Check: `python --version`
+- Manage with: `pyenv local 3.12.11`
 
-#### 4. Virtual Environment Management
+### 4. Environment Variables
 
-All development and testing should use the `.venv` environment:
+Create `.env.local` with your credentials:
 
 ```bash
-# Activate
-source .venv/bin/activate
-
-# Deactivate
-deactivate
-
-# View Python location
-which python
-
-# View installed packages
-pip list
+cp .env.local.example .env.local
+# Edit to add your API keys:
+# ANTHROPIC_API_KEY=<your-key>
+# SOURCEGRAPH_ACCESS_TOKEN=<your-token>
+# SOURCEGRAPH_URL=https://sourcegraph.com
 ```
 
-### Harbor Setup: Benchmarks with Daytona
-
-To run benchmarks, use the **Harbor venv** instead of `.venv`:
-
-```bash
-# Activate Harbor environment (sets up Daytona credentials, DOCKER_HOST, PATH)
-source harbor/bin/activate
-
-# Run Harbor with Daytona backend
-harbor run \
-  --dataset swebench-verified@1.0 \
-  --agent oracle \
-  --env daytona \
-  -n 1
-```
-
-See **infrastructure/PODMAN.md** for complete Harbor + Daytona setup and troubleshooting.
+The dashboard will automatically load and export these to Harbor subprocesses.
 
 ### Dependencies
 
@@ -102,32 +101,61 @@ export ANTHROPIC_API_KEY=<your_key>
 export DEBUG=1
 ```
 
-## Development Commands
+## Dashboard Development
+
+### Adding a New Analysis View
+
+1. Create new page in `dashboard/views/my_analysis.py`
+2. Import in `dashboard/app.py`
+3. Add to sidebar navigation
+4. Use shared utilities from `dashboard/utils/`
+
+Example:
+```python
+# dashboard/views/my_analysis.py
+import streamlit as st
+from dashboard.utils.common_components import create_header
+
+def show_my_analysis():
+    create_header("My Analysis", "description")
+    # Your analysis code here
+
+# In dashboard/app.py navigation:
+if st.session_state.current_page == "My Analysis":
+    from dashboard.views.my_analysis import show_my_analysis
+    show_my_analysis()
+```
+
+### Accessing Experiment Results
+
+Results are stored in `jobs/` directory. Use utility functions:
+
+```python
+from src.ingest.database import load_experiments
+from src.analysis.llm_judge_analyzer import LLMJudgeAnalyzer
+
+experiments = load_experiments('jobs/')
+analyzer = LLMJudgeAnalyzer()
+results = analyzer.analyze(experiment_id)
+```
+
+## Testing & Development Commands
 
 ```bash
-# Validate Python package
-python setup.py check
-
-# Run all tests
-python -m pytest tests/ -q
+# Run tests
+pytest tests/ -q
 
 # Run specific test
-python -m pytest tests/test_mcp_agent_setup.py -v
+pytest tests/test_analysis_llm_judge.py -v
 
-# Format code
-black agents/ runners/ observability/ tests/
+# Run tests with coverage
+pytest tests/ --cov=src --cov=dashboard
 
-# Type check
-mypy agents/ runners/ observability/
+# Start dashboard in development
+streamlit run dashboard/app.py
 
-# Smoke test infrastructure
-python tests/smoke_test_10figure.py
-
-# Agent environment injection test
-python -m pytest tests/test_agent_env_injection.py -v
-
-# With coverage
-pytest tests/ --cov=src --cov=observability --cov=runners
+# Validate agent implementations
+python -c "from agents.mcp_variants import StrategicDeepSearchAgent; print('OK')"
 ```
 
 ## Common Development Tasks

@@ -1,6 +1,22 @@
 # Experiment Management Guide
 
-This guide establishes standards for organizing, naming, and documenting experiments in CodeContextBench.
+This guide establishes standards for organizing, naming, and documenting experiments in CodeContextBench, and how to use the dashboard to manage them.
+
+## Quick Start: Using the Dashboard
+
+The **easiest way** to run and manage experiments is via the dashboard UI:
+
+1. Start the dashboard: `streamlit run dashboard/app.py`
+2. Navigate to **"Run Benchmarks"** tab
+3. Select:
+   - Benchmark suite
+   - Tasks to evaluate
+   - Agent variants (baseline, strategic, aggressive, etc.)
+   - Model and parameters
+4. Click **"Preview Command"** or **"Run Experiment"**
+5. View results in **"Experiment Results"** and **"Agent Comparison"** tabs
+
+The dashboard automatically organizes outputs in `jobs/` with timestamps.
 
 ---
 

@@ -14,7 +14,7 @@ echo $ANTHROPIC_API_KEY
 export ANTHROPIC_API_KEY=$(grep "ANTHROPIC_API_KEY=" .env.local | cut -d'=' -f2 | tr -d '"')
 
 # Verify
-echo $ANTHROPIC_API_KEY | head -c 20  # Should show sk-ant-...
+echo $ANTHROPIC_API_KEY | head -c 20  # Should show your API key prefix
 ```
 
 **KNOWN ISSUE**: Environment variables don't persist across command pipes or subshells. Always export in the same command before running `harbor run`.

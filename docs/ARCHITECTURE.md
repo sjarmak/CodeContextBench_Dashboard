@@ -1,88 +1,100 @@
 # CodeContextBench Architecture
 
-CodeContextBench is a comprehensive benchmark evaluation framework for assessing how improved codebase understanding through Sourcegraph tools improves coding agent output. It supports multiple agent implementations (Claude Code baseline, Claude+MCP with Sourcegraph Deep Search) running against standardized benchmark task sets.
+CodeContextBench is a **benchmark evaluation platform** for measuring how Sourcegraph code intelligence improves coding agent performance. The system features:
 
-## Philosophy
+- **Streamlit Dashboard**: Web UI for benchmark management, execution, and result analysis
+- **VM Orchestration**: Harbor + Podman infrastructure running agents in isolated containers
+- **Multiple Agent Variants**: Claude Code baseline + four MCP variants with different Sourcegraph tool configurations
+- **Comprehensive Evaluation**: Automated metrics extraction, LLM judge assessment, and interactive visualization
 
-- **Claude-first design**: Primary agents use Claude Code CLI (baseline + MCP variants)
-- **Autonomous operation**: Claude Code must run in headless mode via environment variables
-- **Fair benchmarking**: Both agents have equal autonomous capabilities for valid comparison
-- **Git-tracked work**: All issues tracked in `.beads/issues.jsonl`, version-controlled with code
+## Design Philosophy
+
+- **Dashboard-first UX**: Primary interaction through Streamlit web interface (no CLI required)
+- **Reproducible Evaluation**: Deterministic task environments, isolated VM execution, captured metrics
+- **Fair Comparison**: Baseline and MCP agents have identical autonomous capabilities
+- **Extensible Framework**: New benchmarks, agents, and metrics can be added independently
 
 
-## High-Level Architecture
+## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     CodeContextBench                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌──────────────────┐      ┌──────────────────┐                 │
-│  │  Benchmark Task  │      │  Benchmark Task  │                 │
-│  │  (BigCodeMCP)    │  ... │  (10Figure)      │                 │
-│  └────────┬─────────┘      └────────┬─────────┘                 │
-│           │                         │                            │
-│           └────────────┬────────────┘                            │
-│                        │                                          │
-│                  ┌─────▼──────┐                                  │
-│                  │   Harbor   │  (Container orchestration)       │
-│                  │ + Podman   │                                  │
-│                  └─────┬──────┘                                  │
-│                        │                                          │
-│        ┌───────────────┼───────────────┐                        │
-│        │               │               │                        │
-│   ┌────▼─────┐   ┌────▼──────┐  ┌────▼──────┐                 │
-│   │ Claude   │   │ Claude    │  │ Future    │                 │
-│   │Baseline  │   │ + MCP     │  │ Agents    │                 │
-│   │(no tools)│   │(Deep Search)│  │(Cursor..) │                 │
-│   └────┬─────┘   └────┬──────┘  └────┬──────┘                 │
-│        │               │               │                        │
-│        └───────────────┼───────────────┘                        │
-│                        │                                          │
-│                  ┌─────▼──────────┐                             │
-│                  │  NeMo Tracing  │  (Structured metrics)       │
-│                  │  + Observability│                             │
-│                  └─────┬──────────┘                             │
-│                        │                                          │
-│                  ┌─────▼──────────┐                             │
-│                  │  Results &     │                             │
-│                  │  Manifests     │                             │
-│                  └─────┬──────────┘                             │
-│                        │                                          │
-│        ┌───────────────┼───────────────┐                        │
-│        │               │               │                        │
-│   ┌────▼─────┐   ┌────▼──────┐  ┌────▼──────┐                 │
-│   │Aggregation│   │Comparison  │  │Analysis   │                 │
-│   │& Analysis │   │& Reporting │  │& Summary  │                 │
-│   └──────────┘   └────────────┘  └───────────┘                 │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                    CodeContextBench Platform                      │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │           Streamlit Dashboard (Web UI)                   │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐   │   │
+│  │  │  Home    │ │Benchmark │ │Run Tasks │ │Results   │   │   │
+│  │  │          │ │Manager   │ │& Monitor │ │& Charts  │   │   │
+│  │  └──────────┘ └──────────┘ └──────────┘ └───────────┘   │   │
+│  └────────────────────┬─────────────────────────────────────┘   │
+│                       │ (triggers execution, displays results)   │
+│  ┌────────────────────▼─────────────────────────────────────┐   │
+│  │         Harbor Orchestration + Podman VMs               │   │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │   │
+│  │  │ Benchmark    │ │ Benchmark    │ │ Benchmark   │    │   │
+│  │  │ Task VM      │ │ Task VM      │ │ Task VM     │    │   │
+│  │  │ (Isolated)   │ │ (Isolated)   │ │ (Isolated)  │    │   │
+│  │  └──────┬───────┘ └──────┬───────┘ └──────┬──────┘    │   │
+│  │         │                │                │            │   │
+│  │  ┌──────▼────────────────▼────────────────▼──────────┐ │   │
+│  │  │      Agent Execution (Baseline/MCP Variants)      │ │   │
+│  │  │  ┌───────────────┐  ┌───────────────────────┐    │ │   │
+│  │  │  │ Claude Code   │  │ Sourcegraph MCP      │    │ │   │
+│  │  │  │ (autonomous)  │  │ (Deep Search, etc)   │    │ │   │
+│  │  │  └───────────────┘  └───────────────────────┘    │ │   │
+│  │  └────────────────────────────────────────────────────┘ │   │
+│  └────────────────────┬─────────────────────────────────────┘   │
+│                       │ (Harbor captures metrics)                │
+│  ┌────────────────────▼─────────────────────────────────────┐   │
+│  │         Metrics & Analysis Pipeline                      │   │
+│  │  ┌────────────┐ ┌────────────┐ ┌───────────────────┐   │   │
+│  │  │ Extraction │ │ LLM Judge  │ │ Visualization &  │   │   │
+│  │  │ (Harbor)   │ │ Assessment │ │ Reporting        │   │   │
+│  │  └────────────┘ └────────────┘ └───────────────────┘   │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                    │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## Project Milestones
+## Core Components
 
-### Setup (Completed)
-- Installed Harbor framework (harborai v0.1.25)
-- Created isolated `.venv-harbor` environment
-- All benchmark tasks converted to Harbor format
+### Dashboard (`dashboard/`)
+Streamlit web application for benchmark management and analysis:
+- **app.py**: Main entry point, page routing, session state
+- **views/**: Page implementations (Home, Benchmark Manager, Run Benchmarks, Results, Analysis)
+- **utils/**: Shared utilities (filters, navigation, analysis loaders)
+- **components/**: Reusable UI components
 
-### Benchmark Infrastructure (Completed)
-- Fixed Dockerfiles to properly clone repositories
-- Validated repo cloning and agent execution
-- Created 4 agent variants for A/B testing
+### Agents (`agents/`)
+Claude Code variants with different Sourcegraph configurations:
+- **BaselineClaudeCodeAgent**: No MCP, pure Claude Code autonomous
+- **StrategicDeepSearchAgent**: MCP with selective Deep Search usage (recommended)
+- **DeepSearchFocusedAgent**: MCP with aggressive Deep Search prompting
+- **MCPNonDeepSearchAgent**: MCP with keyword/NLS only (no Deep Search)
+- **FullToolkitAgent**: MCP with all tools, neutral prompting
 
-### Available Benchmarks (Current)
-- **big_code_mcp**: 4 tasks on large codebases (VS Code, Kubernetes, Servo, TensorRT)
-- **github_mined**: 25 real PyTorch pull request tasks
-- **dependeval_benchmark**: 9 multi-file/cross-repo tasks
-- **10figure**: 4 legacy codebase challenges
-- **dibench**: Dependency inference (adapter-generated)
-- **repoqa**: Tool-sensitive code understanding (adapter-generated)
+### Infrastructure (`infrastructure/`, `runners/`)
+Harbor + Podman execution environment:
+- **Podman VMs**: Isolated containers for each benchmark task execution
+- **Harbor CLI**: Orchestrates agent execution, captures outputs and metrics
+- **Custom Runners**: Benchmark lifecycle, profile execution, post-processing
 
-### Next Steps
-- Run baseline vs MCP comparison with enterprise metrics
-- Analyze benchmark results and generate comparative report
-- Validate MCP improvement hypothesis
+### Metrics & Analysis (`src/analysis/`, `src/ingest/`)
+Post-execution analysis pipeline:
+- **Metrics Extraction**: Parses Harbor outputs for execution traces
+- **LLM Judge**: Claude-based assessment of solution quality
+- **Visualization**: Plotly charts, cost analysis, tool usage heatmaps
+
+### Benchmarks (`benchmarks/`)
+50+ task suites across multiple domains:
+- **big_code_mcp** (4 tasks): Large codebases (VS Code, Kubernetes, Servo, TensorRT)
+- **github_mined** (25 tasks): Real PyTorch PR tasks
+- **dependeval** (9 tasks): Multi-file dependency reasoning
+- **TAC** (9+ tasks): Agent company benchmark suite
+- **repoqa**: Tool-sensitive code understanding
+- Plus SWEBench, DIBench, Kubernetes Docs integrations
 
 ## Directory Structure
 

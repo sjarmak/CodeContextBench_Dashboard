@@ -335,12 +335,12 @@ echo "Complete! Results in artifacts/pilot-observability.json"
 
 **Required for all agents:**
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+export ANTHROPIC_API_KEY="<your-api-key>"
 ```
 
 **Required for MCP agent only:**
 ```bash
-export SOURCEGRAPH_ACCESS_TOKEN="sgp_..."
+export SOURCEGRAPH_ACCESS_TOKEN="<your-token>"
 export SOURCEGRAPH_URL="https://sourcegraph.sourcegraph.com"  # or your instance
 ```
 
