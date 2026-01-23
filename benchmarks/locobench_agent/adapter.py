@@ -502,6 +502,26 @@ class LoCoBenchAdapter(BaseAdapter):
                 "title": task.title,
             }, f, indent=2)
 
+        # 9. Generate solution/solve.sh for oracle agent testing
+        solution_dir = output_dir / "solution"
+        solution_dir.mkdir(parents=True, exist_ok=True)
+
+        solve_template = self.templates_dir / "solution" / "solve.sh"
+        if solve_template.exists():
+            # Format ground truth content for embedding in bash heredoc
+            if isinstance(task.ground_truth, dict):
+                ground_truth_content = json.dumps(task.ground_truth, indent=2)
+            else:
+                ground_truth_content = str(task.ground_truth)
+
+            solve_content = self._render_template(
+                solve_template,
+                {"ground_truth_content": ground_truth_content}
+            )
+            solve_path = solution_dir / "solve.sh"
+            solve_path.write_text(solve_content)
+            solve_path.chmod(0o755)
+
     def generate_task(self, task_id: str, local_task_id: str) -> None:
         """
         Generate a new Harbor task for a LoCoBench-Agent scenario.

@@ -56,14 +56,11 @@ RUN apt-get update && apt-get install -y php php-cli php-mbstring \
 # Create working directories
 RUN mkdir -p /app /logs /workspace /tests
 
-# Copy project files
+# Copy project files (project/ is inside environment/ directory)
 COPY project /app/project
 
-# Copy test files
-COPY tests/ground_truth.json /tests/ground_truth.json
-COPY tests/test.sh /tests/test.sh
-COPY tests/verify.py /tests/verify.py
-RUN chmod +x /tests/test.sh
+# Note: test files are NOT copied here - Harbor uploads them to /tests
+# at verification time using docker compose cp
 
 WORKDIR /app
 

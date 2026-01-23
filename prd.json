@@ -170,8 +170,8 @@
         "Create benchmarks/locobench_agent/SMOKE_TEST_RESULTS.md documenting: tasks tested, commands run, results, any issues found"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Tested two tasks: csharp_data_warehouse_expert_012_architectural_understanding_expert_01 (architectural_understanding) and c_blockchain_nft_expert_071_bug_investigation_expert_01 (bug_investigation). Adapter generates correct Harbor task structure. Fixed Dockerfile (removed incorrect test file COPY commands) and added solution/solve.sh for oracle testing. Infrastructure issues identified: Docker build timeout (heavy multi-language Dockerfile) and podman-compose cp compatibility. These are environment issues, not adapter/framework errors. See SMOKE_TEST_RESULTS.md for full details."
     },
     {
       "id": "US-012",

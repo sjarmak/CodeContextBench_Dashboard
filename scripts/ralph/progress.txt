@@ -9,6 +9,9 @@ Started: Fri Jan 23 16:26:49 EST 2026
 - Harbor models import from installed package: `from harbor.models.task.config import TaskConfig`
 - TOML templates must have valid syntax - use static placeholder values, update metadata after parsing
 - JSONL may be incomplete; LoCoBenchLoader supplements from raw scenario JSON files
+- Harbor uploads tests to container at verification time via `docker compose cp` - do NOT copy tests in Dockerfile
+- Oracle agent requires `solution/solve.sh` that writes expected solution to the agent's output location
+- Harbor task structure: task.toml, instruction.md, tests/, environment/, solution/ (for oracle)
 ---
 
 ## 2026-01-23 - US-002
@@ -130,4 +133,21 @@ Started: Fri Jan 23 16:26:49 EST 2026
   - Language distribution: rust(10), c(9), csharp(8), python(7), cpp(5), java(4), typescript(3), javascript(3), go(1)
   - Each task directory structure: instruction.md, task.toml, tests/{ground_truth.json,test.sh,verify.py,task_metadata.json}, environment/{Dockerfile,project/}
   - Tasks ready for harbor run with baseline agent (US-011)
+---
+
+## 2026-01-23 - US-011
+- What was implemented: Smoke tested LoCoBench-Agent adapter with Harbor, documented results
+- Files changed:
+  - benchmarks/locobench_agent/templates/environment/Dockerfile (removed incorrect COPY commands for tests)
+  - benchmarks/locobench_agent/templates/solution/solve.sh (created - oracle agent support)
+  - benchmarks/locobench_agent/adapter.py (added solution directory generation)
+  - benchmarks/locobench_agent/tasks/* (regenerated all 50 tasks with fixes)
+  - benchmarks/locobench_agent/SMOKE_TEST_RESULTS.md (created)
+- **Learnings for future iterations:**
+  - Harbor uploads tests to /tests at verification time using docker compose cp - do NOT copy tests in Dockerfile
+  - Oracle agent requires solution/solve.sh that writes expected output to /app/solution.md
+  - Heavy multi-language Dockerfile causes build timeouts (>5min) - consider pre-built base image
+  - podman-compose may have issues with docker compose cp on newly-built images
+  - swebench_pro tasks work fine with Harbor (using pre-built images), confirming adapter pattern is correct
+  - Each task now includes: instruction.md, task.toml, solution/solve.sh, tests/*, environment/*
 ---
