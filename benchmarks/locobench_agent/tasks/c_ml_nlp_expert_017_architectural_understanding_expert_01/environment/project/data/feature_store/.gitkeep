@@ -1,0 +1,383 @@
+```c
+/*******************************************************************************
+ *  LexiLearn MVC Orchestrator
+ *  ---------------------------------
+ *  Module        : Feature Store (SQLite-backed implementation)
+ *  File path     : lexilearn_orchestrator/data/feature_store/feature_store.c
+ *  Language      : C11
+ *
+ *  Description   :
+ *      A lightweight, thread-safe feature store providing CRUD operations
+ *      for scalar and vector-based features associated with a particular
+ *      learner.  The implementation relies on SQLite for durability and
+ *      pthread mutexes for concurrency control.  The design purposefully
+ *      avoids bleeding SQLite details into calling code, thereby allowing
+ *      alternative back-ends (e.g., Redis, Parquet, or in-memory) to be
+ *      swapped via the Factory Pattern without altering downstream logic.
+ *
+ *  Build         :
+ *      gcc -std=c11 -Wall -Wextra -pedantic -lsqlite3 -lpthread \
+ *          feature_store.c -o feature_store
+ *
+ *  NOTE:
+ *      In production this compilation is handled by CMake; flags shown above
+ *      are illustrative only.
+ ******************************************************************************/
+
+#define _POSIX_C_SOURCE 200809L /* strdup, clock_gettime */
+#include <errno.h>
+#include <inttypes.h>
+#include <pthread.h>
+#include <sqlite3.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/* ============================================================================
+ *  Public API
+ * ==========================================================================*/
+typedef struct FeatureStore FeatureStore;
+
+/* Initializes (and opens) the feature store at `db_path`. */
+int feature_store_open(FeatureStore **out_fs, const char *db_path);
+
+/* Closes the feature store and frees all resources. */
+void feature_store_close(FeatureStore *fs);
+
+/* Inserts or updates a single scalar feature value. */
+int feature_store_upsert_scalar(FeatureStore     *fs,
+                                const char       *student_id,
+                                const char       *feature_group,
+                                const char       *feature_name,
+                                double            value,
+                                const char       *version_tag);
+
+/* Inserts or updates a vector (array of float32) feature value. */
+int feature_store_upsert_vector(FeatureStore     *fs,
+                                const char       *student_id,
+                                const char       *feature_group,
+                                const char       *feature_name,
+                                const float      *values,
+                                size_t            length,
+                                const char       *version_tag);
+
+/* Retrieves a scalar feature value. Returns 0 on success, -1 if not found. */
+int feature_store_get_scalar(FeatureStore *fs,
+                             const char   *student_id,
+                             const char   *feature_group,
+                             const char   *feature_name,
+                             double       *out_value);
+
+/* ============================================================================
+ *  Implementation details – DO NOT rely on anything below this line
+ * ==========================================================================*/
+
+struct FeatureStore {
+    sqlite3        *db;
+    pthread_mutex_t mtx;
+};
+
+/* SQL statement templates --------------------------------------------------*/
+static const char *SQL_PRAGMA_FK            = "PRAGMA foreign_keys = ON;";
+static const char *SQL_CREATE_TABLE_FEATURE =
+    "CREATE TABLE IF NOT EXISTS feature ("
+    "   id            INTEGER PRIMARY KEY AUTOINCREMENT,"
+    "   student_id    TEXT    NOT NULL,"
+    "   feature_group TEXT    NOT NULL,"
+    "   feature_name  TEXT    NOT NULL,"
+    "   is_vector     INTEGER NOT NULL,"          /* 0 = scalar, 1 = vector */
+    "   scalar_val    REAL,"                      /* Nullable */
+    "   vector_val    BLOB,"                      /* Serialized float array */
+    "   vector_len    INTEGER,"                   /* #elements when vector */
+    "   version_tag   TEXT    NOT NULL,"
+    "   ts_updated    INTEGER NOT NULL,"          /* epoch millis */
+    "   UNIQUE(student_id, feature_group, feature_name, version_tag)"
+    ");";
+
+static const char *SQL_UPSERT_SCALAR =
+    "INSERT INTO feature "
+    "(student_id, feature_group, feature_name, is_vector, scalar_val,"
+    " vector_val, vector_len, version_tag, ts_updated) "
+    "VALUES(?,?,?,?,?,?,?, ?,?) "
+    "ON CONFLICT(student_id, feature_group, feature_name, version_tag) "
+    "DO UPDATE SET scalar_val=excluded.scalar_val, "
+    "              ts_updated=excluded.ts_updated;";
+
+static const char *SQL_UPSERT_VECTOR =
+    "INSERT INTO feature "
+    "(student_id, feature_group, feature_name, is_vector, scalar_val,"
+    " vector_val, vector_len, version_tag, ts_updated) "
+    "VALUES(?,?,?,?,?,?,?, ?,?) "
+    "ON CONFLICT(student_id, feature_group, feature_name, version_tag) "
+    "DO UPDATE SET vector_val=excluded.vector_val, "
+    "              vector_len=excluded.vector_len, "
+    "              ts_updated=excluded.ts_updated;";
+
+static const char *SQL_SELECT_SCALAR =
+    "SELECT scalar_val FROM feature "
+    "WHERE student_id=?1 AND feature_group=?2 AND feature_name=?3 "
+    "  AND is_vector=0 "
+    "ORDER BY ts_updated DESC LIMIT 1;";
+
+/* Utility helpers ----------------------------------------------------------*/
+static inline int64_t now_epoch_millis(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static int ensure_schema(sqlite3 *db)
+{
+    char *errmsg = NULL;
+    const char *stmts[] = { SQL_PRAGMA_FK, SQL_CREATE_TABLE_FEATURE };
+    for (size_t i = 0; i < sizeof(stmts)/sizeof(stmts[0]); ++i) {
+        if (sqlite3_exec(db, stmts[i], NULL, NULL, &errmsg) != SQLITE_OK) {
+            fprintf(stderr, "SQLite schema error: %s\n", errmsg);
+            sqlite3_free(errmsg);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* Core API functions -------------------------------------------------------*/
+int feature_store_open(FeatureStore **out_fs, const char *db_path)
+{
+    if (!out_fs || !db_path) return EINVAL;
+
+    FeatureStore *fs = calloc(1, sizeof(*fs));
+    if (!fs) return ENOMEM;
+
+    int rc = sqlite3_open_v2(db_path, &fs->db,
+                             SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
+                             SQLITE_OPEN_FULLMUTEX, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Could not open SQLite DB: %s\n", sqlite3_errmsg(fs->db));
+        sqlite3_close(fs->db);
+        free(fs);
+        return rc;
+    }
+
+    if (ensure_schema(fs->db) != 0) {
+        sqlite3_close(fs->db);
+        free(fs);
+        return -1;
+    }
+
+    if (pthread_mutex_init(&fs->mtx, NULL) != 0) {
+        sqlite3_close(fs->db);
+        free(fs);
+        return errno;
+    }
+
+    *out_fs = fs;
+    return 0;
+}
+
+void feature_store_close(FeatureStore *fs)
+{
+    if (!fs) return;
+    sqlite3_close(fs->db);
+    pthread_mutex_destroy(&fs->mtx);
+    free(fs);
+}
+
+static int upsert_scalar_locked(FeatureStore     *fs,
+                                const char       *student_id,
+                                const char       *feature_group,
+                                const char       *feature_name,
+                                double            value,
+                                const char       *version_tag)
+{
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(fs->db, SQL_UPSERT_SCALAR, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) goto cleanup;
+
+    int64_t ts_now = now_epoch_millis();
+
+    sqlite3_bind_text (stmt, 1, student_id,     -1, SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, feature_group,  -1, SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 3, feature_name,   -1, SQLITE_STATIC);
+    sqlite3_bind_int  (stmt, 4, 0);                       /* is_vector   */
+    sqlite3_bind_double(stmt,5, value);                   /* scalar_val  */
+    sqlite3_bind_null (stmt, 6);                          /* vector_val  */
+    sqlite3_bind_null (stmt, 7);                          /* vector_len  */
+    sqlite3_bind_text (stmt, 8, version_tag,   -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 9, ts_now);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "SQLite upsert_scalar failed: %s\n",
+                sqlite3_errmsg(fs->db));
+        rc = -1;
+    } else {
+        rc = 0;
+    }
+
+cleanup:
+    if (stmt) sqlite3_finalize(stmt);
+    return rc;
+}
+
+int feature_store_upsert_scalar(FeatureStore     *fs,
+                                const char       *student_id,
+                                const char       *feature_group,
+                                const char       *feature_name,
+                                double            value,
+                                const char       *version_tag)
+{
+    if (!fs || !student_id || !feature_group ||
+        !feature_name || !version_tag) return EINVAL;
+
+    pthread_mutex_lock(&fs->mtx);
+    int rc = upsert_scalar_locked(fs, student_id, feature_group,
+                                  feature_name, value, version_tag);
+    pthread_mutex_unlock(&fs->mtx);
+    return rc;
+}
+
+static int upsert_vector_locked(FeatureStore     *fs,
+                                const char       *student_id,
+                                const char       *feature_group,
+                                const char       *feature_name,
+                                const float      *values,
+                                size_t            length,
+                                const char       *version_tag)
+{
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(fs->db, SQL_UPSERT_VECTOR, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) goto cleanup;
+
+    int64_t ts_now = now_epoch_millis();
+
+    sqlite3_bind_text (stmt, 1, student_id,    -1, SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, feature_group, -1, SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 3, feature_name,  -1, SQLITE_STATIC);
+    sqlite3_bind_int  (stmt, 4, 1);                       /* is_vector   */
+    sqlite3_bind_null (stmt, 5);                          /* scalar_val  */
+
+    /* Serialize float array to BLOB */
+    sqlite3_bind_blob(stmt, 6, values, length * sizeof(float), SQLITE_TRANSIENT);
+    sqlite3_bind_int (stmt, 7, (int)length);
+    sqlite3_bind_text(stmt, 8, version_tag, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 9, ts_now);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "SQLite upsert_vector failed: %s\n",
+                sqlite3_errmsg(fs->db));
+        rc = -1;
+    } else {
+        rc = 0;
+    }
+
+cleanup:
+    if (stmt) sqlite3_finalize(stmt);
+    return rc;
+}
+
+int feature_store_upsert_vector(FeatureStore     *fs,
+                                const char       *student_id,
+                                const char       *feature_group,
+                                const char       *feature_name,
+                                const float      *values,
+                                size_t            length,
+                                const char       *version_tag)
+{
+    if (!fs || !student_id || !feature_group || !feature_name ||
+        !values || length == 0 || !version_tag) return EINVAL;
+
+    pthread_mutex_lock(&fs->mtx);
+    int rc = upsert_vector_locked(fs, student_id, feature_group, feature_name,
+                                  values, length, version_tag);
+    pthread_mutex_unlock(&fs->mtx);
+    return rc;
+}
+
+static int get_scalar_locked(FeatureStore *fs,
+                             const char   *student_id,
+                             const char   *feature_group,
+                             const char   *feature_name,
+                             double       *out_value)
+{
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(fs->db, SQL_SELECT_SCALAR, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) goto cleanup;
+
+    sqlite3_bind_text(stmt, 1, student_id,    -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, feature_group, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, feature_name,  -1, SQLITE_STATIC);
+
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        if (out_value) *out_value = sqlite3_column_double(stmt, 0);
+        rc = 0;
+    } else if (rc == SQLITE_DONE) {
+        rc = -1; /* Not found */
+    } else {
+        fprintf(stderr, "SQLite get_scalar: %s\n", sqlite3_errmsg(fs->db));
+        rc = -1;
+    }
+
+cleanup:
+    if (stmt) sqlite3_finalize(stmt);
+    return rc;
+}
+
+int feature_store_get_scalar(FeatureStore *fs,
+                             const char   *student_id,
+                             const char   *feature_group,
+                             const char   *feature_name,
+                             double       *out_value)
+{
+    if (!fs || !student_id || !feature_group ||
+        !feature_name || !out_value) return EINVAL;
+
+    pthread_mutex_lock(&fs->mtx);
+    int rc = get_scalar_locked(fs, student_id, feature_group,
+                               feature_name, out_value);
+    pthread_mutex_unlock(&fs->mtx);
+    return rc;
+}
+
+/* ============================================================================
+ *  Example usage (for ad-hoc testing only)
+ * ==========================================================================*/
+#ifdef FEATURE_STORE_STANDALONE_TEST
+int main(void)
+{
+    FeatureStore *fs = NULL;
+    if (feature_store_open(&fs, "lexilearn_feature_store.db") != 0) {
+        fprintf(stderr, "Failed to open feature store\n");
+        return EXIT_FAILURE;
+    }
+
+    /* Upsert scalar */
+    feature_store_upsert_scalar(fs, "student_123",
+                                "reading_comprehension",
+                                "lexile_score", 980.0, "v1");
+
+    /* Upsert vector */
+    float embedding[3] = { 0.12f, 0.34f, 0.56f };
+    feature_store_upsert_vector(fs, "student_123",
+                                "semantic_embeddings",
+                                "essay_2024_05_17", embedding,
+                                3, "v1");
+
+    /* Retrieve scalar */
+    double score = 0.0;
+    if (feature_store_get_scalar(fs, "student_123",
+                                 "reading_comprehension",
+                                 "lexile_score", &score) == 0) {
+        printf("Student 123 lexile score: %.2f\n", score);
+    } else {
+        printf("Score not found\n");
+    }
+
+    feature_store_close(fs);
+    return EXIT_SUCCESS;
+}
+#endif /* FEATURE_STORE_STANDALONE_TEST */
+```

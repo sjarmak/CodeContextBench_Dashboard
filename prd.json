@@ -106,8 +106,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created adapter.py with LoCoBenchTask dataclass (all 11 fields), from_dict() class method, and LoCoBenchLoader with load(), all_ids(), filter_by_task_category(), filter_by_language(), filter_by_difficulty(), and get_all_tasks() methods. Successfully tested loading all 8000 tasks."
     },
     {
       "id": "US-008",
@@ -123,8 +123,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented LoCoBenchAdapter with _render_template(), _create_instruction(), _prepare_task_from_template(), generate_task(). Imports Harbor TaskConfig and TaskPaths from installed package. LoCoBenchLoader supplements missing JSONL fields from raw scenario files. Added expected_approach field to LoCoBenchTask dataclass."
     },
     {
       "id": "US-009",
@@ -140,8 +140,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created run_adapter.py CLI with argparse. Supports --dataset_path, --output_dir, --task_ids, --limit, --selected_tasks (bonus), --data_dir. Logs progress as [N/M] task_id, handles errors gracefully continuing with next task. Tested successfully generating tasks from both direct IDs and selected_tasks.json."
     },
     {
       "id": "US-010",
@@ -156,8 +156,8 @@
         "No generation errors for selected tasks"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Generated all 50 selected tasks to benchmarks/locobench_agent/tasks/. Each task has: instruction.md, task.toml, tests/ground_truth.json, tests/test.sh, tests/verify.py, tests/task_metadata.json, environment/Dockerfile, environment/project/. No generation errors occurred."
     },
     {
       "id": "US-011",
