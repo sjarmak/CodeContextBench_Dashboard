@@ -1,0 +1,26 @@
+version = "1.0"
+
+[metadata]
+author_name = "LoCoBench-Agent Adapter"
+author_email = "unknown"
+difficulty = "{difficulty}"
+category = "{task_category}"
+tags = ["locobench-agent", "{task_category}", "{language}"]
+language = "{language}"
+context_length = {context_length}
+files_count = {files_count}
+task_id = "{id}"
+
+[verifier]
+timeout_sec = 600.0
+command = "bash /tests/test.sh"
+
+[agent]
+timeout_sec = 1200.0
+model_hint = "requires-mcp"
+
+[environment]
+build_timeout_sec = 300.0
+cpus = 2
+memory = "8G"
+storage = "20G"

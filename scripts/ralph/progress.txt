@@ -1,0 +1,74 @@
+# Ralph Progress Log
+Started: Fri Jan 23 16:26:49 EST 2026
+
+## Codebase Patterns
+- LoCoBench scenario IDs follow pattern: `{language}_{domain}_{complexity}_{num}_{task_category}_{difficulty}_{variant}`
+- Context file paths in scenarios use `//` separator (needs normalization to `/`)
+- Ground truth format varies by task category (string for analysis, object for bug investigation)
+- Project location: match scenario ID prefix to `data/generated/{prefix}/`
+---
+
+## 2026-01-23 - US-002
+- What was implemented: Created DATA_EXPLORATION.md documenting the LoCoBench-Agent dataset structure
+- Files changed: benchmarks/locobench_agent/DATA_EXPLORATION.md (created)
+- **Learnings for future iterations:**
+  - Dataset has 8000 scenarios across 1000 synthetic projects
+  - 8 task categories: architectural_understanding, bug_investigation, code_comprehension, cross_file_refactoring, feature_implementation, integration_testing, multi_session_development, security_analysis
+  - 10 languages: c, cpp, csharp, go, java, javascript, php, python, rust, typescript
+  - Key fields for complexity selection: context_length, metadata.files_count
+  - agent_scenarios/ contains extended multi-turn conversation formats
+  - validation/test_suites/ has automated test definitions for each scenario
+---
+
+## 2026-01-23 - US-003
+- What was implemented: Created task selection criteria documentation defining how to score and select high-complexity tasks
+- Files changed: benchmarks/locobench_agent/docs/TASK_SELECTION_CRITERIA.md (created)
+- **Learnings for future iterations:**
+  - Scoring formula: score = (0.3 * context_score) + (0.3 * files_score) + (0.4 * category_bonus)
+  - Minimum thresholds: context_length > 50K tokens, files_count > 5
+  - Category bonuses prioritize architectural_understanding (1.0), cross_file_refactoring (0.9), bug_investigation (0.8)
+  - Selection is complexity-driven, not language-driven - natural diversity expected through complexity ranking
+  - Target: top 50 tasks from the 8000 available scenarios
+---
+
+## 2026-01-23 - US-004
+- What was implemented: Created extract_dataset.py to normalize LoCoBench scenarios into JSONL format
+- Files changed: benchmarks/locobench_agent/extract_dataset.py (created)
+- **Learnings for future iterations:**
+  - Script outputs to locobench_dataset.jsonl in the same directory
+  - Language is parsed from scenario ID prefix (first underscore-separated token)
+  - files_count comes from metadata.files_count, falls back to counting context_files array
+  - ground_truth can be string OR object depending on task_category (object for bug_investigation)
+  - 800 scenarios per language, 1000 per task category (8000 total = 8 categories × 1000 projects)
+  - No mypy/pyright installed in environment - syntax validation only
+---
+
+## 2026-01-23 - US-005
+- What was implemented: Created select_tasks.py to score and rank tasks, selecting top 50 by MCP value
+- Files changed: benchmarks/locobench_agent/select_tasks.py (created), benchmarks/locobench_agent/selected_tasks.json (created)
+- **Learnings for future iterations:**
+  - 7110 of 8000 tasks meet minimum thresholds (context_length > 50K, files_count > 5)
+  - Top 50 tasks dominated by architectural_understanding (34) and cross_file_refactoring (13)
+  - Score normalization uses max values from filtered set, not entire dataset
+  - selected_tasks.json includes selection_criteria metadata for reproducibility
+  - Rust, C, and C# dominate top tasks due to inherent verbosity driving higher context lengths
+  - Average context length in top 50: ~968K tokens (much higher than 50K minimum)
+---
+
+## 2026-01-23 - US-006
+- What was implemented: Created Harbor task templates for LoCoBench-Agent adapter
+- Files changed:
+  - benchmarks/locobench_agent/templates/task.toml (created)
+  - benchmarks/locobench_agent/templates/instruction.md (created)
+  - benchmarks/locobench_agent/templates/environment/Dockerfile (created)
+  - benchmarks/locobench_agent/templates/tests/test.sh (created)
+  - benchmarks/locobench_agent/templates/tests/verify.py (created)
+- **Learnings for future iterations:**
+  - Harbor templates follow consistent pattern: task.toml, instruction.md, environment/Dockerfile, tests/test.sh
+  - Template placeholders use {placeholder} syntax (not {{}} or $VAR)
+  - test.sh must always exit 0 for Harbor compatibility - errors logged but don't fail
+  - Reward written to /logs/verifier/reward.txt (float) or /logs/verifier/reward.json (object with score)
+  - Dockerfile needs multi-language support: Python, Node.js, Rust, Go, Java, .NET, PHP for all 10 LoCoBench languages
+  - Verifier uses keyword overlap + file references + code blocks for semantic similarity (extendable to LLM-based)
+  - Solution expected at /app/solution.md - standard output location for agents
+---
