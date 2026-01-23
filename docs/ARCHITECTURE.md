@@ -1,100 +1,123 @@
 # CodeContextBench Architecture
 
-CodeContextBench is a **benchmark evaluation platform** for measuring how Sourcegraph code intelligence improves coding agent performance. The system features:
+CodeContextBench manages three distinct phases of benchmark evaluation:
 
-- **Streamlit Dashboard**: Web UI for benchmark management, execution, and result analysis
-- **VM Orchestration**: Harbor + Podman infrastructure running agents in isolated containers
-- **Multiple Agent Variants**: Claude Code baseline + four MCP variants with different Sourcegraph tool configurations
-- **Comprehensive Evaluation**: Automated metrics extraction, LLM judge assessment, and interactive visualization
+1. **Adapter Generation & Verification** (local) — Create Harbor-compatible task adapters and validate with baseline agent
+2. **GCP VM Benchmark Execution** (remote) — Run full agent/benchmark matrix on isolated GCP VMs
+3. **Results Analysis & Visualization** (local) — Ingest VM outputs into Streamlit dashboard for comparative analysis
 
 ## Design Philosophy
 
-- **Dashboard-first UX**: Primary interaction through Streamlit web interface (no CLI required)
-- **Reproducible Evaluation**: Deterministic task environments, isolated VM execution, captured metrics
-- **Fair Comparison**: Baseline and MCP agents have identical autonomous capabilities
-- **Extensible Framework**: New benchmarks, agents, and metrics can be added independently
+- **Separated Concerns**: Adapter generation, baseline verification (local) ← separate infrastructure → GCP VM execution
+- **Dashboard as Result Repository**: Dashboard ingests completed VM runs; does NOT orchestrate execution
+- **Reproducible Benchmarking**: Deterministic task environments, isolated execution, comprehensive metrics capture
+- **Scalable Infrastructure**: Local verification runs are quick (minutes); full VM runs handle large matrix efficiently
 
 
 ## System Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                    CodeContextBench Platform                      │
+│            PHASE 1: LOCAL ADAPTER GENERATION                     │
 ├──────────────────────────────────────────────────────────────────┤
-│                                                                    │
+│  Developer Machine / CI/CD                                       │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │           Streamlit Dashboard (Web UI)                   │   │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐   │   │
-│  │  │  Home    │ │Benchmark │ │Run Tasks │ │Results   │   │   │
-│  │  │          │ │Manager   │ │& Monitor │ │& Charts  │   │   │
-│  │  └──────────┘ └──────────┘ └──────────┘ └───────────┘   │   │
-│  └────────────────────┬─────────────────────────────────────┘   │
-│                       │ (triggers execution, displays results)   │
-│  ┌────────────────────▼─────────────────────────────────────┐   │
-│  │         Harbor Orchestration + Podman VMs               │   │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │   │
-│  │  │ Benchmark    │ │ Benchmark    │ │ Benchmark   │    │   │
-│  │  │ Task VM      │ │ Task VM      │ │ Task VM     │    │   │
-│  │  │ (Isolated)   │ │ (Isolated)   │ │ (Isolated)  │    │   │
-│  │  └──────┬───────┘ └──────┬───────┘ └──────┬──────┘    │   │
-│  │         │                │                │            │   │
-│  │  ┌──────▼────────────────▼────────────────▼──────────┐ │   │
-│  │  │      Agent Execution (Baseline/MCP Variants)      │ │   │
-│  │  │  ┌───────────────┐  ┌───────────────────────┐    │ │   │
-│  │  │  │ Claude Code   │  │ Sourcegraph MCP      │    │ │   │
-│  │  │  │ (autonomous)  │  │ (Deep Search, etc)   │    │ │   │
-│  │  │  └───────────────┘  └───────────────────────┘    │ │   │
-│  │  └────────────────────────────────────────────────────┘ │   │
-│  └────────────────────┬─────────────────────────────────────┘   │
-│                       │ (Harbor captures metrics)                │
-│  ┌────────────────────▼─────────────────────────────────────┐   │
-│  │         Metrics & Analysis Pipeline                      │   │
-│  │  ┌────────────┐ ┌────────────┐ ┌───────────────────┐   │   │
-│  │  │ Extraction │ │ LLM Judge  │ │ Visualization &  │   │   │
-│  │  │ (Harbor)   │ │ Assessment │ │ Reporting        │   │   │
-│  │  └────────────┘ └────────────┘ └───────────────────┘   │   │
+│  │  Adapter Generation & Baseline Verification              │   │
+│  │  - Create benchmarks in benchmarks/                       │   │
+│  │  - Generate Harbor-compatible adapters                   │   │
+│  │  - Run local Harbor with BaselineClaudeCodeAgent          │   │
+│  │  - Validate metrics extraction                           │   │
+│  │  - Upload adapters to GCS for VM deployment              │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                    │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────────┐
+│        PHASE 2: REMOTE GCP VM BENCHMARK EXECUTION                │
+├──────────────────────────────────────────────────────────────────┤
+│  GCP Virtual Machine (n1-standard-8+)                            │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Full Agent/Benchmark Matrix Execution                   │   │
+│  │  - Download adapters from GCS                            │   │
+│  │  - Run agents (baseline + 4 MCP variants)                │   │
+│  │  - Large benchmark suites (50+ tasks)                    │   │
+│  │  - Extended timeouts for complex codebases               │   │
+│  │  - Capture detailed execution traces                     │   │
+│  │  - Upload results to GCS bucket                          │   │
+│  │  - Monitor via Cloud Logging / custom telemetry          │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────────┐
+│    PHASE 3: LOCAL RESULTS ANALYSIS & VISUALIZATION               │
+├──────────────────────────────────────────────────────────────────┤
+│  Developer Machine                                               │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Results Ingestion & Dashboard                           │   │
+│  │  - Download VM run outputs from GCS                      │   │
+│  │  - Parse and normalize metrics                           │   │
+│  │  - Run LLM judge assessment                              │   │
+│  │  - Ingest into local SQLite database                     │   │
+│  │  - Streamlit Dashboard for visualization:                │   │
+│  │    * Agent comparison charts                             │   │
+│  │    * Tool usage analytics                                │   │
+│  │    * Cost analysis and reports                           │   │
+│  │    * LLM judge assessment summaries                       │   │
+│  └──────────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Components
 
-### Dashboard (`dashboard/`)
-Streamlit web application for benchmark management and analysis:
-- **app.py**: Main entry point, page routing, session state
-- **views/**: Page implementations (Home, Benchmark Manager, Run Benchmarks, Results, Analysis)
-- **utils/**: Shared utilities (filters, navigation, analysis loaders)
+### Phase 1: Adapter Generation & Verification (Local)
+
+**Benchmarks (`benchmarks/`)**
+- Task definitions in TOML format (50+ tasks across suites)
+- Harbor-compatible adapters (environment, tests, scoring)
+- Task categories: big_code_mcp, github_mined, dependeval, TAC, repoqa, etc.
+
+**Local Execution (`agents/`, `harbor/`)**
+- **BaselineClaudeCodeAgent**: No MCP (control group)
+- **MCP Variants** (4 types): Different Sourcegraph configuration strategies
+- Harbor orchestration running local Docker/Podman containers
+- Quick verification runs (minutes per task) before GCP deployment
+
+**Verification Pipeline (`scripts/`)**
+- `init_benchmarks.py`: Generate/validate adapters
+- `ingest_results.py`: Parse metrics from local runs
+- Unit tests verifying adapter structure and metrics extraction
+
+### Phase 2: Remote GCP VM Execution
+
+**TODO** — See [docs/GCP_BENCHMARK_EXECUTION.md](GCP_BENCHMARK_EXECUTION.md) for:
+- VM provisioning and Harbor environment setup
+- Artifact deployment from local → GCS → VM
+- Full agent matrix execution (baseline + 4 MCP variants across all tasks)
+- Execution monitoring and telemetry
+- Results upload to GCS bucket
+
+**Key difference from Phase 1**: VM execution runs full benchmark suites with extended timeouts, handling large codebases that are impractical locally.
+
+### Phase 3: Results Ingestion & Analysis (Local)
+
+**Dashboard (`dashboard/`)**
+- Streamlit web app for result visualization
+- **views/**: Home, Benchmark Manager, Experiment Results, Agent Comparison, Deep Search Analytics
+- **utils/**: Filters, navigation, analysis loaders
 - **components/**: Reusable UI components
+- Ingests completed VM runs from `jobs/` directory
 
-### Agents (`agents/`)
-Claude Code variants with different Sourcegraph configurations:
-- **BaselineClaudeCodeAgent**: No MCP, pure Claude Code autonomous
-- **StrategicDeepSearchAgent**: MCP with selective Deep Search usage (recommended)
-- **DeepSearchFocusedAgent**: MCP with aggressive Deep Search prompting
-- **MCPNonDeepSearchAgent**: MCP with keyword/NLS only (no Deep Search)
-- **FullToolkitAgent**: MCP with all tools, neutral prompting
-
-### Infrastructure (`infrastructure/`, `runners/`)
-Harbor + Podman execution environment:
-- **Podman VMs**: Isolated containers for each benchmark task execution
-- **Harbor CLI**: Orchestrates agent execution, captures outputs and metrics
-- **Custom Runners**: Benchmark lifecycle, profile execution, post-processing
-
-### Metrics & Analysis (`src/analysis/`, `src/ingest/`)
-Post-execution analysis pipeline:
-- **Metrics Extraction**: Parses Harbor outputs for execution traces
-- **LLM Judge**: Claude-based assessment of solution quality
+**Metrics & Analysis (`src/analysis/`, `src/ingest/`)**
+- **Metrics Extraction**: Parses Harbor outputs into normalized format
+- **LLM Judge**: Claude-based solution quality assessment
 - **Visualization**: Plotly charts, cost analysis, tool usage heatmaps
+- **Database**: SQLite storage for efficient querying and comparison
 
-### Benchmarks (`benchmarks/`)
-50+ task suites across multiple domains:
-- **big_code_mcp** (4 tasks): Large codebases (VS Code, Kubernetes, Servo, TensorRT)
-- **github_mined** (25 tasks): Real PyTorch PR tasks
-- **dependeval** (9 tasks): Multi-file dependency reasoning
-- **TAC** (9+ tasks): Agent company benchmark suite
-- **repoqa**: Tool-sensitive code understanding
-- Plus SWEBench, DIBench, Kubernetes Docs integrations
+**Post-processing (`scripts/`)**
+- `ingest_results.py`: Download VM results, parse, normalize
+- `postprocess_experiment.py`: Run LLM judge assessment
+- `analyze_mcp_experiment.py`: Generate comparison reports
 
 ## Directory Structure
 
