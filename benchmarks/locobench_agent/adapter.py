@@ -330,6 +330,113 @@ class LoCoBenchAdapter(BaseAdapter):
             content = content.replace(f"{{{{ {key} }}}}", str(value))
         return content
 
+    def _generate_dockerfile(self, language: str) -> str:
+        """
+        Generate a language-specific Dockerfile.
+
+        Each task only needs its own language toolchain, not all 10 languages.
+        This significantly reduces build time.
+
+        Args:
+            language: Programming language (e.g., 'python', 'rust', 'go')
+
+        Returns:
+            Dockerfile content as string
+        """
+        # Base image and common setup
+        base = """FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install base dependencies
+RUN apt-get update && apt-get install -y \\
+    build-essential \\
+    curl \\
+    wget \\
+    git \\
+    ca-certificates \\
+    jq \\
+    && rm -rf /var/lib/apt/lists/*
+
+"""
+        # Language-specific installations
+        lang_installs = {
+            "python": """# Install Python 3.10
+RUN apt-get update && apt-get install -y \\
+    python3.10 \\
+    python3.10-dev \\
+    python3-pip \\
+    && rm -rf /var/lib/apt/lists/*
+""",
+            "javascript": """# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\
+    && apt-get install -y nodejs \\
+    && rm -rf /var/lib/apt/lists/*
+""",
+            "typescript": """# Install Node.js 20 (for TypeScript)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\
+    && apt-get install -y nodejs \\
+    && rm -rf /var/lib/apt/lists/*
+""",
+            "rust": """# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+""",
+            "go": """# Install Go
+RUN wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz \\
+    && tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz \\
+    && rm go1.21.0.linux-amd64.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+""",
+            "java": """# Install Java 17
+RUN apt-get update && apt-get install -y openjdk-17-jdk \\
+    && rm -rf /var/lib/apt/lists/*
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+""",
+            "csharp": """# Install .NET 7
+RUN wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb \\
+    && dpkg -i packages-microsoft-prod.deb \\
+    && rm packages-microsoft-prod.deb \\
+    && apt-get update && apt-get install -y dotnet-sdk-7.0 \\
+    && rm -rf /var/lib/apt/lists/*
+""",
+            "php": """# Install PHP
+RUN apt-get update && apt-get install -y php php-cli php-mbstring \\
+    && rm -rf /var/lib/apt/lists/*
+""",
+            "c": """# C uses build-essential (already installed)
+""",
+            "cpp": """# C++ uses build-essential (already installed)
+RUN apt-get update && apt-get install -y g++ \\
+    && rm -rf /var/lib/apt/lists/*
+""",
+        }
+
+        # Get language install (default to Python for verifier compatibility)
+        lang_install = lang_installs.get(language.lower(), lang_installs["python"])
+
+        # Always include Python for the verifier
+        if language.lower() not in ("python",):
+            lang_install += """
+# Install Python 3 for verifier
+RUN apt-get update && apt-get install -y python3 python3-pip \\
+    && rm -rf /var/lib/apt/lists/*
+"""
+
+        # Common footer
+        footer = """
+# Create working directories
+RUN mkdir -p /app /logs /workspace /tests
+
+# Copy project files
+COPY project /app/project
+
+WORKDIR /app
+
+CMD ["/bin/bash"]
+"""
+        return base + lang_install + footer
+
     def _create_instruction(self, task: LoCoBenchTask) -> str:
         """
         Create instruction.md content for the task.
@@ -446,13 +553,9 @@ class LoCoBenchAdapter(BaseAdapter):
             # Create empty project directory
             env_project_dir.mkdir(parents=True, exist_ok=True)
 
-        # 4. Generate environment/Dockerfile
-        dockerfile_template = self.templates_dir / "environment" / "Dockerfile"
-        if dockerfile_template.exists():
-            # Copy Dockerfile as-is (no placeholders needed for multi-language support)
-            shutil.copy(dockerfile_template, task_paths.environment_dir / "Dockerfile")
-        else:
-            raise FileNotFoundError(f"Template {dockerfile_template} not found")
+        # 4. Generate language-specific Dockerfile
+        dockerfile_content = self._generate_dockerfile(task.language)
+        (task_paths.environment_dir / "Dockerfile").write_text(dockerfile_content)
 
         # 5. Save ground truth
         ground_truth_data = {

@@ -109,6 +109,7 @@ This confirms Harbor's verifier and test upload mechanism work correctly with pr
 1. **templates/environment/Dockerfile** - Removed incorrect COPY commands for test files (Harbor uploads tests at verification time)
 2. **templates/solution/solve.sh** - Created new template for oracle agent testing
 3. **adapter.py** - Added solution directory generation (step 9 in `_prepare_task_from_template`)
+4. **adapter.py** - Added `_generate_dockerfile()` method for language-specific Dockerfiles (post-review improvement)
 
 ## Conclusions
 
