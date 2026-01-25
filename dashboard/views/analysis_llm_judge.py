@@ -1110,17 +1110,7 @@ def run_llm_judge_evaluation(
                             if task_match:
                                 task_description = task_match.group(0)[:2000]
 
-                # Extract actual code changes from trace
-                claude_file = agent_dir / "claude-code.txt"
-                code_changes = extract_code_changes_from_trace(claude_file)
-
-                # Also load beginning of trace for tool call analysis
-                trace_content = ""
-                if claude_file.exists():
-                    with open(claude_file, "r", encoding="utf-8", errors="ignore") as f:
-                        trace_content = f.read()[:20000]
-
-                # Load oracle data if available (for enhanced mode)
+                # Load oracle data first to determine task category
                 oracle_data = {}
                 mcp_analysis = {}
                 if use_enhanced and load_locobench_oracle:
@@ -1128,6 +1118,47 @@ def run_llm_judge_evaluation(
                     if oracle_data.get("ground_truth"):
                         task_result["oracle_available"] = True
                         task_result["real_task_name"] = real_task_name
+
+                # Determine if this is an analysis task vs code modification task
+                task_category = oracle_data.get("task_category", "")
+                is_analysis_task = task_category in [
+                    "architectural_understanding",
+                    "code_comprehension",
+                    "bug_investigation",
+                ]
+
+                # Get agent's solution - prefer solution.md for analysis tasks
+                agent_solution = ""
+                solution_file = agent_dir / "solution.md"
+                if solution_file.exists():
+                    with open(
+                        solution_file, "r", encoding="utf-8", errors="ignore"
+                    ) as f:
+                        agent_solution = f.read()[:15000]  # Limit to 15k chars
+
+                # For code modification tasks, also extract code changes from trace
+                claude_file = agent_dir / "claude-code.txt"
+                code_changes = ""
+                if not is_analysis_task:
+                    code_changes = extract_code_changes_from_trace(claude_file)
+
+                # Use solution.md for analysis tasks, code_changes for modification tasks
+                if is_analysis_task and agent_solution:
+                    # For analysis tasks, the solution IS the agent's answer
+                    effective_solution = agent_solution
+                elif code_changes:
+                    effective_solution = code_changes
+                elif agent_solution:
+                    # Fallback to solution.md if no code changes extracted
+                    effective_solution = agent_solution
+                else:
+                    effective_solution = "No solution extracted from agent output"
+
+                # Also load beginning of trace for tool call analysis
+                trace_content = ""
+                if claude_file.exists():
+                    with open(claude_file, "r", encoding="utf-8", errors="ignore") as f:
+                        trace_content = f.read()[:20000]
 
                     # Analyze MCP tool usage
                     if analyze_mcp_tool_usage:
@@ -1138,13 +1169,11 @@ def run_llm_judge_evaluation(
 
                 # Run evaluation based on mode
                 if use_enhanced:
-                    # Build enhanced input
+                    # Build enhanced input - use effective_solution (solution.md or code changes)
                     judge_input = EnhancedJudgeInput(
                         task_id=task,
                         task_description=task_description,
-                        code_changes=code_changes
-                        if code_changes
-                        else "No code changes extracted",
+                        code_changes=effective_solution,  # This is now the right content for task type
                         tool_calls=trace_content[:10000],
                         reward=reward,
                         trajectory=trace_content[:8000],
@@ -1160,7 +1189,7 @@ def run_llm_judge_evaluation(
                         mcp_effectiveness_score=mcp_analysis.get("effectiveness_score"),
                         mcp_recommendations=mcp_analysis.get("recommendations"),
                         # Metadata
-                        task_category=oracle_data.get("task_category"),
+                        task_category=task_category,  # Use the extracted task_category
                         difficulty=oracle_data.get("difficulty"),
                     )
 
