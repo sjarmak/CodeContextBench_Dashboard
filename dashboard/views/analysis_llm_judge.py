@@ -1125,6 +1125,7 @@ def run_llm_judge_evaluation(
                     "architectural_understanding",
                     "code_comprehension",
                     "bug_investigation",
+                    "security_analysis",  # Returns vulnerability report, not code
                 ]
 
                 # Get agent's solution - prefer solution.md for analysis tasks
