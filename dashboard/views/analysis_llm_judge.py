@@ -210,13 +210,13 @@ def show_llm_judge():
         }
 
     # Tabs for different sections
-    tabs = st.tabs(["📊 View Reports", "🧪 Run Evaluation", "📋 Rubric Configuration"])
+    tabs = st.tabs(["🧪 Run Evaluation", "📊 View Reports", "📋 Rubric Configuration"])
 
     with tabs[0]:
-        show_reports_view(project_root)
+        show_evaluation_config(project_root)
 
     with tabs[1]:
-        show_evaluation_config(project_root)
+        show_reports_view(project_root)
 
     with tabs[2]:
         show_rubric_config(project_root)
