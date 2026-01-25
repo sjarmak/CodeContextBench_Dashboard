@@ -750,7 +750,7 @@ class EnhancedLLMJudge:
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=1000,
+                max_tokens=2000,  # Increased for detailed reasoning
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -762,7 +762,30 @@ class EnhancedLLMJudge:
             elif "```" in text:
                 text = text.split("```")[1].split("```")[0]
 
-            return json.loads(text.strip())
+            # Try to parse JSON
+            try:
+                return json.loads(text.strip())
+            except json.JSONDecodeError as je:
+                # If JSON parsing fails, try to extract partial JSON
+                # This can happen if the response is truncated
+                import re
+
+                # Try to find a complete JSON object
+                json_match = re.search(
+                    r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL
+                )
+                if json_match:
+                    try:
+                        return json.loads(json_match.group(0))
+                    except:
+                        pass
+                # Return error with truncated response for debugging
+                return {
+                    "score": "fail",
+                    "reasoning": f"JSON parsing failed: {str(je)}. Response preview: {text[:200]}...",
+                    "strengths": [],
+                    "weaknesses": ["Evaluation error - malformed JSON response"],
+                }
         except Exception as e:
             return {
                 "score": "fail",
