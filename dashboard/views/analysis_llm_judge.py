@@ -647,21 +647,40 @@ def show_evaluation_config(project_root: Path):
     st.markdown("**Select Results to Evaluate**")
 
     experiments = []
+    paired_experiments = {}  # Track which experiments are paired (baseline/deepsearch)
+
     if EXTERNAL_JOBS_DIR.exists():
-        experiments = [
-            d.name
-            for d in sorted(
-                EXTERNAL_JOBS_DIR.iterdir(),
-                key=lambda x: x.stat().st_mtime,
-                reverse=True,
-            )
-            if d.is_dir()
-            and not d.name.startswith(".")
-            and (d / "result.json").exists()
-        ]
+        for d in sorted(
+            EXTERNAL_JOBS_DIR.iterdir(),
+            key=lambda x: x.stat().st_mtime,
+            reverse=True,
+        ):
+            if not d.is_dir() or d.name.startswith("."):
+                continue
+
+            # Check for paired experiment structure (baseline/ and/or deepsearch/)
+            baseline_dir = d / "baseline"
+            deepsearch_dir = d / "deepsearch"
+
+            if baseline_dir.exists() or deepsearch_dir.exists():
+                # This is a paired experiment - add both modes as options
+                if baseline_dir.exists():
+                    exp_name = f"{d.name} [baseline]"
+                    experiments.append(exp_name)
+                    paired_experiments[exp_name] = ("baseline", baseline_dir)
+                if deepsearch_dir.exists():
+                    exp_name = f"{d.name} [deepsearch]"
+                    experiments.append(exp_name)
+                    paired_experiments[exp_name] = ("deepsearch", deepsearch_dir)
+            elif (d / "result.json").exists():
+                # Standard Harbor format
+                experiments.append(d.name)
 
     if not experiments:
-        st.info("No experiments found. Load results first in Run Results view.")
+        st.info(
+            "No experiments found. Check that CCB_EXTERNAL_JOBS_DIR is set correctly."
+        )
+        st.caption(f"Current directory: {EXTERNAL_JOBS_DIR}")
         return
 
     selected_exp = st.selectbox("Experiment", experiments, key="eval_exp_select")
@@ -669,13 +688,29 @@ def show_evaluation_config(project_root: Path):
     if not selected_exp:
         return
 
-    # Load tasks
-    exp_dir = EXTERNAL_JOBS_DIR / selected_exp
-    task_dirs = [
-        d.name
-        for d in exp_dir.iterdir()
-        if d.is_dir() and not d.name.startswith(".") and (d / "agent").exists()
-    ]
+    # Determine experiment directory based on type
+    if selected_exp in paired_experiments:
+        mode, mode_dir = paired_experiments[selected_exp]
+        # For paired experiments, find tasks inside timestamp subdirectories
+        task_dirs = []
+        for subdir in mode_dir.iterdir():
+            if not subdir.is_dir():
+                continue
+            # Check if this is a timestamp directory containing task dirs
+            for item in subdir.iterdir():
+                if item.is_dir() and (item / "result.json").exists():
+                    task_dirs.append(f"{subdir.name}/{item.name}")
+            # Or if this directory itself is a task
+            if (subdir / "result.json").exists():
+                task_dirs.append(subdir.name)
+    else:
+        # Standard Harbor format
+        exp_dir = EXTERNAL_JOBS_DIR / selected_exp
+        task_dirs = [
+            d.name
+            for d in exp_dir.iterdir()
+            if d.is_dir() and not d.name.startswith(".") and (d / "agent").exists()
+        ]
 
     if not task_dirs:
         st.info("No task instances found in this experiment.")
