@@ -9,12 +9,12 @@ Defines the schema for evaluation_report.json that aggregates:
 - Environment and provenance info
 """
 
-from dataclasses import dataclass, field, asdict
+import hashlib
+import json
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import json
-import hashlib
 
 
 @dataclass
@@ -71,14 +71,28 @@ class JudgeAssessment:
     """LLM judge assessment for a dimension."""
 
     dimension: str  # "retrieval_quality", "code_quality", etc.
-    score: float  # 1-5
+    score: float  # 0-4 (legacy) or 0-1 (enhanced: 0=fail, 0.5=partial, 1=pass)
     reasoning: str
     strengths: List[str]
     weaknesses: List[str]
     judge_model: str
 
+    # Enhanced fields (optional, for new EnhancedLLMJudge)
+    score_label: str = ""  # "pass", "partial", "fail"
+    oracle_alignment: Optional[str] = None  # "full", "partial", "none"
+    criteria_met: Optional[List[Dict[str, Any]]] = None  # Per-criterion results
+    vote_distribution: Optional[Dict[str, int]] = None  # Voting results
+    confidence: Optional[float] = None  # Voting confidence (0-1)
+    num_rounds: int = 1  # Number of voting rounds
+
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        result = asdict(self)
+        # Remove None values for cleaner JSON
+        return {k: v for k, v in result.items() if v is not None}
+
+    def is_enhanced(self) -> bool:
+        """Check if this is from the enhanced judge."""
+        return bool(self.score_label)
 
 
 @dataclass
@@ -174,7 +188,9 @@ class ExperimentEvaluation:
 
     # Report metadata
     report_version: str = "1.0.0"
-    generated_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    generated_at: str = field(
+        default_factory=lambda: datetime.utcnow().isoformat() + "Z"
+    )
 
     def compute_summary(self):
         """Compute aggregate statistics across all agent runs."""
@@ -199,7 +215,10 @@ class ExperimentEvaluation:
             stats = agent_stats[agent_name]
             stats["total_runs"] += 1
             stats["successes"] += 1 if run.success else 0
-            stats["total_tokens"] += run.token_metrics.total_input_tokens + run.token_metrics.total_output_tokens
+            stats["total_tokens"] += (
+                run.token_metrics.total_input_tokens
+                + run.token_metrics.total_output_tokens
+            )
             if run.token_metrics.total_cost_usd:
                 stats["total_cost_usd"] += run.token_metrics.total_cost_usd
 
@@ -235,7 +254,9 @@ class ExperimentEvaluation:
             "experiment_id": self.experiment_id,
             "experiment_description": self.experiment_description,
             "profile_name": self.profile_name,
-            "benchmark_metadata": self.benchmark_metadata.to_dict() if self.benchmark_metadata else None,
+            "benchmark_metadata": self.benchmark_metadata.to_dict()
+            if self.benchmark_metadata
+            else None,
             "agent_runs": [run.to_dict() for run in self.agent_runs],
             "summary": self.summary,
             "report_version": self.report_version,
