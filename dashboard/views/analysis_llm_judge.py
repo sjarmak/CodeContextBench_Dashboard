@@ -824,6 +824,7 @@ def show_evaluation_config(project_root: Path):
                 selected_exp,
                 selected_tasks,
                 config,
+                paired_experiments,
             )
 
 
@@ -1004,7 +1005,11 @@ def extract_tool_counts_from_trace(trace_content: str) -> dict:
 
 
 def run_llm_judge_evaluation(
-    project_root: Path, experiment: str, tasks: list, config: dict
+    project_root: Path,
+    experiment: str,
+    tasks: list,
+    config: dict,
+    paired_experiments: dict = None,
 ):
     """Execute LLM judge evaluation on selected tasks with oracle data support."""
 
@@ -1021,6 +1026,13 @@ def run_llm_judge_evaluation(
     progress_bar = st.progress(0)
     status_text = st.empty()
     results = []
+
+    # Determine base directory for this experiment
+    if paired_experiments and experiment in paired_experiments:
+        mode, mode_dir = paired_experiments[experiment]
+        base_dir = mode_dir
+    else:
+        base_dir = EXTERNAL_JOBS_DIR / experiment
 
     try:
         if use_enhanced:
@@ -1040,7 +1052,7 @@ def run_llm_judge_evaluation(
             status_text.text(f"Evaluating task {i + 1}/{len(tasks)}: {task[:50]}...")
             progress_bar.progress((i + 1) / len(tasks))
 
-            task_dir = EXTERNAL_JOBS_DIR / experiment / task
+            task_dir = base_dir / task
             agent_dir = task_dir / "agent"
 
             task_result = {
@@ -1051,6 +1063,18 @@ def run_llm_judge_evaluation(
             }
 
             try:
+                # Load config for real task name (needed for oracle lookup)
+                config_file = task_dir / "config.json"
+                real_task_name = task  # fallback to trial name
+                if config_file.exists():
+                    with open(config_file) as f:
+                        task_config = json.load(f)
+                        # Extract real task name from path
+                        task_path = task_config.get("task", {}).get("path", "")
+                        if task_path:
+                            # Path like /home/.../tasks/c_api_graphql_expert_079_architectural_understanding_expert_01
+                            real_task_name = Path(task_path).name
+
                 # Load result for reward info
                 result_file = task_dir / "result.json"
                 reward = 0.0
@@ -1100,9 +1124,10 @@ def run_llm_judge_evaluation(
                 oracle_data = {}
                 mcp_analysis = {}
                 if use_enhanced and load_locobench_oracle:
-                    oracle_data = load_locobench_oracle(task)
+                    oracle_data = load_locobench_oracle(real_task_name)
                     if oracle_data.get("ground_truth"):
                         task_result["oracle_available"] = True
+                        task_result["real_task_name"] = real_task_name
 
                     # Analyze MCP tool usage
                     if analyze_mcp_tool_usage:
