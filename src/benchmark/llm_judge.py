@@ -550,14 +550,18 @@ class EnhancedLLMJudge:
                 oracle_criteria_formatted=self._format_criteria(
                     judge_input.oracle_evaluation_criteria
                 ),
-                code_changes=judge_input.code_changes[:5000],
+                code_changes=judge_input.code_changes[
+                    :20000
+                ],  # Increased for full analysis
                 reward=judge_input.reward,
             )
         else:
             # Use simple evaluation
             prompt = CORRECTNESS_PROMPT_SIMPLE.format(
                 task_description=judge_input.task_description[:2000],
-                code_changes=judge_input.code_changes[:5000],
+                code_changes=judge_input.code_changes[
+                    :20000
+                ],  # Increased for full analysis
                 reward=judge_input.reward,
             )
 
@@ -590,13 +594,13 @@ class EnhancedLLMJudge:
                 oracle_criteria_formatted=self._format_criteria(
                     judge_input.oracle_evaluation_criteria
                 ),
-                code_changes=judge_input.code_changes[:5000],
+                code_changes=judge_input.code_changes[:20000],
             )
         else:
             # Fallback to simple correctness as proxy for completeness
             prompt = CORRECTNESS_PROMPT_SIMPLE.format(
                 task_description=judge_input.task_description[:2000],
-                code_changes=judge_input.code_changes[:5000],
+                code_changes=judge_input.code_changes[:20000],
                 reward=judge_input.reward,
             )
 
