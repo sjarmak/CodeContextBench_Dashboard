@@ -189,7 +189,7 @@ Then provide your final assessment.
 - **partial**: Solution captures some elements but misses important aspects
 - **fail**: Solution does not align with the ground truth
 
-Respond with JSON only:
+Respond with valid JSON only (escape all quotes and special characters):
 {{
     "criteria_analysis": [
         {{"criterion": "<criterion text>", "met": true, "evidence": "<quote from solution>"}}
@@ -223,7 +223,7 @@ Check each criterion and determine if the agent's solution addresses it.
 - **partial**: Some criteria are addressed (40-80%)
 - **fail**: Few or no criteria are addressed (<40%)
 
-Respond with JSON only:
+Respond with valid JSON only (escape all quotes and special characters):
 {{
     "criteria_results": [
         {{"criterion": "<criterion text>", "addressed": true, "evidence": "<quote or explanation>"}}
@@ -269,7 +269,7 @@ MCP_EFFECTIVENESS_PROMPT = """You are evaluating an AI agent's use of MCP (Model
 - **partially_effective**: Some MCP tool use, found some files, some inefficiency
 - **ineffective**: No/poor MCP tool use, missed key files, or excessive redundancy
 
-Respond with JSON only:
+Respond with valid JSON only (escape all quotes and special characters):
 {{
     "used_deepsearch": true | false,
     "used_keyword_search": true | false,
@@ -305,7 +305,7 @@ Note: Test results are informative but not definitive. Focus on solution quality
 - **partial**: Solution addresses part of the issue but has gaps
 - **fail**: Solution does not address the issue or is incorrect
 
-Respond with JSON only:
+Respond with valid JSON only (escape all quotes and special characters):
 {{
     "score": "pass" | "partial" | "fail",
     "reasoning": "<2-3 sentences>",
@@ -327,7 +327,7 @@ RETRIEVAL_PROMPT_SIMPLE = """You are evaluating an AI agent's code search and re
 - **partial**: Agent found some relevant code but missed key areas
 - **fail**: Agent's search strategy was poor or found wrong code
 
-Respond with JSON only:
+Respond with valid JSON only (escape all quotes and special characters):
 {{
     "score": "pass" | "partial" | "fail",
     "reasoning": "<2-3 sentences>",
@@ -349,7 +349,7 @@ CODE_QUALITY_PROMPT_SIMPLE = """You are evaluating the quality of an AI agent's 
 - **partial**: Code works but has quality issues
 - **fail**: Code has significant quality problems
 
-Respond with JSON only:
+Respond with valid JSON only (escape all quotes and special characters):
 {{
     "score": "pass" | "partial" | "fail",
     "reasoning": "<2-3 sentences>",
