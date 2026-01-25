@@ -716,20 +716,36 @@ def show_evaluation_config(project_root: Path):
         st.info("No task instances found in this experiment.")
         return
 
-    col1, col2 = st.columns([3, 1])
+    # Initialize session state for task selection if needed
+    if "eval_tasks_select" not in st.session_state:
+        st.session_state.eval_tasks_select = (
+            task_dirs[:5] if len(task_dirs) > 5 else task_dirs
+        )
+
+    # Handle select all - must be done BEFORE widget is created
+    def select_all_tasks():
+        st.session_state.eval_tasks_select = task_dirs
+
+    def clear_all_tasks():
+        st.session_state.eval_tasks_select = []
+
+    st.caption(f"Found {len(task_dirs)} tasks in this experiment")
+
+    col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
         selected_tasks = st.multiselect(
             "Tasks to evaluate",
             task_dirs,
-            default=task_dirs[:5] if len(task_dirs) > 5 else task_dirs,
             key="eval_tasks_select",
         )
     with col2:
         st.markdown("")
         st.markdown("")
-        if st.button("Select All"):
-            st.session_state.eval_tasks_select = task_dirs
-            st.rerun()
+        st.button("Select All", on_click=select_all_tasks, key="select_all_btn")
+    with col3:
+        st.markdown("")
+        st.markdown("")
+        st.button("Clear", on_click=clear_all_tasks, key="clear_all_btn")
 
     st.markdown("")
 
