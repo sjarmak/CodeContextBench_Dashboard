@@ -158,3 +158,26 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - parentUuid links messages in conversation tree, tool_use id links to tool_result
   - The existing src/ingest/transcript_parser.py parses claude-code.txt differently (text-based extraction) - trace_viewer_parser is JSONL-native
 ---
+
+## 2026-01-27 - US-010: Trace summary overview panel
+- What was implemented: Verified that trace summary overview panel was already fully implemented in a prior session
+- Files already present:
+  - dashboard/utils/trace_summary.py - render_trace_summary_panel() with metric cards, Plotly bar chart, and file access table
+  - dashboard/tests/test_trace_summary.py - 18 passing tests covering all components
+  - dashboard/views/run_results.py (lines 1530-1546) - Integration rendering panel at top of trace view
+- Files changed:
+  - prd.json - Marked US-010 passes: true
+  - progress.txt - Added this entry
+- **Verification results:**
+  - All 18 tests pass (7 file access builder, 3 metric cards, 2 tool chart, 2 file table, 1 panel, 3 load-and-render)
+  - Metric cards: total messages, tool calls, unique tools, total tokens, session duration (formatted as Xm Ys)
+  - Plotly bar chart renders tool calls sorted descending with hover data
+  - File access table with File Path, Reads, Writes, Edits, Total columns sorted by total descending
+  - Panel rendered above st.tabs in show_claude_code_trace(), above the full trace
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - trace_summary.py uses render_trace_summary_panel(summary, session_duration) - takes pre-computed TraceSummary
+  - load_and_render_trace_summary(claude_file, session_duration) is a convenience function that parses + renders
+  - In run_results.py, the summary is built from inline-parsed data via _build_file_access_from_trace() rather than using the JSONL parser directly
+  - The trace tab structure: summary panel -> st.tabs([Full Trace, Tool Calls, Code Changes, Bash Commands, Raw])
+---
