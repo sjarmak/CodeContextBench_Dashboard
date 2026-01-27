@@ -23,6 +23,7 @@ from benchmark.database import RunManager, TaskManager
 from benchmark.trace_parser import TraceParser
 
 from dashboard.utils.benchmark_detection import detect_benchmark_set
+from dashboard.utils.task_list import render_task_list
 
 # External runs directory - configurable via environment or default
 EXTERNAL_RUNS_DIR = Path(
@@ -724,6 +725,28 @@ def _show_paired_experiment_comparison(
 
     st.dataframe(comparison_rows, use_container_width=True, hide_index=True)
 
+    # Side-by-side task list for common mode
+    st.markdown("---")
+    st.subheader("Task Comparison")
+
+    mode_select_options = [m for m in all_modes if m in baseline_modes and m in variant_modes]
+    if mode_select_options:
+        selected_mode = st.selectbox(
+            "Compare tasks in mode",
+            mode_select_options,
+            key="paired_compare_mode_select",
+        )
+        if selected_mode:
+            b_tasks = baseline_modes[selected_mode].get("tasks", [])
+            v_tasks = variant_modes[selected_mode].get("tasks", [])
+            render_task_list(
+                b_tasks,
+                key_prefix=f"paired_compare_{selected_mode}",
+                paired_variant_tasks=v_tasks,
+            )
+    else:
+        st.info("No common modes between baseline and variant for task comparison.")
+
 
 def show_paired_experiment(exp_data):
     """Display a paired comparison experiment (baseline vs MCP)."""
@@ -794,37 +817,17 @@ def show_paired_mode_tasks(mode_data, mode_name):
         st.info("No tasks found for this mode.")
         return
 
-    # Create task table
-    task_table = []
-    for task in sorted(tasks, key=lambda t: t.get("reward") or 0, reverse=True):
-        reward = task.get("reward")
-        input_tok = task.get("input_tokens")
-        output_tok = task.get("output_tokens")
-        task_table.append(
-            {
-                "Task": task["task_name"][:50],
-                "Reward": f"{reward:.4f}" if reward is not None else "N/A",
-                "Status": task.get("status", "unknown"),
-                "Input Tokens": f"{input_tok:,}" if input_tok is not None else "N/A",
-                "Output Tokens": f"{output_tok:,}" if output_tok is not None else "N/A",
-            }
-        )
-
-    st.dataframe(task_table, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-
-    # Task detail selector
-    task_names = [t["task_name"] for t in tasks]
-    selected_task_name = st.selectbox(
-        "View Task Details", task_names, key=f"task_select_{mode_name}"
+    selected_task_id = render_task_list(
+        tasks,
+        key_prefix=f"paired_{mode_name}",
     )
 
-    if selected_task_name:
+    if selected_task_id:
         selected_task = next(
-            (t for t in tasks if t["task_name"] == selected_task_name), None
+            (t for t in tasks if t["task_name"] == selected_task_id), None
         )
         if selected_task:
+            st.markdown("---")
             show_paired_task_detail(selected_task)
 
 
@@ -1133,31 +1136,17 @@ def show_external_task_results(exp_data):
         st.info("No task instances found.")
         return
 
-    # Create summary table
-    task_data = []
-    for task in tasks:
-        task_data.append(
-            {
-                "Task": task["task_name"],
-                "Agent": task["agent_name"].split("__")[0]
-                if "__" in task["agent_name"]
-                else task["agent_name"],
-                "Status": task["status"],
-                "Reward": task.get("reward", "N/A"),
-            }
+    selected_task_id = render_task_list(
+        tasks,
+        key_prefix=f"ext_{exp_data['name']}",
+    )
+
+    if selected_task_id:
+        task_detail = next(
+            (t for t in tasks if t["task_name"] == selected_task_id), None
         )
-
-    st.dataframe(task_data, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-
-    # Task detail selector
-    task_names = [t["task_name"] for t in tasks]
-    selected_task = st.selectbox("View Task Details", task_names)
-
-    if selected_task:
-        task_detail = next((t for t in tasks if t["task_name"] == selected_task), None)
         if task_detail:
+            st.markdown("---")
             show_external_task_detail(exp_data, task_detail)
 
 

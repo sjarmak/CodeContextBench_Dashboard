@@ -26,6 +26,11 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - manifest.json pairs can reference run_ids that match experiment names or mode suffixes (e.g., "exp_name_baseline")
 - Streamlit session_state persists radio/select state across reruns; use key= param for widget identification
 - show_run_results() is the main entry point; it delegates to _show_individual_mode() and _show_paired_mode()
+- Task list reusable component: dashboard/utils/task_list.py with render_task_list() for filters, sort, and display
+- Task normalization: normalize_task() converts both paired mode tasks and external tasks into NormalizedTask dataclass
+- LoCoBench task IDs parsed by regex: {language}_{domain}_{complexity}_{num}_{task_category}_{difficulty}_{variant}
+- SWE-Bench task IDs parsed by regex: instance_{org}__{repo}__{hash} (language always Python)
+- Use frozen dataclasses for immutable value objects (TaskMetadata, NormalizedTask, TaskFilter)
 ---
 
 ## 2026-01-27 - US-002
@@ -97,4 +102,28 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Streamlit st.radio with horizontal=True creates a clean mode toggle; use key= and session_state for persistence
   - When refactoring a large function, extract mode-specific logic into private functions (prefix with _) to keep the main function as a dispatcher
   - test_analysis_ir.py has 12 pre-existing failures (missing dashboard.utils.view_base module) - not related to this feature
+---
+
+## 2026-01-27 - US-006
+- Created `dashboard/utils/task_list.py` with reusable task list component
+- Task metadata parsing: `parse_task_metadata()` extracts language, task type, difficulty from LoCoBench and SWE-Bench task ID patterns
+- Task normalization: `normalize_task()` converts different experiment formats into uniform `NormalizedTask` dataclass
+- Status derivation: `_determine_status()` maps reward > 0 to "pass", reward == 0 to "fail", error status preserved
+- Multi-criteria filtering via `filter_tasks()` with AND logic: status multiselect, language multiselect, task type multiselect, difficulty select, text search
+- Sort dropdown with 5 options: Name, Duration, Token Count, Reward, Status (ascending/descending)
+- Paired mode: `_build_paired_table_rows()` shows side-by-side status/reward columns for baseline and variant
+- Task selection stored in `st.session_state["selected_task_id"]`
+- Updated `show_external_task_results()` and `show_paired_mode_tasks()` in `run_results.py` to use `render_task_list()`
+- Added paired task comparison to `_show_paired_experiment_comparison()` with mode selector
+- Created `dashboard/tests/test_task_list.py` with 65 unit tests covering all components
+- Files changed: `dashboard/utils/task_list.py`, `dashboard/views/run_results.py`, `dashboard/tests/test_task_list.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Task data comes from two different loaders: `_scan_paired_mode_tasks()` (paired) and `load_external_tasks()` (single) with different field names
+  - Paired mode tasks have `input_tokens`/`output_tokens`; external tasks have `total_tokens` and `execution_time`
+  - `reward > 0` maps to pass, `reward == 0` maps to fail - this is the primary status signal
+  - LoCoBench task IDs have 7 segments separated by underscores; compound task categories like "code_review" need greedy matching
+  - SWE-Bench task IDs always use double underscore `__` to separate org/repo
+  - Use frozen dataclasses for value objects that should be immutable (TaskMetadata, NormalizedTask, TaskFilter)
+  - Streamlit `st.columns([1, 3])` creates a 1:3 ratio layout good for filter sidebar + main content
+  - `st.dataframe` with `hide_index=True` gives clean display; markdown status badges render in dataframe cells
 ---
