@@ -21,6 +21,7 @@ import pandas as pd
 import streamlit as st
 
 from dashboard.utils.judge_editor import render_judge_editor
+from dashboard.utils.judge_test_prompt import render_test_prompt_section
 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -230,6 +231,7 @@ def show_llm_judge():
 
     with tabs[3]:
         render_judge_editor(project_root)
+        render_test_prompt_section(project_root)
 
 
 def show_reports_view(project_root: Path):

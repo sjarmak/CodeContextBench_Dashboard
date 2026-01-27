@@ -47,6 +47,9 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Judge editor session keys: `judge_editor_{suffix}` prefix; `_session_key("data")` holds the mutable config dict, `_session_key("initialized")` tracks first load
 - Judge view tabs: analysis_llm_judge.py has 4 tabs: Run Evaluation, View Reports, Rubric Configuration, Prompt & Rubric Editor
 - Available Anthropic models: AVAILABLE_MODELS tuple in judge_config.py (haiku, sonnet, opus)
+- Test prompt utility: `dashboard/utils/judge_test_prompt.py` with `run_test_prompt()` and `render_test_prompt_section()` for single-task judge evaluation
+- Judge test prompt uses `_session_state_to_config()` from judge_editor to get the current editor config
+- Task data loading: config.json (instruction/prompt/problem_statement), result.json (reward), claude-code.txt (trace/code changes), solution.md
 ---
 
 ## 2026-01-27 - US-002
@@ -361,4 +364,19 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Dimension criteria are padded to 5 levels in the editor (even if fewer in config) for consistent UI
   - `st.expander` with `expanded=False` provides a collapsed-by-default section for per-level criteria
   - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-018
+- Implemented: LLM judge test prompt on single task
+- Files changed:
+  - `dashboard/utils/judge_test_prompt.py` (NEW) — Test prompt utility with task data loading, prompt building, LLM calling, response parsing, experiment discovery, and Streamlit UI rendering
+  - `dashboard/views/analysis_llm_judge.py` — Added import and call to `render_test_prompt_section()` in the "Prompt & Rubric Editor" tab
+  - `dashboard/tests/test_judge_test_prompt.py` (NEW) — 67 unit tests covering all components: data classes, code change extraction, trace parsing, task data loading, prompt building, response parsing, experiment discovery, test prompt execution, display rendering, and integration
+  - `scripts/ralph/prd.json` — Marked US-018 as passes: true
+- **Learnings for future iterations:**
+  - `_session_state_to_config()` is defined in `judge_editor.py` and imported locally in `judge_test_prompt.py` — when testing with mocks, patch it at the source module (`dashboard.utils.judge_editor._session_state_to_config`)
+  - Patching `os.environ` should use `patch.dict(os.environ, ...)` rather than patching the `os` module itself, since the module-level import means the real `os` is already bound
+  - The `TestPromptResult` dataclass name triggers a pytest collection warning because it starts with "Test" — not a blocker but worth noting
+  - Task data extraction from traces requires careful JSON parsing of JSONL format; each line is independent and malformed lines should be skipped
+  - The `render_test_prompt_section` function reads `CCB_EXTERNAL_RUNS_DIR` env var at call time (not import time), so env var mocking works correctly
 ---
