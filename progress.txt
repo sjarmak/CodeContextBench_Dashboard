@@ -355,3 +355,29 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - show_llm_judge() now has 6 tabs: Run Evaluation, View Reports, Rubric Configuration, Prompt & Rubric Editor, A/B Comparison, Human Alignment
   - When adding new tabs to analysis_llm_judge.py, all tests that mock st.tabs() must be updated with the new tab count
 ---
+
+## 2026-01-27 - US-020: LLM judge - A/B comparison mode
+- What was implemented: Verified that A/B comparison mode was already fully implemented in a prior session
+- Files already present:
+  - dashboard/utils/judge_ab_comparison.py - render_ab_comparison_tab(), run_ab_comparison(), compute_comparison_summary(), TaskComparisonResult, ComparisonSummary dataclasses
+  - dashboard/tests/test_judge_ab_comparison.py - 55 passing tests
+  - dashboard/views/analysis_llm_judge.py (line 244) - Integration as render_ab_comparison_tab() in tabs[4]
+- Files changed:
+  - prd.json - Marked US-020 passes: true
+  - progress.txt - Added this entry
+- **Verification details:**
+  - All 55 tests pass (2 session_key, 8 parse_score, 5 mean_score, 7 pearson_correlation, 6 agreement_rate, 4 comparison_summary, 5 results_table, 2 task_comparison_result, 2 comparison_summary_dataclass, 4 run_ab_comparison, 1 render_summary_stats, 2 render_results_table, 1 render_comparison_results, 2 render_tab, 2 negative_delta, 2 tab_integration)
+  - Two template selectors (A and B) with validation that different templates must be selected
+  - Task set selector: experiment selectbox + task multiselect
+  - Run Comparison button: calls run_ab_comparison() which invokes run_test_prompt() for both configs per task
+  - Results table: task_id, per-dimension scores for A and B, overall scores, delta (B-A)
+  - Summary stats: mean score per template, Pearson correlation, agreement rate (within threshold=1.0)
+  - Export as CSV via st.download_button
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - judge_ab_comparison.py uses _compute_pearson_correlation() manually (no numpy dependency)
+  - Agreement rate uses threshold=1.0 by default (configurable)
+  - Results stored in session state with key "judge_ab_results" for persistence across reruns
+  - Progress callback pattern: progress_callback(current, total) for progress bar updates
+  - At least 2 saved templates required for A/B comparison - shows info message otherwise
+---
