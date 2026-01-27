@@ -52,6 +52,9 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Template metadata: save_template() stores `_template_name` and `_created_at` alongside config data in JSON files
 - Judge test prompt uses `_session_state_to_config()` from judge_editor to get the current editor config
 - Task data loading: config.json (instruction/prompt/problem_statement), result.json (reward), claude-code.txt (trace/code changes), solution.md
+- A/B comparison: `dashboard/utils/judge_ab_comparison.py` with `render_ab_comparison_tab()` for side-by-side template evaluation
+- Pearson correlation: manual computation (no numpy) in `_compute_pearson_correlation()` for template score agreement
+- `_find_experiment_tasks()` in judge_test_prompt.py is reusable for discovering task dirs in any experiment
 ---
 
 ## 2026-01-27 - US-002
@@ -409,5 +412,37 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - `_config_to_session_state` and `_session_state_to_config` from judge_editor.py are the bridge between frozen JudgeConfig and mutable session state
   - `delete_template()` was already implemented in judge_config.py — only needed confirmation UI
   - When testing `render_template_list`, mock `_render_template_row` to avoid Streamlit column unpacking errors in unit tests
+  - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-020
+- Implemented LLM judge A/B comparison mode
+- Created `dashboard/utils/judge_ab_comparison.py` with:
+  - `TaskComparisonResult` and `ComparisonSummary` frozen dataclasses for immutable result tracking
+  - `_parse_score()` for safe string-to-float score conversion
+  - `_compute_mean_overall_score()` for averaging across TestPromptResult instances
+  - `_compute_pearson_correlation()` for template score correlation (manual, no numpy)
+  - `_compute_agreement_rate()` for fraction of tasks where templates agree within threshold
+  - `compute_comparison_summary()` orchestrates all statistics
+  - `run_ab_comparison()` runs both templates on all tasks with progress callback
+  - `_build_results_table()` builds Pandas DataFrame with per-dimension scores, overall, and delta columns
+  - `_render_summary_stats()` renders 4 metric cards: mean A, mean B, correlation, agreement rate
+  - `_render_results_table()` renders dataframe with CSV export button
+  - `render_ab_comparison_tab()` main entry point: template selectors, experiment/task selectors, run button, results display
+- Added "A/B Comparison" as 5th tab in `dashboard/views/analysis_llm_judge.py`
+- Requires >= 2 saved templates to activate (shows info message otherwise)
+- Warns if same template selected for both A and B
+- Results persisted in `st.session_state[judge_ab_results]` across reruns
+- Created `dashboard/tests/test_judge_ab_comparison.py` with 55 unit tests across 15 test classes
+- Files changed: `dashboard/utils/judge_ab_comparison.py` (NEW), `dashboard/views/analysis_llm_judge.py`, `dashboard/tests/test_judge_ab_comparison.py` (NEW), `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - `run_test_prompt()` from `judge_test_prompt.py` is reusable for evaluating any config on any task — used for both A and B in the comparison
+  - `_find_experiment_tasks()` from `judge_test_prompt.py` is reusable for experiment task discovery
+  - Manual Pearson correlation avoids numpy dependency; formula: sum((a-mean_a)(b-mean_b)) / sqrt(sum_sq_a * sum_sq_b)
+  - Zero-variance scores (all identical) yield 0 denominator in correlation — return 0.0 instead of dividing
+  - `pd.DataFrame.to_csv(index=False)` + `st.download_button(mime="text/csv")` provides clean CSV export
+  - `st.progress()` + callback pattern allows progress tracking during long-running comparison operations
+  - When building result table columns, use "A: DimName" and "B: DimName" prefixes for clear disambiguation
+  - Pre-existing ruff warnings in analysis_llm_judge.py (bare except, f-string without placeholders) — not related to this feature
   - Browser verification not available in this environment; manual verification needed
 ---

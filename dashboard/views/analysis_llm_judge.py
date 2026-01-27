@@ -20,6 +20,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from dashboard.utils.judge_ab_comparison import render_ab_comparison_tab
 from dashboard.utils.judge_editor import render_judge_editor
 from dashboard.utils.judge_template_manager import render_template_manager
 from dashboard.utils.judge_test_prompt import render_test_prompt_section
@@ -219,6 +220,7 @@ def show_llm_judge():
         "📊 View Reports",
         "📋 Rubric Configuration",
         "Prompt & Rubric Editor",
+        "A/B Comparison",
     ])
 
     with tabs[0]:
@@ -235,6 +237,9 @@ def show_llm_judge():
         render_test_prompt_section(project_root)
         st.markdown("---")
         render_template_manager(project_root)
+
+    with tabs[4]:
+        render_ab_comparison_tab(project_root)
 
 
 def show_reports_view(project_root: Path):
