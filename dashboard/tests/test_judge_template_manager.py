@@ -813,6 +813,8 @@ class TestTemplateManagerIntegration:
 
 
 class TestTabIntegration:
+    @patch("dashboard.views.analysis_llm_judge.render_human_alignment_tab")
+    @patch("dashboard.views.analysis_llm_judge.render_ab_comparison_tab")
     @patch("dashboard.views.analysis_llm_judge.show_rubric_config")
     @patch("dashboard.views.analysis_llm_judge.show_reports_view")
     @patch("dashboard.views.analysis_llm_judge.show_evaluation_config")
@@ -821,7 +823,8 @@ class TestTabIntegration:
     @patch("dashboard.views.analysis_llm_judge.st")
     def test_template_manager_in_editor_tab(
         self, mock_st, mock_editor, mock_tmpl_mgr,
-        mock_eval, mock_reports, mock_rubric
+        mock_eval, mock_reports, mock_rubric,
+        mock_ab, mock_human
     ):
         mock_st.session_state = {
             "judge_config": {
@@ -831,7 +834,7 @@ class TestTabIntegration:
             },
             "project_root": Path("/fake"),
         }
-        mock_st.tabs.return_value = [MagicMock() for _ in range(4)]
+        mock_st.tabs.return_value = [MagicMock() for _ in range(6)]
         for tab in mock_st.tabs.return_value:
             tab.__enter__ = MagicMock(return_value=tab)
             tab.__exit__ = MagicMock(return_value=False)

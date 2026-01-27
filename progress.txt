@@ -327,3 +327,31 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - _parse_judge_response() handles JSON in code blocks (```json ... ```) and partial JSON extraction with regex fallback
   - Result stored in st.session_state["test_prompt_result"] for persistence across re-renders
 ---
+
+## 2026-01-27 - US-019: LLM judge - template save and load
+- What was implemented: Verified that template save/load/delete/duplicate was already fully implemented in a prior session. Fixed tab integration test.
+- Files already present:
+  - dashboard/utils/judge_template_manager.py - render_template_manager() with save, load, delete (with confirmation), and duplicate UI
+  - dashboard/utils/judge_config.py - save_template(), load_template_info(), list_template_infos(), duplicate_template(), TemplateInfo dataclass
+  - dashboard/tests/test_judge_template_manager.py - 61 passing tests covering all components
+  - dashboard/views/analysis_llm_judge.py (line 241) - Integration as render_template_manager() in Prompt & Rubric Editor tab
+- Files changed:
+  - dashboard/tests/test_judge_template_manager.py - Fixed TestTabIntegration test: updated mock tab count from 4 to 6 and added patches for render_ab_comparison_tab and render_human_alignment_tab
+  - prd.json - Marked US-019 passes: true
+  - progress.txt - Added this entry
+- **Verification details:**
+  - All 61 tests pass (8 sanitize, 5 save, 4 load_info, 4 list_infos, 5 duplicate, 2 session_key, 3 format_created, 4 format_model, 5 render_save, 2 render_row, 1 handle_load, 2 handle_dup, 1 handle_delete_req, 2 handle_delete_confirm, 4 render_list, 3 render_delete_confirm, 2 render_manager, 3 integration, 1 tab_integration)
+  - Save Template: st.text_input for name + st.button("Save Template"), calls save_template() which writes JSON to configs/judge_templates/{sanitized_name}.json
+  - Template list: list_template_infos() returns TemplateInfo(name, filename, model, created_at) sorted by filename
+  - Load button: _handle_load() calls load_config() and _config_to_session_state() to populate editor
+  - Delete button: _handle_delete_request() sets confirm state, _render_delete_confirmation() shows Confirm Delete / Cancel buttons
+  - Duplicate button: _handle_duplicate() calls duplicate_template() which creates "{name}-copy" suffix
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - judge_template_manager.py uses SESSION_KEY_PREFIX = "judge_template_mgr" to namespace session state keys
+  - Template metadata (_template_name, _created_at) stored as underscore-prefixed keys in the JSON to distinguish from config data
+  - _sanitize_template_name() handles spaces, special chars, and empty strings -> "unnamed.json"
+  - Delete confirmation uses a two-step flow: click Delete -> session state set -> rerun shows Confirm/Cancel
+  - show_llm_judge() now has 6 tabs: Run Evaluation, View Reports, Rubric Configuration, Prompt & Rubric Editor, A/B Comparison, Human Alignment
+  - When adding new tabs to analysis_llm_judge.py, all tests that mock st.tabs() must be updated with the new tab count
+---
