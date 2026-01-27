@@ -7,6 +7,7 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Data ingestion: src/ingest/ (transcript_parser.py, harbor_parser.py, database.py)
 - Analysis modules: src/analysis/ (8 analyzers: statistical, comparator, cost, failure, time_series, ir, llm_judge, recommendation)
 - Benchmark management: src/benchmark/ (database.py, llm_judge.py, trace_parser.py)
+- Analysis config pattern: frozen dataclass + _render_* functions + render_*_config() + run_and_display_*() + chart builders + CSV export (see statistical_config.py, comparison_config.py)
 - Judge config: dashboard/utils/judge_config.py (JudgeConfig, ScoringDimension frozen dataclasses, save/load to configs/judge_templates/active_config.json)
 - Judge editor: dashboard/utils/judge_editor.py (Streamlit UI using session state dict for mutable editing, renders as tab in analysis_llm_judge.py)
 - Trace viewer parser: src/ingest/trace_viewer_parser.py - JSONL-native parser for claude-code.txt (parse_trace, compute_summary)
@@ -477,4 +478,30 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - StatisticalConfig.to_dict() converts tuples to lists for serialization
   - _build_results_dataframe() handles both cohens_d and cramers_v effect sizes
   - analysis_statistical.py view uses sidebar for config and main panel for results
+---
+
+## 2026-01-27 - US-025: Analysis Hub - GUI-driven comparison analysis config
+- What was implemented: Created new comparison_config.py module and rewrote analysis_comparison.py view
+- Files created:
+  - dashboard/utils/comparison_config.py (490 lines) - ComparisonConfig frozen dataclass, render_comparison_config() with two run selectors (baseline+variant experiment+agent), metric selector (pass_rate, reward, duration, tokens), task filter, run_and_display_comparison(), _build_comparison_dataframe() with deltas, _build_pass_rate_bar_chart() (Plotly bar), _build_per_task_scatter() (Plotly scatter), CSV export
+  - dashboard/tests/test_comparison_config.py (570 lines) - 52 passing tests
+- Files modified:
+  - dashboard/views/analysis_comparison.py - Rewrote to use comparison_config.py: sidebar config via render_comparison_config(), "Run Comparison" primary button, cached result re-rendering, interpretation guide expander
+  - prd.json - Marked US-025 passes: true
+  - progress.txt - Added this entry
+- **Verification details:**
+  - All 52 tests pass (2 session_key, 4 config_dataclass, 4 constants, 2 metric_selector, 2 task_filter, 3 run_selector, 2 render_config, 6 format_metric, 5 build_df, 3 bar_chart, 3 scatter, 4 extract_per_task, 2 run_and_display, 2 render_results, 2 integration, 6 edge_cases)
+  - Two run selectors: _render_run_selector() called for baseline and variant, each with experiment selectbox + agent selectbox
+  - Metric selector: multiselect with 4 options (pass_rate, reward, avg_duration_seconds, total_tokens) with human-readable labels
+  - Task filter: text_input for pattern-based filtering
+  - Run Comparison button: primary button triggers run_and_display_comparison()
+  - Results: comparison table with Metric/Baseline/Variant/Delta columns, pass rate bar chart (Plotly), per-task scatter plot (Plotly)
+  - CSV export: st.download_button for comparison_report.csv
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - comparison_config.py follows the same pattern as statistical_config.py: frozen dataclass + render functions + run_and_display + chart builders
+  - _extract_per_task_metrics() expects comparison_result.per_task_results attribute (may not exist for all experiments)
+  - _format_metric_value() handles pass_rate as percentage, tokens with comma separator, others as float
+  - Scatter plot adds a diagonal reference line for equal performance comparison
+  - The view caches results in session state using keys like "comparison_config_baseline_result"
 ---
