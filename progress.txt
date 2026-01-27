@@ -7,6 +7,7 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Data ingestion: src/ingest/ (transcript_parser.py, harbor_parser.py, database.py)
 - Analysis modules: src/analysis/ (8 analyzers: statistical, comparator, cost, failure, time_series, ir, llm_judge, recommendation)
 - Benchmark management: src/benchmark/ (database.py, llm_judge.py, trace_parser.py)
+- Trace viewer parser: src/ingest/trace_viewer_parser.py - JSONL-native parser for claude-code.txt (parse_trace, compute_summary)
 - Config files: configs/ directory with YAML and JSON formats
 - claude-code.txt is JSONL format (one JSON object per line), NOT plain text
 - Token usage embedded in assistant message usage field (input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens)
@@ -132,4 +133,28 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - task_list.py is a standalone component (540 lines) imported by run_results.py - it handles all filtering/sorting/rendering
   - The TaskFilter and NormalizedTask dataclasses use frozen=True for immutability
   - _show_paired_mode() handles both auto-detected pairs (from manifest) and manual pairing
+---
+
+## 2026-01-27 - US-009: JSONL trace parser for claude-code.txt
+- What was implemented: Created trace_viewer_parser.py with parse_trace() function, TraceMessage/TraceSummary dataclasses, and compute_summary()
+- Files changed:
+  - src/ingest/trace_viewer_parser.py (NEW) - JSONL parser with parse_trace(), compute_summary(), TraceMessage, TraceSummary, TokenUsage dataclasses
+  - tests/test_trace_viewer_parser.py (NEW) - 23 unit/integration tests covering all message types and summary computation
+  - prd.json - Marked US-009 passes: true
+  - progress.txt - Added this entry
+- **Implementation details:**
+  - parse_trace() reads JSONL, skips malformed lines with warning, returns list of TraceMessage
+  - TraceMessage fields: type, subtype, content, tool_name, tool_input, tool_result, token_usage, parent_tool_use_id, session_id, uuid, sequence_number
+  - Handles system/init, assistant/text, assistant/tool_use, user/text, user/tool_result subtypes
+  - Mixed content blocks (text + tool_use in same assistant line) produce multiple TraceMessages
+  - compute_summary() returns: total_messages, total_tool_calls, unique_tools, total_tokens, tools_by_name, files_accessed
+  - Token deduplication by uuid prevents double-counting from mixed content blocks
+  - files_accessed tracks read_count, write_count, edit_count per file path
+- **Learnings for future iterations:**
+  - claude-code.txt JSONL format: system (init), assistant (text/tool_use), user (text/tool_result), queue-operation (skipped)
+  - session_id field is "sessionId" in assistant/user messages, "session_id" in system messages
+  - Assistant message usage field contains input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens
+  - toolUseResult on user messages has content field (string or list of blocks)
+  - parentUuid links messages in conversation tree, tool_use id links to tool_result
+  - The existing src/ingest/transcript_parser.py parses claude-code.txt differently (text-based extraction) - trace_viewer_parser is JSONL-native
 ---
