@@ -27,6 +27,7 @@ from dashboard.utils.task_detail import render_task_detail_panel
 from dashboard.utils.task_list import render_task_list
 from dashboard.utils.trace_cards import render_trace_cards
 from dashboard.utils.trace_filters import render_trace_filter_controls
+from dashboard.utils.trace_timeline import render_tool_timeline
 
 # External runs directory - configurable via environment or default
 EXTERNAL_RUNS_DIR = Path(
@@ -1556,6 +1557,7 @@ def show_claude_code_trace(claude_file: Path):
         tabs = st.tabs(
             [
                 "💬 Full Trace",
+                "📊 Timeline",
                 "🔧 Tool Calls",
                 "📝 Code Changes",
                 "🖥️ Bash Commands",
@@ -1570,15 +1572,18 @@ def show_claude_code_trace(claude_file: Path):
             render_trace_cards(filtered_messages)
 
         with tabs[1]:
-            show_claude_tool_calls(messages, tool_calls)
+            render_tool_timeline(structured_messages)
 
         with tabs[2]:
-            show_claude_edits(edits_made)
+            show_claude_tool_calls(messages, tool_calls)
 
         with tabs[3]:
-            show_claude_bash(bash_commands)
+            show_claude_edits(edits_made)
 
         with tabs[4]:
+            show_claude_bash(bash_commands)
+
+        with tabs[5]:
             with st.expander("Raw JSONL (first 50 lines)", expanded=False):
                 with open(claude_file) as f:
                     lines = f.readlines()[:50]

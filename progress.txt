@@ -25,6 +25,8 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - result.json structure: verifier_result.rewards (reward breakdown), agent_result (tokens, exit_code, cost), timing phases (environment_setup, agent_setup, agent_execution, verifier)
 - Two task detail paths: show_paired_task_detail (paired experiments) and show_external_task_detail (single experiments) - both now use shared component
 - verifier/output.json in instance_dir contains additional verifier data that supplements result.json
+- Trace UI components: dashboard/utils/trace_summary.py (overview), trace_cards.py (message cards), trace_filters.py (search/filter), trace_timeline.py (tool timeline)
+- Trace tab structure in show_claude_code_trace(): Summary panel -> tabs[Full Trace, Timeline, Tool Calls, Code Changes, Bash Commands, Raw]
 ---
 
 ## 2026-01-27 - US-001: Update data source path from jobs/ to runs/
@@ -228,4 +230,26 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - filter_messages() applies filters in order: hide results -> type -> tool name -> text search (expensive last)
   - _is_result_for_tool() matches tool_result to tool_use by parent_tool_use_id
   - Session state keys use configurable prefix (default "trace_filter")
+---
+
+## 2026-01-27 - US-013: Tool call timeline visualization
+- What was implemented: Plotly scatter chart showing tool calls in sequence order, color-coded by category
+- Files changed:
+  - dashboard/utils/trace_timeline.py (NEW) - render_tool_timeline() with category mapping, tooltip extraction, Plotly scatter chart
+  - dashboard/tests/test_trace_timeline.py (NEW) - 40 tests covering categories, colors, tooltips, data building, rendering
+  - dashboard/views/run_results.py - Added Timeline tab (tabs[1]) to trace view, imported render_tool_timeline
+  - prd.json - Marked US-013 passes: true
+  - progress.txt - Added this entry
+- **Implementation details:**
+  - 6 categories: File Read (blue #3b82f6), File Write (green #22c55e), Search (yellow #eab308), Bash (gray #6b7280), Planning (purple #8b5cf6), Other (orange #f97316)
+  - Tool mapping: Read->File Read, Write/Edit->File Write, Grep/Glob->Search, Bash->Bash, EnterPlanMode/ExitPlanMode/TodoWrite->Planning, rest->Other
+  - Tooltips: file_path for file ops, command preview (truncated at 100 chars) for Bash, pattern for search
+  - Y-axis reversed (execution order top-to-bottom), x-axis by category
+  - Legend with toggle, hover shows Tool/Sequence/Description
+  - Dynamic height: max(400, min(n*4, 800))
+- **Learnings for future iterations:**
+  - trace_timeline.py exports: get_tool_category, extract_tooltip, extract_tool_calls, build_timeline_data, render_tool_timeline
+  - TOOL_TO_CATEGORY dict and CATEGORY_COLORS dict for extensibility
+  - Tab structure is now: Full Trace, Timeline, Tool Calls, Code Changes, Bash Commands, Raw (6 tabs)
+  - structured_messages (from parse_trace) is shared between Full Trace tab and Timeline tab
 ---
