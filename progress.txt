@@ -181,3 +181,26 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - In run_results.py, the summary is built from inline-parsed data via _build_file_access_from_trace() rather than using the JSONL parser directly
   - The trace tab structure: summary panel -> st.tabs([Full Trace, Tool Calls, Code Changes, Bash Commands, Raw])
 ---
+
+## 2026-01-27 - US-011: Full trace card rendering - message display
+- What was implemented: Verified that trace card rendering was already fully implemented in a prior session
+- Files already present:
+  - dashboard/utils/trace_cards.py - render_trace_cards() with type-specific card renderers and pagination
+  - dashboard/tests/test_trace_cards.py - 54 passing tests
+  - dashboard/views/run_results.py (line 1570) - Integration in Full Trace tab
+- Files changed:
+  - prd.json - Marked US-011 passes: true
+  - progress.txt - Added this entry
+- **Verification results:**
+  - All 54 tests pass (6 style key, 4 token format, 9 HTML rendering, 11 pagination, 4 dispatch, 2 system, 2 assistant, 2 tool_use, 4 tool_result, 7 render_trace_cards, 3 constants)
+  - Card styles: system (gray #f0f0f0), assistant_text (white #ffffff), tool_use (light blue #eff6ff), tool_result (light green #f0fdf4)
+  - Token usage format: "in: X | out: Y | cached: Z" on assistant messages
+  - Pagination: 50 messages per page with top+bottom controls
+  - Tool_result truncation at 100 lines with "Show more" expander
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - trace_cards.py uses render_trace_card(msg) for individual cards, render_trace_cards(messages, session_key) for paginated rendering
+  - CARD_STYLES dict maps style keys to background, border_color, label, label_bg
+  - Session state key for pagination defaults to "trace_page"
+  - Tool input is rendered as syntax-highlighted JSON via st.code(json.dumps(...), language="json")
+---
