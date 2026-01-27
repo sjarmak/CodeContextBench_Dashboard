@@ -152,3 +152,15 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - The task detail panel in `dashboard/utils/task_detail.py` now has 7 sections (was 5 before US-008)
   - Browser verification not available in this environment; manual verification needed
 ---
+
+## 2026-01-27 - US-009 (verification pass)
+- US-009 was already implemented and committed (f3180e75) but PRD wasn't updated to passes: true
+- Verified all 23 tests pass in tests/test_trace_viewer_parser.py
+- Fixed unused `field` import lint warning in src/ingest/trace_viewer_parser.py
+- Verified all acceptance criteria met: parse_trace(), TraceMessage dataclass, token usage extraction, summary metrics, unit tests
+- Files changed: `src/ingest/trace_viewer_parser.py` (lint fix), `scripts/ralph/prd.json` (mark passes: true)
+- **Learnings for future iterations:**
+  - Previous iteration committed the code but forgot to update the PRD - always verify PRD is updated in same commit
+  - The trace_viewer_parser.py already handles: system/assistant/user messages, mixed content blocks, malformed line skipping, token deduplication by uuid
+  - compute_summary() deduplicates token usage by uuid to avoid double-counting when assistant messages produce multiple TraceMessage objects
+---
