@@ -36,6 +36,8 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Task prompt extraction: first system message from claude-code.txt JSONL, then config.json problem_statement/instruction/prompt
 - SWE-Bench task config may be in tests/config.json with problem_statement field
 - Global pre-commit hook at ~/.config/pre-commit/hooks/ has a bug; use `git -c core.hookspath=.git/hooks commit` to bypass
+- Trace summary panel: `dashboard/utils/trace_summary.py` with `render_trace_summary_panel(summary)` takes TraceSummary from US-009 parser
+- Plotly charts in dashboard: use `px.bar()` with `fig.update_layout(showlegend=False)` and `st.plotly_chart(fig, use_container_width=True)`
 ---
 
 ## 2026-01-27 - US-002
@@ -163,4 +165,24 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Previous iteration committed the code but forgot to update the PRD - always verify PRD is updated in same commit
   - The trace_viewer_parser.py already handles: system/assistant/user messages, mixed content blocks, malformed line skipping, token deduplication by uuid
   - compute_summary() deduplicates token usage by uuid to avoid double-counting when assistant messages produce multiple TraceMessage objects
+---
+
+## 2026-01-27 - US-010
+- Created `dashboard/utils/trace_summary.py` with trace summary overview panel component
+- `render_trace_summary_panel()` renders 3 sections: metric cards row, tool call bar chart, file access table
+- `_render_metric_cards()` shows 5 st.metric cards in a row: Total Messages, Tool Calls, Unique Tools, Total Tokens, Session Duration
+- `_render_tool_call_chart()` renders a Plotly bar chart of tool call counts per tool name, sorted descending
+- `_render_file_access_table()` renders a pandas dataframe with File Path, Reads, Writes, Edits, Total columns sorted by total access descending
+- `load_and_render_trace_summary()` convenience function that parses and renders in one call
+- Integrated into `show_claude_code_trace()` in `run_results.py`, replacing the old inline "Execution Summary" expander
+- Added `_build_file_access_from_trace()` helper to convert inline-parsed file access data into TraceSummary format
+- Created `dashboard/tests/test_trace_summary.py` with 18 unit tests covering all rendering functions and the file access builder
+- Files changed: `dashboard/utils/trace_summary.py`, `dashboard/views/run_results.py`, `dashboard/tests/test_trace_summary.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Streamlit `st.metric()` is called on global `st` inside `with cols[N]:` context managers, not on the column object itself
+  - When mocking Streamlit context managers (`st.columns()`), `st.metric` calls go to `mock_st.metric`, not to `mock_col.__enter__.return_value.metric`
+  - `mock.assert_called_with()` checks only the LAST call; use `assert_any_call()` to check if a call was made among multiple calls
+  - The existing `show_claude_code_trace()` does its own inline JSONL parsing; the TraceSummary can be constructed from its existing parsed data without re-parsing
+  - Plotly `px.bar()` with `update_layout(showlegend=False)` gives a clean chart without redundant color legend
+  - `pd.DataFrame.sort_values().reset_index(drop=True)` is needed for clean dataframe display without stale indices
 ---

@@ -1366,6 +1366,46 @@ def show_agent_trace(claude_files, trajectory_files):
         st.code(traceback.format_exc())
 
 
+def _build_file_access_from_trace(
+    files_read: list[str],
+    edits_made: list[dict],
+) -> dict[str, dict[str, int]]:
+    """Build file access dict from inline-parsed trace data.
+
+    Converts the separate files_read and edits_made lists into the
+    {path: {read_count, write_count, edit_count}} format used by TraceSummary.
+    """
+    files: dict[str, dict[str, int]] = {}
+
+    for file_path in files_read:
+        if file_path not in files:
+            files[file_path] = {"read_count": 0, "write_count": 0, "edit_count": 0}
+        files[file_path] = {
+            **files[file_path],
+            "read_count": files[file_path]["read_count"] + 1,
+        }
+
+    for edit in edits_made:
+        file_path = edit.get("file", "")
+        if not file_path:
+            continue
+        if file_path not in files:
+            files[file_path] = {"read_count": 0, "write_count": 0, "edit_count": 0}
+        files[file_path] = {
+            **files[file_path],
+            "edit_count": files[file_path]["edit_count"] + 1,
+        }
+
+    return dict(
+        sorted(
+            files.items(),
+            key=lambda x: -(
+                x[1]["read_count"] + x[1]["write_count"] + x[1]["edit_count"]
+            ),
+        )
+    )
+
+
 def show_claude_code_trace(claude_file: Path):
     """Display agent trace from SWEBench claude-code.txt JSONL format."""
 
@@ -1485,31 +1525,23 @@ def show_claude_code_trace(claude_file: Path):
                                     }
                                 )
 
-        # Display Summary
-        with st.expander("📊 Execution Summary", expanded=True):
-            col1, col2, col3 = st.columns(3)
+        # Trace Summary Panel (US-010) - uses US-009 parser for structured metrics
+        from dashboard.utils.trace_summary import render_trace_summary_panel
+        from src.ingest.trace_viewer_parser import TraceSummary
 
-            with col1:
-                st.markdown("**Token Usage**")
-                st.write(f"- Input: {total_input_tokens:,}")
-                st.write(f"- Output: {total_output_tokens:,}")
-                st.write(f"- Cache Read: {total_cache_read:,}")
-                st.write(f"- **Total: {total_input_tokens + total_output_tokens:,}**")
-
-            with col2:
-                st.markdown("**Tool Usage**")
-                for tool_name, count in sorted(tool_calls.items(), key=lambda x: -x[1])[
-                    :10
-                ]:
-                    st.write(f"- {tool_name}: {count}")
-
-            with col3:
-                st.markdown("**Activity**")
-                st.write(f"- Files Read: {len(files_read)}")
-                st.write(f"- Edits Made: {len(edits_made)}")
-                st.write(f"- Bash Commands: {len(bash_commands)}")
-                if model:
-                    st.write(f"- Model: {model}")
+        trace_summary = TraceSummary(
+            total_messages=len(messages),
+            total_tool_calls=sum(tool_calls.values()),
+            unique_tools=len(tool_calls),
+            total_tokens=total_input_tokens + total_output_tokens,
+            tools_by_name=dict(
+                sorted(tool_calls.items(), key=lambda x: -x[1])
+            ),
+            files_accessed=_build_file_access_from_trace(
+                files_read, edits_made
+            ),
+        )
+        render_trace_summary_panel(trace_summary)
 
         st.markdown("---")
 
