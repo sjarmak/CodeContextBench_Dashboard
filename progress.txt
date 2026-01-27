@@ -381,3 +381,29 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Progress callback pattern: progress_callback(current, total) for progress bar updates
   - At least 2 saved templates required for A/B comparison - shows info message otherwise
 ---
+
+## 2026-01-27 - US-021: LLM judge - human alignment score entry
+- What was implemented: Verified that human alignment score entry was already fully implemented in a prior session
+- Files already present:
+  - dashboard/utils/judge_human_alignment.py - render_human_alignment_tab(), HumanScore/TaskAlignmentRow dataclasses, SQLite CRUD (init_database, save_human_score, load_human_scores, load_scores_for_tasks, count_reviewed_tasks), score entry table, progress indicator
+  - dashboard/tests/test_judge_human_alignment.py - 47 passing tests
+  - dashboard/views/analysis_llm_judge.py (line 247) - Integration as render_human_alignment_tab() in tabs[5] "Human Alignment"
+- Files changed:
+  - prd.json - Marked US-021 passes: true
+  - progress.txt - Added this entry
+- **Verification details:**
+  - All 47 tests pass (2 session_key, 1 db_path, 4 init_database, 7 save_human_score, 5 load_human_scores, 5 load_scores_for_tasks, 6 count_reviewed, 4 build_alignment_table, 3 render_progress, 2 save_reload_workflow, 2 dataclass, 3 db_constraints, 1 render_tab, 2 integration)
+  - Human Alignment tab: tabs[5] in show_llm_judge(), renders via render_human_alignment_tab()
+  - Score entry: per-task expander with per-dimension rows showing LLM score + st.number_input (1-5) for human score
+  - SQLite: human_alignment_scores table with columns (id, task_id, dimension, human_score, llm_score, annotator, timestamp), UNIQUE(task_id, dimension, annotator)
+  - Progress: st.progress() bar + "X of Y tasks reviewed" caption via count_reviewed_tasks()
+  - Also integrates US-022 alignment metrics via judge_alignment_metrics.py (compute_alignment_metrics, render_alignment_metrics_panel)
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - judge_human_alignment.py uses SQLite database at data/human_alignment_scores.db (relative to project_root)
+  - init_database() is idempotent (CREATE TABLE IF NOT EXISTS)
+  - save_human_score() uses INSERT OR REPLACE for upsert behavior on (task_id, dimension, annotator) unique constraint
+  - load_scores_for_tasks() returns dict[str, dict[str, int]] = task_id -> {dimension: human_score}
+  - The tab also renders alignment metrics (US-022) via _extract_llm_scores_dict() and compute_alignment_metrics()
+  - Widget keys use SESSION_KEY_PREFIX = "judge_human_alignment" namespace
+---
