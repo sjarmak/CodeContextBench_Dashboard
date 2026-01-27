@@ -48,6 +48,8 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Judge view tabs: analysis_llm_judge.py has 4 tabs: Run Evaluation, View Reports, Rubric Configuration, Prompt & Rubric Editor
 - Available Anthropic models: AVAILABLE_MODELS tuple in judge_config.py (haiku, sonnet, opus)
 - Test prompt utility: `dashboard/utils/judge_test_prompt.py` with `run_test_prompt()` and `render_test_prompt_section()` for single-task judge evaluation
+- Template management: `dashboard/utils/judge_template_manager.py` with `render_template_manager()` for save/load/delete/duplicate of judge templates
+- Template metadata: save_template() stores `_template_name` and `_created_at` alongside config data in JSON files
 - Judge test prompt uses `_session_state_to_config()` from judge_editor to get the current editor config
 - Task data loading: config.json (instruction/prompt/problem_statement), result.json (reward), claude-code.txt (trace/code changes), solution.md
 ---
@@ -379,4 +381,33 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - The `TestPromptResult` dataclass name triggers a pytest collection warning because it starts with "Test" — not a blocker but worth noting
   - Task data extraction from traces requires careful JSON parsing of JSONL format; each line is independent and malformed lines should be skipped
   - The `render_test_prompt_section` function reads `CCB_EXTERNAL_RUNS_DIR` env var at call time (not import time), so env var mocking works correctly
+---
+
+## 2026-01-27 - US-019
+- Implemented LLM judge template save and load functionality
+- **judge_config.py** additions:
+  - `TemplateInfo` frozen dataclass for template metadata (name, filename, model, created_at)
+  - `save_template()`: saves JudgeConfig with `_template_name` and `_created_at` metadata fields
+  - `_sanitize_template_name()`: converts human-readable name to valid filename
+  - `load_template_info()`: loads metadata from a template file
+  - `list_template_infos()`: lists all templates with metadata (using existing `list_templates()`)
+  - `duplicate_template()`: copies template with '-copy' suffix and new timestamp
+- **judge_template_manager.py** (NEW): Streamlit UI component with:
+  - `render_save_template_section()`: name input + save button to save current editor config as named template
+  - `render_template_list()`: lists all saved templates with name, creation date, model display
+  - `_render_template_row()`: per-template row with Load, Duplicate, Delete buttons
+  - `_render_delete_confirmation()`: two-step delete with Confirm/Cancel buttons
+  - `render_template_manager()`: main entry point combining save + list sections
+- **analysis_llm_judge.py**: added `render_template_manager` import and call in "Prompt & Rubric Editor" tab
+- **test_judge_template_manager.py** (NEW): 61 unit tests across 18 test classes
+- Files changed: `dashboard/utils/judge_config.py`, `dashboard/utils/judge_template_manager.py` (NEW), `dashboard/views/analysis_llm_judge.py`, `dashboard/tests/test_judge_template_manager.py` (NEW), `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Template metadata stored as underscore-prefixed fields (`_template_name`, `_created_at`) alongside config data in the same JSON file
+  - `_sanitize_template_name()` strips trailing underscores from sanitized names (e.g., "My Template!" -> "my_template.json", not "my_template_.json")
+  - `list_templates()` returns filenames sorted alphabetically; `list_template_infos()` wraps it with metadata loading
+  - `duplicate_template()` reads source JSON, updates metadata fields, writes new file — preserves all config fields unchanged
+  - `_config_to_session_state` and `_session_state_to_config` from judge_editor.py are the bridge between frozen JudgeConfig and mutable session state
+  - `delete_template()` was already implemented in judge_config.py — only needed confirmation UI
+  - When testing `render_template_list`, mock `_render_template_row` to avoid Streamlit column unpacking errors in unit tests
+  - Browser verification not available in this environment; manual verification needed
 ---

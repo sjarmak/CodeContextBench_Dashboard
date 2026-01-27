@@ -8,7 +8,9 @@ model settings, and persistence to configs/judge_templates/.
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 # Default configs directory relative to project root
@@ -289,6 +291,181 @@ def delete_template(
     except OSError as e:
         logger.error(f"Failed to delete template: {e}")
         return False
+
+
+@dataclass(frozen=True)
+class TemplateInfo:
+    """Metadata about a saved template."""
+
+    name: str
+    filename: str
+    model: str
+    created_at: str  # ISO format datetime string
+
+
+def save_template(
+    config: JudgeConfig,
+    project_root: Path,
+    template_name: str,
+) -> Path:
+    """Save a JudgeConfig as a named template with metadata.
+
+    Creates the templates directory if it doesn't exist.
+    The template name is sanitized to produce a valid filename.
+
+    Args:
+        config: JudgeConfig to save
+        project_root: Project root directory
+        template_name: Human-readable name for the template
+
+    Returns:
+        Path to the saved file
+    """
+    filename = _sanitize_template_name(template_name)
+    data = {
+        **config_to_dict(config),
+        "_template_name": template_name,
+        "_created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    templates_dir = _get_templates_dir(project_root)
+    templates_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = templates_dir / filename
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        logger.info(f"Saved template '{template_name}' to {file_path}")
+    except OSError as e:
+        logger.error(f"Failed to save template: {e}")
+        raise
+
+    return file_path
+
+
+def _sanitize_template_name(name: str) -> str:
+    """Convert a template name to a valid filename.
+
+    Replaces spaces and non-alphanumeric characters with underscores,
+    lowercases, and appends .json.
+
+    Args:
+        name: Human-readable template name
+
+    Returns:
+        Sanitized filename with .json extension
+    """
+    sanitized = "".join(
+        c if c.isalnum() or c in ("-", "_") else "_"
+        for c in name.strip().lower()
+    )
+    sanitized = sanitized.strip("_") or "unnamed"
+    return f"{sanitized}.json"
+
+
+def load_template_info(
+    project_root: Path,
+    filename: str,
+) -> TemplateInfo | None:
+    """Load template metadata from a JSON file.
+
+    Args:
+        project_root: Project root directory
+        filename: Template filename
+
+    Returns:
+        TemplateInfo or None if file not found or malformed
+    """
+    file_path = _get_templates_dir(project_root) / filename
+
+    if not file_path.exists():
+        return None
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        name = data.get("_template_name", filename.replace(".json", ""))
+        created_at = data.get("_created_at", "")
+        model = data.get("model", "unknown")
+
+        return TemplateInfo(
+            name=name,
+            filename=filename,
+            model=model,
+            created_at=created_at,
+        )
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"Failed to load template info from {file_path}: {e}")
+        return None
+
+
+def list_template_infos(project_root: Path) -> list[TemplateInfo]:
+    """List all saved templates with metadata.
+
+    Args:
+        project_root: Project root directory
+
+    Returns:
+        List of TemplateInfo sorted by name
+    """
+    filenames = list_templates(project_root)
+    infos: list[TemplateInfo] = []
+    for filename in filenames:
+        info = load_template_info(project_root, filename)
+        if info is not None:
+            infos = [*infos, info]
+    return infos
+
+
+def duplicate_template(
+    project_root: Path,
+    source_filename: str,
+    new_name: str | None = None,
+) -> Path | None:
+    """Duplicate a template file with '-copy' suffix.
+
+    Args:
+        project_root: Project root directory
+        source_filename: Filename of template to duplicate
+        new_name: Optional new template name. Defaults to original name + '-copy'.
+
+    Returns:
+        Path to the new file, or None if source not found
+    """
+    source_path = _get_templates_dir(project_root) / source_filename
+
+    if not source_path.exists():
+        return None
+
+    try:
+        with open(source_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        original_name = data.get(
+            "_template_name",
+            source_filename.replace(".json", ""),
+        )
+        copy_name = new_name if new_name else f"{original_name}-copy"
+
+        data = {
+            **data,
+            "_template_name": copy_name,
+            "_created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        copy_filename = _sanitize_template_name(copy_name)
+        copy_path = _get_templates_dir(project_root) / copy_filename
+
+        with open(copy_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+        logger.info(f"Duplicated template '{original_name}' as '{copy_name}'")
+        return copy_path
+
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error(f"Failed to duplicate template: {e}")
+        return None
 
 
 def add_dimension(
