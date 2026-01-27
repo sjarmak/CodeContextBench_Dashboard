@@ -63,6 +63,8 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - `build_score_pairs()` creates paired (human, LLM) scores from dict inputs, skipping unparseable or missing scores
 - `find_disagreements()` filters pairs where |human - LLM| exceeds configurable threshold (default 2.0)
 - ruff rejects variable name `l` (ambiguous); use `lv` for loop variables over LLM values
+- Dashboard page navigation: `st.session_state["current_page"]` + `st.rerun()` to switch views; page names must match `nav_items_analysis` in app.py
+- Analysis cards component: `dashboard/utils/analysis_cards.py` with `ANALYSIS_CARDS` tuple and `render_analysis_card_grid()`
 ---
 
 ## 2026-01-27 - US-002
@@ -507,5 +509,37 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - ruff rejects variable name `l` as ambiguous (E741); use `lv` for loop variables iterating LLM values
   - Pearson correlation reused from A/B comparison module pattern (manual sqrt computation, no numpy)
   - `_extract_llm_scores_dict()` bridges TestPromptResult to dict format needed by compute_alignment_metrics
+  - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-023
+- Implemented Analysis Hub card-based navigation page with 2x3 grid of analysis cards
+- Created `dashboard/utils/analysis_cards.py` with:
+  - `AnalysisCard` frozen dataclass for card configuration (card_id, title, icon, description, page_name, status_key)
+  - `ANALYSIS_CARDS` tuple with 6 cards: Statistical, Comparison, Time Series, Cost, Failure, LLM Judge
+  - `check_results_available()` checks session state first, falls back to filesystem/database checks
+  - `_check_db_has_experiments()` checks if analysis_loader has experiments loaded
+  - `_check_judge_results_exist()` checks for JSON files in data/judge_results/
+  - `_render_status_badge()` returns green "Results Available" or gray "No Results" HTML badge
+  - `render_analysis_card()` renders styled HTML card with icon, title, description, status badge, and "Configure & Run" button
+  - `render_analysis_card_grid()` renders 2x3 grid using st.columns(3) for each row
+- Updated `dashboard/views/analysis_hub.py`:
+  - Replaced text-based component checklist (section 3) with `render_analysis_card_grid()` call
+  - Added import for `render_analysis_card_grid` from `dashboard.utils.analysis_cards`
+  - Removed unused `datetime` import
+- Clicking a card sets `st.session_state["current_page"]` to the card's page_name and calls `st.rerun()` for navigation
+- Status badges: green border + "Results Available" when DB has experiments or judge results exist; gray border + "No Results" otherwise
+- Created `dashboard/tests/test_analysis_cards.py` with 38 unit tests across 10 test classes
+- Files changed: `dashboard/utils/analysis_cards.py` (NEW), `dashboard/views/analysis_hub.py`, `dashboard/tests/test_analysis_cards.py` (NEW), `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Navigation in app.py uses `st.session_state["current_page"]` + `st.rerun()` to switch views
+  - Card page_name values must exactly match the strings in `nav_items_analysis` in app.py
+  - `st.session_state` is a dict — can't override `.get()` on it in tests; use regular dict assignment instead
+  - Status detection for DB-backed analyses checks `analysis_loader.list_experiments()` for experiment count > 0
+  - Status detection for LLM Judge checks `data/judge_results/*.json` files on disk
+  - `st.markdown(html, unsafe_allow_html=True)` is the standard way to render styled card HTML in Streamlit
+  - `st.button(use_container_width=True)` creates a full-width button that fits well under card HTML
+  - f-strings without placeholders trigger ruff F541; use plain strings instead
+  - Analysis cards component: `dashboard/utils/analysis_cards.py` with `ANALYSIS_CARDS` tuple and `render_analysis_card_grid()`
   - Browser verification not available in this environment; manual verification needed
 ---

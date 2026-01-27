@@ -5,15 +5,15 @@ Provides:
 - Auto-ingestion of results from external jobs directory
 - Database connectivity status
 - Experiment overview
-- Analysis component availability checklist
+- Card-based navigation to analysis components
 - Quick-start workflow
 """
 
 import streamlit as st
 from pathlib import Path
-from datetime import datetime
 import os
 
+from dashboard.utils.analysis_cards import render_analysis_card_grid
 from dashboard.utils.analysis_loader import AnalysisLoader, DatabaseNotFoundError
 
 
@@ -182,52 +182,11 @@ def show_analysis_hub():
     
     st.markdown("---")
     
-    # Analysis components checklist
-    st.subheader("3. Available Analysis Components")
-    
-    components = {
-        "Experiment Comparison": {
-            "description": "Compare agent performance metrics",
-            "view": "Comparison Analysis",
-            "metrics": ["Pass Rate", "Duration", "MCP Calls"]
-        },
-        "Statistical Significance": {
-            "description": "Determine if differences are statistically significant",
-            "view": "Statistical Analysis",
-            "metrics": ["t-tests", "Chi-square", "Effect Sizes"]
-        },
-        "Time-Series Trends": {
-            "description": "Track metric changes across experiments",
-            "view": "Time-Series Analysis",
-            "metrics": ["Trends", "Anomalies", "Improvement Rate"]
-        },
-        "Cost Analysis": {
-            "description": "Analyze API costs and efficiency",
-            "view": "Cost Analysis",
-            "metrics": ["Token Usage", "Cost/Success", "Efficiency"]
-        },
-        "Failure Patterns": {
-            "description": "Understand failure modes and categories",
-            "view": "Failure Analysis",
-            "metrics": ["Patterns", "Categories", "Fixes"]
-        },
-        "Recommendations": {
-            "description": "Get prioritized improvement suggestions",
-            "view": "Recommendations",
-            "metrics": ["Quick Wins", "High Priority", "Medium Priority"]
-        }
-    }
-    
-    for component, info in components.items():
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            st.markdown(f"**{component}**")
-            st.caption(info["description"])
-            st.caption(f"Metrics: {', '.join(info['metrics'])}")
-        
-        with col2:
-            st.markdown(f"→ [{info['view']}](#{info['view'].lower().replace(' ', '-')})")
+    # Analysis components card grid
+    st.subheader("3. Analysis Components")
+    st.caption("Click a card to configure and run the analysis.")
+
+    render_analysis_card_grid(project_root=project_root)
     
     st.markdown("---")
     
