@@ -26,6 +26,7 @@ from dashboard.utils.benchmark_detection import detect_benchmark_set
 from dashboard.utils.task_detail import render_task_detail_panel
 from dashboard.utils.task_list import render_task_list
 from dashboard.utils.trace_cards import render_trace_cards
+from dashboard.utils.trace_filters import render_trace_filter_controls
 
 # External runs directory - configurable via environment or default
 EXTERNAL_RUNS_DIR = Path(
@@ -1563,7 +1564,10 @@ def show_claude_code_trace(claude_file: Path):
         )
 
         with tabs[0]:
-            render_trace_cards(structured_messages)
+            filtered_messages = render_trace_filter_controls(
+                structured_messages, session_key="trace_filter"
+            )
+            render_trace_cards(filtered_messages)
 
         with tabs[1]:
             show_claude_tool_calls(messages, tool_calls)

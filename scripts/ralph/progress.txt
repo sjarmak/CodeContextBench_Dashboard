@@ -186,6 +186,7 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Plotly `px.bar()` with `update_layout(showlegend=False)` gives a clean chart without redundant color legend
   - `pd.DataFrame.sort_values().reset_index(drop=True)` is needed for clean dataframe display without stale indices
   - Trace card rendering: `dashboard/utils/trace_cards.py` with `render_trace_cards(messages)` renders paginated styled cards from TraceMessage list
+- Trace filtering: `dashboard/utils/trace_filters.py` with `render_trace_filter_controls(messages)` returns filtered messages; uses `TraceFilterState` frozen dataclass and `filter_messages()` pure function
   - Card styling uses inline HTML/CSS via `st.markdown(..., unsafe_allow_html=True)` with border-left color coding per type
   - Pagination: `st.session_state[key]` stores page number; `st.rerun()` triggers page change; `st.button()` with unique keys for prev/next
   - When mocking `st.columns()` for unpacking, mock `_render_pagination_controls` instead to avoid ValueError
@@ -214,5 +215,29 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - `json.dumps(dict, indent=2)` + `st.code(language="json")` gives better formatting than `st.json()` for tool input display
   - The US-009 `parse_trace()` function returns all message types (system, assistant text/tool_use, user tool_result) - use it for full trace rendering
   - The existing `show_claude_code_trace()` still does its own inline parsing for tool_calls/edits/bash data - the new cards only replace the Conversation tab
+  - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-012
+- Created `dashboard/utils/trace_filters.py` with trace search and type filtering component
+- `TraceFilterState` frozen dataclass captures filter state: search_text, selected_types, selected_tool, hide_tool_results
+- `extract_unique_tool_names()` extracts sorted unique tool names from TraceMessage list
+- `filter_messages()` pure function applies AND-combined filters: text search (case-insensitive), type filter, tool name filter, hide tool results
+- `_message_matches_search()` searches content, tool_name, and tool_result fields
+- `_is_result_for_tool()` matches tool_result messages to their tool_use by parent_tool_use_id
+- `render_trace_filter_controls()` renders Streamlit UI: text search input, message type multiselect, tool name dropdown, hide tool results checkbox
+- Result count indicator: "Showing X of Y messages" (filtered) or "Showing all Y messages" (unfiltered)
+- All filter state persisted in `st.session_state` with configurable session_key prefix
+- Integrated into `show_claude_code_trace()` in `run_results.py`: filter controls rendered above `render_trace_cards()` in Full Trace tab
+- Created `dashboard/tests/test_trace_filters.py` with 51 unit tests covering all functions, filter combinations, and UI rendering
+- Files changed: `dashboard/utils/trace_filters.py`, `dashboard/views/run_results.py`, `dashboard/tests/test_trace_filters.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Streamlit widget state is automatically managed via `key=` parameter; `st.session_state.get()` provides defaults for first render
+  - `st.multiselect` with `format_func` maps internal values to display labels (e.g., "user" -> "User (Tool Result)")
+  - `st.selectbox` with empty string as first option + `format_func` creates "All" default option pattern
+  - Filtering pure functions are easy to test without mocking Streamlit; only the render function needs st mocks
+  - Tool result messages can be linked back to their tool_use via `parent_tool_use_id` field matching
+  - When filtering by tool name, include both the tool_use message AND its corresponding tool_result for complete context
+  - `st.columns([2, 2])` creates equal-width columns; use two rows of columns for a 4-control filter layout
   - Browser verification not available in this environment; manual verification needed
 ---
