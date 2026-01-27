@@ -526,3 +526,29 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - For view integration tests, use MagicMock() for session_state (not dict) to allow get() side_effect configuration
   - Initialize variables before try/except blocks to avoid UnboundLocalError when exception occurs before assignment
 ---
+
+## 2026-01-27 - US-027: Analysis Hub - GUI-driven time series analysis config
+- What was implemented: Created timeseries_config.py module and rewrote analysis_timeseries.py view to use GUI-driven config pattern
+- **Files created:**
+  - dashboard/utils/timeseries_config.py (400 lines) - TimeSeriesConfig frozen dataclass, experiment/metric/aggregation selectors, timeseries DataFrame builder, anomaly DataFrame builder, trend line chart (Plotly), anomaly markers chart (Plotly), CSV export
+  - dashboard/tests/test_timeseries_config.py (570 lines) - 55 tests covering dataclass, constants, selectors, DataFrame builders, chart builders, render functions, orchestration, view integration, edge cases
+- **Files modified:**
+  - dashboard/views/analysis_timeseries.py - Rewrote to use timeseries_config.py (sidebar config via render_timeseries_config(), "Run Analysis" primary button, cached result re-rendering, interpretation guide expander)
+  - prd.json - US-027 passes: true
+  - progress.txt - Added this entry
+- **Implementation details:**
+  - TimeSeriesConfig: experiment_ids (tuple), selected_metrics (tuple), aggregation_level (str)
+  - Metric selector: pass_rate, avg_duration_seconds, avg_mcp_calls, avg_deep_search_calls with human-readable labels
+  - Aggregation levels: per-run, per-day, per-week (currently per-run maps directly to experiments)
+  - Trend line chart: Plotly line chart with markers, linear interpolation from first_value to last_value, color-coded by agent/metric series
+  - Anomaly markers chart: Plotly scatter with X symbols, size 14, parsed from anomaly_descriptions
+  - Results: summary cards (total trends, improving, degrading, anomalies), trend data table, anomaly table, CSV export
+  - Calls loader.load_timeseries() which invokes TimeSeriesAnalyzer.analyze_multi_agent_trends()
+- **Learnings for future iterations:**
+  - timeseries_config.py follows the same pattern as statistical_config.py, cost_config.py, comparison_config.py: frozen dataclass + render functions + run_and_display + chart builders + CSV export
+  - TimeSeriesAnalysisResult.trends is dict[str, dict[str, TimeSeriesTrend]] = metric_name -> agent_name -> trend
+  - TimeSeriesTrend has direction (TrendDirection enum), slope, confidence, first_value, last_value, percent_change, anomaly_indices, anomaly_descriptions
+  - Anomaly descriptions follow "Point N: VALUE" format - parsed for chart values with float fallback to 0.0
+  - The view requires minimum 2 experiments to proceed (enforced in render_timeseries_config)
+  - Session state keys use "ts_config" prefix for results caching
+---
