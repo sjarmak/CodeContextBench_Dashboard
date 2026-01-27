@@ -15,6 +15,10 @@ from pathlib import Path
 
 import streamlit as st
 
+from dashboard.utils.judge_alignment_metrics import (
+    compute_alignment_metrics,
+    render_alignment_metrics_panel,
+)
 from dashboard.utils.judge_config import (
     JudgeConfig,
     list_template_infos,
@@ -290,6 +294,32 @@ def count_reviewed_tasks(
             reviewed += 1
 
     return reviewed
+
+
+def _extract_llm_scores_dict(
+    llm_results: dict[str, TestPromptResult],
+    dimensions: list[str],
+) -> dict[str, dict[str, str]]:
+    """Extract LLM scores into a dict format for metrics computation.
+
+    Args:
+        llm_results: Dict of task_id -> TestPromptResult
+        dimensions: Dimension names to include
+
+    Returns:
+        Dict of task_id -> {dimension: llm_score_str}
+    """
+    result: dict[str, dict[str, str]] = {}
+
+    for task_id, prompt_result in llm_results.items():
+        dim_scores: dict[str, str] = {}
+        if prompt_result.dimension_results:
+            for dim_result in prompt_result.dimension_results:
+                if dim_result.name in dimensions:
+                    dim_scores = {**dim_scores, dim_result.name: dim_result.score}
+        result = {**result, task_id: dim_scores}
+
+    return result
 
 
 def _run_llm_evaluation(
@@ -636,4 +666,18 @@ def render_human_alignment_tab(project_root: Path) -> None:
         dimensions=dimension_names,
         db_path=db_path,
         annotator=annotator,
+    )
+
+    st.markdown("---")
+
+    # Alignment agreement metrics (US-022)
+    llm_scores_dict = _extract_llm_scores_dict(llm_results, dimension_names)
+    metrics = compute_alignment_metrics(
+        human_scores=existing_human,
+        llm_scores=llm_scores_dict,
+        dimensions=dimension_names,
+    )
+    render_alignment_metrics_panel(
+        metrics=metrics,
+        session_key_prefix=_session_key("metrics"),
     )

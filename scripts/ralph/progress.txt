@@ -58,6 +58,11 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Human alignment: `dashboard/utils/judge_human_alignment.py` with SQLite storage in `data/human_alignment_scores.db`, `render_human_alignment_tab()` for score entry UI
 - SQLite `INSERT OR REPLACE` with UNIQUE constraint provides upsert semantics for human score updates
 - Human alignment session keys: `judge_human_alignment_{suffix}` prefix; LLM results cached in session state keyed by experiment
+- Alignment metrics: `dashboard/utils/judge_alignment_metrics.py` with `compute_alignment_metrics()` and `render_alignment_metrics_panel()` for Cohen's kappa, Pearson r, MAE, disagreement detection, and CSV export
+- Cohen's kappa: standard formula (p_o - p_e) / (1 - p_e); rounds LLM scores to nearest int for categorical comparison
+- `build_score_pairs()` creates paired (human, LLM) scores from dict inputs, skipping unparseable or missing scores
+- `find_disagreements()` filters pairs where |human - LLM| exceeds configurable threshold (default 2.0)
+- ruff rejects variable name `l` (ambiguous); use `lv` for loop variables over LLM values
 ---
 
 ## 2026-01-27 - US-002
@@ -473,5 +478,34 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - `load_scores_for_tasks()` returns nested dict: task_id -> {dimension: score} for efficient lookup in UI rendering
   - LLM evaluation is cached in session state keyed by experiment name to avoid re-running on every page interaction
   - Immutable dict building uses `{**result, key: value}` pattern consistent with codebase conventions
+  - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-022
+- Implemented LLM judge alignment agreement metrics
+- Created `dashboard/utils/judge_alignment_metrics.py` with:
+  - `ScorePair` and `AlignmentMetrics` frozen dataclasses for immutable metric tracking
+  - `build_score_pairs()` pairs human and LLM scores from dict inputs, skipping missing/unparseable values
+  - `compute_pearson_correlation()` manual computation (no numpy) between human and LLM scores
+  - `compute_mean_absolute_error()` average |human - LLM| across all score pairs
+  - `compute_cohens_kappa()` standard formula (p_o - p_e) / (1 - p_e) with LLM scores rounded to nearest int for categorical comparison
+  - `compute_alignment_metrics()` orchestrates all three statistics into AlignmentMetrics
+  - `find_disagreements()` filters pairs where |human - LLM| exceeds configurable threshold (default 2.0)
+  - `build_export_dataframe()` creates Pandas DataFrame for CSV export with Task ID, Dimension, Human Score, LLM Score, Absolute Difference
+  - `render_alignment_metrics_panel()` renders 4 metric cards (kappa, correlation, MAE, pair count), disagreement slider, highlighted table, and CSV export button
+- Added `_extract_llm_scores_dict()` to `judge_human_alignment.py` to convert TestPromptResult dict to {task_id: {dim: score_str}} format
+- Integrated metrics panel into `render_human_alignment_tab()` after the score entry table
+- Disagreement highlighting: rows where |human - LLM| > threshold are styled red (#fee2e2) using `df.style.apply()`
+- Created `dashboard/tests/test_judge_alignment_metrics.py` with 67 unit tests across 14 test classes
+- Files changed: `dashboard/utils/judge_alignment_metrics.py` (NEW), `dashboard/utils/judge_human_alignment.py`, `dashboard/tests/test_judge_alignment_metrics.py` (NEW), `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Cohen's kappa needs at least 2 categories to be meaningful; when all scores are the same category, return 1.0 (trivial perfect agreement)
+  - `p_e >= 1.0` guard prevents division by zero in kappa when expected agreement is perfect
+  - `round()` on LLM float scores converts to nearest int for ordinal category matching in kappa
+  - `find_disagreements()` uses strict `>` (not `>=`) for threshold comparison
+  - `pd.DataFrame.style.apply()` with `axis=1` applies row-wise styling; return list of CSS strings per column
+  - ruff rejects variable name `l` as ambiguous (E741); use `lv` for loop variables iterating LLM values
+  - Pearson correlation reused from A/B comparison module pattern (manual sqrt computation, no numpy)
+  - `_extract_llm_scores_dict()` bridges TestPromptResult to dict format needed by compute_alignment_metrics
   - Browser verification not available in this environment; manual verification needed
 ---
