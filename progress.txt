@@ -112,3 +112,24 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Already used by _group_experiments_by_benchmark() in run_results.py for US-004
   - When a story's code already exists, verify and mark as passing rather than reimplementing
 ---
+
+## 2026-01-27 - US-004, US-005, US-006, US-008: Batch verification of already-implemented stories
+- What was implemented: Verified that four user stories were already fully implemented in prior sessions
+- Files already present:
+  - dashboard/views/run_results.py - US-004 (benchmark grouping), US-005 (paired/individual mode toggle)
+  - dashboard/utils/task_list.py - US-006 (task list with filtering, sorting, paired mode)
+  - dashboard/utils/task_detail.py - US-008 (CLAUDE.md and task prompt display)
+- Files changed:
+  - prd.json - Marked US-004, US-005, US-006, US-008 as passes: true
+  - progress.txt - Added this entry
+- **Verification details:**
+  - US-004: _group_experiments_by_benchmark() groups experiments, selectbox shows "Name (count)" format, "All Benchmarks" option available
+  - US-005: Radio toggle "Individual Review" / "Paired Comparison", auto-detect pairs from manifest, manual pairing with common task detection
+  - US-006: render_task_list() in task_list.py with NormalizedTask dataclass, status/language/task_type/difficulty filters, text search, 5 sort options, paired mode side-by-side columns
+  - US-008: _extract_claude_md_content() searches 5+ paths, _extract_task_prompt() extracts from trace/config, both in collapsible expanders with "Not available" fallback
+- **Learnings for future iterations:**
+  - Multiple stories may be implemented in a single prior session - batch verify them
+  - task_list.py is a standalone component (540 lines) imported by run_results.py - it handles all filtering/sorting/rendering
+  - The TaskFilter and NormalizedTask dataclasses use frozen=True for immutability
+  - _show_paired_mode() handles both auto-detected pairs (from manifest) and manual pairing
+---

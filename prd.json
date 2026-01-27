@@ -61,8 +61,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in run_results.py with _group_experiments_by_benchmark() and benchmark set selectbox filter"
     },
     {
       "id": "US-005",
@@ -79,8 +79,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in run_results.py with radio toggle, individual/paired modes, auto-detect pairs from manifest, and manual pairing"
     },
     {
       "id": "US-006",
@@ -97,8 +97,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/task_list.py with render_task_list(), filtering, sorting, and paired mode"
     },
     {
       "id": "US-007",
@@ -132,8 +132,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/task_detail.py with CLAUDE.md extraction and task prompt display in collapsible expanders"
     },
     {
       "id": "US-009",
