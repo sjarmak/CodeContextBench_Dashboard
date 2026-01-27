@@ -17,4 +17,17 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - LoCoBench task IDs follow: {language}_{domain}_{complexity}_{num}_{task_category}_{difficulty}_{variant}
 - SWE-Bench Pro task IDs follow: instance_{org}__{repo}__{hash}
 - Runs directory path: ~/evals/custom_agents/agents/claudecode/runs/
+- Archive feature was entirely in run_results.py (no references in filters.py/filter_ui.py)
+---
+
+## 2026-01-27 - US-002
+- Removed the "Include archived runs" checkbox toggle from `show_run_results()` in `dashboard/views/run_results.py`
+- Removed `EXTERNAL_ARCHIVE_DIR` constant and all archive loading logic
+- Removed archive-related source display logic
+- Files changed: `dashboard/views/run_results.py`, `scripts/ralph/prd.json`
+- **Learnings for future iterations:**
+  - The archive feature was purely directory-based (separate archive/runs/ directory), not a metadata field on runs
+  - All archive references were in a single file (run_results.py), not spread across filters.py/filter_ui.py
+  - `load_external_experiments_from_dir()` is still used by `load_external_experiments()` for the main runs directory
+  - Pre-existing ruff warnings (F841 unused variables in exception handlers) exist in run_results.py - don't need to fix for US-002
 ---

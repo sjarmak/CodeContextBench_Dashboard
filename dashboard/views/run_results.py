@@ -30,14 +30,6 @@ EXTERNAL_RUNS_DIR = Path(
     )
 )
 
-# Archive directory for historical runs
-EXTERNAL_ARCHIVE_DIR = Path(
-    os.environ.get(
-        "CCB_EXTERNAL_ARCHIVE_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/archive/runs"),
-    )
-)
-
 
 def load_external_experiments() -> list:
     """Load experiments from default external runs directory."""
@@ -279,18 +271,8 @@ def show_run_results():
     """Main run results page."""
     st.title("Run Results")
 
-    # Option to include archive
-    include_archive = st.checkbox("Include archived runs", value=False)
-
-    # Load experiments from external jobs directory
+    # Load experiments from external runs directory
     external_experiments = load_external_experiments()
-
-    # Optionally load from archive
-    if include_archive and EXTERNAL_ARCHIVE_DIR.exists():
-        archive_experiments = load_external_experiments_from_dir(EXTERNAL_ARCHIVE_DIR)
-        for exp in archive_experiments:
-            exp["name"] = f"[archive] {exp['name']}"
-        external_experiments.extend(archive_experiments)
 
     if not external_experiments:
         st.info(f"No experiments found in {EXTERNAL_RUNS_DIR}")
@@ -299,10 +281,7 @@ def show_run_results():
         )
         return
 
-    sources = [str(EXTERNAL_RUNS_DIR)]
-    if include_archive:
-        sources.append(str(EXTERNAL_ARCHIVE_DIR))
-    st.caption(f"📁 Loading from: {', '.join(sources)}")
+    st.caption(f"Loading from: {EXTERNAL_RUNS_DIR}")
 
     # Experiment selector with type indicator
     exp_options = []
