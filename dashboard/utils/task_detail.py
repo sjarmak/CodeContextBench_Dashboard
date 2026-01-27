@@ -2,7 +2,8 @@
 Task detail metadata panel component.
 
 Renders task metadata, build environment, execution metrics,
-agent result, and verifier output in collapsible expander sections.
+agent result, verifier output, CLAUDE.md content, and task
+instruction prompt in collapsible expander sections.
 
 Supports both paired-mode tasks (from _scan_paired_mode_tasks)
 and single-experiment tasks (from load_external_tasks).
@@ -252,6 +253,178 @@ def _extract_verifier_output(
     return verifier
 
 
+def _extract_claude_md_content(instance_dir: Optional[Path]) -> Optional[str]:
+    """Extract CLAUDE.md content from the agent session directory.
+
+    Searches for CLAUDE.md in these locations (in order):
+    1. instance_dir/agent/.claude.json (sessions config with CLAUDE.md content)
+    2. instance_dir/CLAUDE.md
+    3. instance_dir/agent/CLAUDE.md
+    4. instance_dir parent directories (up to 3 levels) for project CLAUDE.md
+
+    Returns the CLAUDE.md content as a string, or None if not found.
+    """
+    if not instance_dir or not instance_dir.exists():
+        return None
+
+    # 1. Check .claude.json for embedded CLAUDE.md content
+    claude_json_path = instance_dir / "agent" / ".claude.json"
+    if claude_json_path.exists():
+        try:
+            with open(claude_json_path) as f:
+                claude_config = json.load(f)
+            # .claude.json may contain a claudeMd field
+            claude_md = claude_config.get("claudeMd", "")
+            if claude_md:
+                return claude_md
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to read .claude.json: {e}")
+
+    # Also check sessions/.claude.json
+    sessions_claude_json = instance_dir / "sessions" / ".claude.json"
+    if sessions_claude_json.exists():
+        try:
+            with open(sessions_claude_json) as f:
+                claude_config = json.load(f)
+            claude_md = claude_config.get("claudeMd", "")
+            if claude_md:
+                return claude_md
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to read sessions/.claude.json: {e}")
+
+    # 2. Check instance_dir/CLAUDE.md
+    claude_md_path = instance_dir / "CLAUDE.md"
+    if claude_md_path.exists():
+        try:
+            return claude_md_path.read_text(encoding="utf-8")
+        except OSError as e:
+            logger.warning(f"Failed to read {claude_md_path}: {e}")
+
+    # 3. Check instance_dir/agent/CLAUDE.md
+    agent_claude_md = instance_dir / "agent" / "CLAUDE.md"
+    if agent_claude_md.exists():
+        try:
+            return agent_claude_md.read_text(encoding="utf-8")
+        except OSError as e:
+            logger.warning(f"Failed to read {agent_claude_md}: {e}")
+
+    # 4. Search parent directories (up to 3 levels)
+    parent = instance_dir.parent
+    for _ in range(3):
+        if parent == parent.parent:
+            break
+        candidate = parent / "CLAUDE.md"
+        if candidate.exists():
+            try:
+                return candidate.read_text(encoding="utf-8")
+            except OSError as e:
+                logger.warning(f"Failed to read {candidate}: {e}")
+        parent = parent.parent
+
+    return None
+
+
+def _extract_task_prompt(
+    instance_dir: Optional[Path],
+    result_data: dict,
+) -> Optional[str]:
+    """Extract the task instruction prompt from trace data or task config.
+
+    Searches for the prompt in these locations (in order):
+    1. First system message in agent/claude-code.txt JSONL
+    2. Task config problem_statement field (SWE-Bench format)
+    3. Task config instruction or prompt field
+
+    Returns the prompt content as a string, or None if not found.
+    """
+    if not instance_dir or not instance_dir.exists():
+        # Try result_data as fallback
+        return _extract_prompt_from_config(result_data)
+
+    # 1. Extract from claude-code.txt first system message
+    claude_file = instance_dir / "agent" / "claude-code.txt"
+    if claude_file.exists():
+        prompt = _parse_system_prompt_from_jsonl(claude_file)
+        if prompt:
+            return prompt
+
+    # 2. Extract from task config
+    config_data = _load_json_file(instance_dir / "config.json")
+    if config_data:
+        prompt = _extract_prompt_from_config(config_data)
+        if prompt:
+            return prompt
+
+    # 3. Try tests/config.json (SWE-Bench format)
+    tests_config = instance_dir / "tests" / "config.json"
+    if tests_config.exists():
+        config_data = _load_json_file(tests_config)
+        prompt = _extract_prompt_from_config(config_data)
+        if prompt:
+            return prompt
+
+    # 4. Fallback to result_data
+    return _extract_prompt_from_config(result_data)
+
+
+def _parse_system_prompt_from_jsonl(claude_file: Path) -> Optional[str]:
+    """Parse the first system message from a claude-code.txt JSONL file."""
+    try:
+        with open(claude_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                if record.get("type") == "system":
+                    message = record.get("message", {})
+                    # System message content can be a string or list
+                    content = message.get("content", "")
+                    if isinstance(content, list):
+                        # Join text blocks from content array
+                        text_parts = []
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                text_parts.append(item.get("text", ""))
+                            elif isinstance(item, str):
+                                text_parts.append(item)
+                        return "\n".join(text_parts) if text_parts else None
+                    if isinstance(content, str) and content.strip():
+                        return content
+    except OSError as e:
+        logger.warning(f"Failed to read {claude_file}: {e}")
+    return None
+
+
+def _extract_prompt_from_config(config_data: dict) -> Optional[str]:
+    """Extract task prompt from config data dict."""
+    if not isinstance(config_data, dict):
+        return None
+
+    # SWE-Bench format: problem_statement
+    problem = config_data.get("problem_statement")
+    if problem and isinstance(problem, str):
+        return problem
+
+    # Task config: instruction or prompt field
+    task_config = config_data.get("task", {})
+    if isinstance(task_config, dict):
+        instruction = task_config.get("instruction") or task_config.get("prompt")
+        if instruction and isinstance(instruction, str):
+            return instruction
+
+    # Direct instruction/prompt field
+    instruction = config_data.get("instruction") or config_data.get("prompt")
+    if instruction and isinstance(instruction, str):
+        return instruction
+
+    return None
+
+
 def render_task_detail_panel(
     task: dict,
     instance_dir: Optional[Path] = None,
@@ -462,3 +635,21 @@ def render_task_detail_panel(
                     st.code(output_str, language="text")
         else:
             st.info("No verifier output available.")
+
+    # --- Section 6: CLAUDE.md Content ---
+    claude_md_content = _extract_claude_md_content(instance_dir)
+
+    with st.expander("CLAUDE.md", expanded=False):
+        if claude_md_content:
+            st.markdown(claude_md_content)
+        else:
+            st.info("Not available")
+
+    # --- Section 7: Task Instruction Prompt ---
+    task_prompt = _extract_task_prompt(instance_dir, result_data)
+
+    with st.expander("Task Instruction Prompt", expanded=False):
+        if task_prompt:
+            st.markdown(task_prompt)
+        else:
+            st.info("Not available")
