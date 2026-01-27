@@ -45,7 +45,7 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Judge config: `dashboard/utils/judge_config.py` has frozen dataclasses (JudgeConfig, ScoringDimension, ScoringCriterion) and save/load to `configs/judge_templates/`
 - Judge editor: `dashboard/utils/judge_editor.py` renders Streamlit widgets, stores mutable dict in session state, converts to/from JudgeConfig for persistence
 - Judge editor session keys: `judge_editor_{suffix}` prefix; `_session_key("data")` holds the mutable config dict, `_session_key("initialized")` tracks first load
-- Judge view tabs: analysis_llm_judge.py has 4 tabs: Run Evaluation, View Reports, Rubric Configuration, Prompt & Rubric Editor
+- Judge view tabs: analysis_llm_judge.py has 6 tabs: Run Evaluation, View Reports, Rubric Configuration, Prompt & Rubric Editor, A/B Comparison, Human Alignment
 - Available Anthropic models: AVAILABLE_MODELS tuple in judge_config.py (haiku, sonnet, opus)
 - Test prompt utility: `dashboard/utils/judge_test_prompt.py` with `run_test_prompt()` and `render_test_prompt_section()` for single-task judge evaluation
 - Template management: `dashboard/utils/judge_template_manager.py` with `render_template_manager()` for save/load/delete/duplicate of judge templates
@@ -55,6 +55,9 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - A/B comparison: `dashboard/utils/judge_ab_comparison.py` with `render_ab_comparison_tab()` for side-by-side template evaluation
 - Pearson correlation: manual computation (no numpy) in `_compute_pearson_correlation()` for template score agreement
 - `_find_experiment_tasks()` in judge_test_prompt.py is reusable for discovering task dirs in any experiment
+- Human alignment: `dashboard/utils/judge_human_alignment.py` with SQLite storage in `data/human_alignment_scores.db`, `render_human_alignment_tab()` for score entry UI
+- SQLite `INSERT OR REPLACE` with UNIQUE constraint provides upsert semantics for human score updates
+- Human alignment session keys: `judge_human_alignment_{suffix}` prefix; LLM results cached in session state keyed by experiment
 ---
 
 ## 2026-01-27 - US-002
@@ -444,5 +447,31 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - `st.progress()` + callback pattern allows progress tracking during long-running comparison operations
   - When building result table columns, use "A: DimName" and "B: DimName" prefixes for clear disambiguation
   - Pre-existing ruff warnings in analysis_llm_judge.py (bare except, f-string without placeholders) — not related to this feature
+  - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-021
+- Implemented LLM judge human alignment score entry
+- Created `dashboard/utils/judge_human_alignment.py` with:
+  - SQLite database module: `init_database()`, `save_human_score()`, `load_human_scores()`, `load_scores_for_tasks()`, `count_reviewed_tasks()`
+  - `HumanScore` frozen dataclass for score entries (task_id, dimension, human_score, llm_score, annotator, timestamp)
+  - `_build_alignment_table_data()` builds display rows with LLM + human scores per dimension
+  - `_render_progress_indicator()` shows progress bar and "X of Y tasks reviewed" caption
+  - `_render_score_entry_table()` renders per-task expanders with LLM scores and editable human score inputs (1-5)
+  - `render_human_alignment_tab()` main entry point: template selector, experiment/task selector, LLM eval runner, progress indicator, score entry table
+- Database: `data/human_alignment_scores.db` with table `human_alignment_scores` (task_id, dimension, human_score, llm_score, annotator, timestamp)
+  - UNIQUE constraint on (task_id, dimension, annotator) for upsert behavior
+  - CHECK constraint on human_score BETWEEN 1 AND 5
+- Added "Human Alignment" as 6th tab in `dashboard/views/analysis_llm_judge.py`
+- Created `dashboard/tests/test_judge_human_alignment.py` with 47 unit tests across 12 test classes
+- Files changed: `dashboard/utils/judge_human_alignment.py` (NEW), `dashboard/views/analysis_llm_judge.py`, `dashboard/tests/test_judge_human_alignment.py` (NEW), `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - SQLite `INSERT OR REPLACE` with UNIQUE constraint provides clean upsert semantics for score updates
+  - `sqlite3.connect()` + `try/finally conn.close()` pattern (not context manager) gives explicit control for read/write separation
+  - `st.number_input()` with min_value=0, max_value=5 provides bounded integer input; 0 means "not scored" (not saved)
+  - Human scores need to support multiple annotators via the UNIQUE(task_id, dimension, annotator) constraint
+  - `load_scores_for_tasks()` returns nested dict: task_id -> {dimension: score} for efficient lookup in UI rendering
+  - LLM evaluation is cached in session state keyed by experiment name to avoid re-running on every page interaction
+  - Immutable dict building uses `{**result, key: value}` pattern consistent with codebase conventions
   - Browser verification not available in this environment; manual verification needed
 ---

@@ -22,6 +22,7 @@ import streamlit as st
 
 from dashboard.utils.judge_ab_comparison import render_ab_comparison_tab
 from dashboard.utils.judge_editor import render_judge_editor
+from dashboard.utils.judge_human_alignment import render_human_alignment_tab
 from dashboard.utils.judge_template_manager import render_template_manager
 from dashboard.utils.judge_test_prompt import render_test_prompt_section
 
@@ -221,6 +222,7 @@ def show_llm_judge():
         "📋 Rubric Configuration",
         "Prompt & Rubric Editor",
         "A/B Comparison",
+        "Human Alignment",
     ])
 
     with tabs[0]:
@@ -240,6 +242,9 @@ def show_llm_judge():
 
     with tabs[4]:
         render_ab_comparison_tab(project_root)
+
+    with tabs[5]:
+        render_human_alignment_tab(project_root)
 
 
 def show_reports_view(project_root: Path):
