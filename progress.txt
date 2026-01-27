@@ -455,3 +455,26 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Card page_name values must match the page names used in dashboard/app.py sidebar navigation
   - render_analysis_card_grid() takes optional project_root for filesystem-based status checks
 ---
+
+## 2026-01-27 - US-024: Analysis Hub - GUI-driven statistical analysis config
+- What was implemented: Verified that GUI-driven statistical analysis config was already fully implemented in a prior session
+- Files already present:
+  - dashboard/utils/statistical_config.py (661 lines) - StatisticalConfig frozen dataclass, render_statistical_config() UI, run_and_display_results(), Plotly charts for effect size/p-value/confidence intervals, CSV export
+  - dashboard/views/analysis_statistical.py (115 lines) - show_statistical_analysis() page with sidebar config and results display
+  - dashboard/tests/test_statistical_config.py (953 lines) - 59 passing tests
+- Files changed:
+  - prd.json - Marked US-024 passes: true
+  - progress.txt - Added this entry
+- **Verification details:**
+  - All 59 tests pass (5 config_dataclass, 4 constants, 3 experiment_selector, 4 baseline_selector, 2 significance_level, 2 test_type_selector, 1 effect_size, 2 metric_selector, 3 render_config, 8 build_results_df, 3 effect_size_chart, 3 pvalue_chart, 3 ci_chart, 5 run_and_display, 3 render_results, 2 integration, 6 edge_cases)
+  - Experiment multiselect, baseline agent selector, alpha input (0.001-0.20, default 0.05)
+  - Test types: t-test, Mann-Whitney U, chi-squared (multiselect)
+  - Effect size threshold slider (0.1-2.0, default 0.5) with interpretation labels
+  - Results: summary cards, p-values table, 3 Plotly charts (effect sizes, p-values, confidence intervals), CSV export
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - statistical_config.py uses AnalysisLoader from dashboard/utils/analysis_loader.py for database queries
+  - StatisticalConfig.to_dict() converts tuples to lists for serialization
+  - _build_results_dataframe() handles both cohens_d and cramers_v effect sizes
+  - analysis_statistical.py view uses sidebar for config and main panel for results
+---
