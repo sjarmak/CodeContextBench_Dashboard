@@ -18,6 +18,9 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - SWE-Bench Pro task IDs follow: instance_{org}__{repo}__{hash}
 - Runs directory path: ~/evals/custom_agents/agents/claudecode/runs/
 - Archive feature was entirely in run_results.py (no references in filters.py/filter_ui.py)
+- Benchmark detection: manifest.json `config.benchmarks` field maps to display names via BENCHMARK_ID_TO_NAME dict in dashboard/utils/benchmark_detection.py
+- Directory name patterns for benchmarks: locobench*, swebenchpro*, swebench_pro*, repoqa*, dibench*
+- Dashboard utility files in dashboard/utils/ use @dataclass, type annotations, logging, and follow immutable patterns
 ---
 
 ## 2026-01-27 - US-002
@@ -30,4 +33,19 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - All archive references were in a single file (run_results.py), not spread across filters.py/filter_ui.py
   - `load_external_experiments_from_dir()` is still used by `load_external_experiments()` for the main runs directory
   - Pre-existing ruff warnings (F841 unused variables in exception handlers) exist in run_results.py - don't need to fix for US-002
+---
+
+## 2026-01-27 - US-003
+- Created `dashboard/utils/benchmark_detection.py` with `detect_benchmark_set()` function
+- Detection strategy: first check manifest.json `config.benchmarks` field, then fall back to directory name pattern matching
+- Supports LoCoBench, SWE-Bench Pro, SWE-Bench Verified, RepoQA, DIBench with case-insensitive matching
+- Returns "Unknown" for unrecognized patterns
+- Created `dashboard/tests/test_benchmark_detection.py` with 32 unit tests covering all benchmark sets, edge cases, and integration
+- Files changed: `dashboard/utils/benchmark_detection.py`, `dashboard/tests/test_benchmark_detection.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Manifest.json `config.benchmarks` contains benchmark IDs like "locobench_agent", "swebench_pro" - these are internal IDs, not display names
+  - Directory names from analysis_output follow patterns: `locobench_*`, `swebenchpro_*`, `swebenchpro_combined`, etc.
+  - Dashboard test files go in `dashboard/tests/` and import from `dashboard.utils.*`
+  - ruff and py_compile are available for linting/typechecking
+  - The `str | Path` union type works with Python 3.12 (project's Python version)
 ---
