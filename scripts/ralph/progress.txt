@@ -241,3 +241,19 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - `st.columns([2, 2])` creates equal-width columns; use two rows of columns for a 4-control filter layout
   - Browser verification not available in this environment; manual verification needed
 ---
+
+## 2026-01-27 - US-013 (verification pass)
+- US-013 was already implemented and committed (082d5ecc) but PRD wasn't updated to passes: true
+- Verified all 40 tests pass in dashboard/tests/test_trace_timeline.py
+- Verified lint (ruff) and typecheck (py_compile) pass for dashboard/utils/trace_timeline.py
+- Verified all acceptance criteria met: Plotly scatter chart, color-coded categories, hover tooltips, legend with toggle, tab integration in run_results.py
+- Files changed: `scripts/ralph/prd.json` (mark passes: true), `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Previous iteration committed the code and tests but forgot to update the PRD - always verify PRD is updated in same commit
+  - trace_timeline.py uses px.scatter with Category on x-axis and Sequence on y-axis (reversed) for execution-order display
+  - TOOL_TO_CATEGORY dict maps tool names to 6 categories: File Read, File Write, Search, Bash, Planning, Other
+  - CATEGORY_COLORS provides hex color codes matching the spec (blue, green, yellow, gray, purple, orange)
+  - Plotly legend click-to-toggle provides built-in show/hide category functionality
+  - Dynamic chart height: `max(400, min(len(df) * 4, 800))` scales with tool call count
+  - Browser verification not available in this environment; manual verification needed
+---
