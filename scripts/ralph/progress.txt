@@ -48,4 +48,23 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Dashboard test files go in `dashboard/tests/` and import from `dashboard.utils.*`
   - ruff and py_compile are available for linting/typechecking
   - The `str | Path` union type works with Python 3.12 (project's Python version)
+- Experiment selector in show_run_results() uses st.selectbox with format_func for display text and index-based selection
+- _group_experiments_by_benchmark() groups experiments by calling detect_benchmark_set() on each experiment's path
+---
+
+## 2026-01-27 - US-004
+- Added benchmark set grouping to experiment selector in `show_run_results()` in `dashboard/views/run_results.py`
+- Added `_group_experiments_by_benchmark()` helper function that groups experiments by detected benchmark set
+- Added "Benchmark Set" selectbox filter above the experiment selector with "All Benchmarks (N)" as the default option
+- Each benchmark group shows count in parentheses (e.g., "LoCoBench (5)")
+- Selecting a benchmark set filters the experiment selector to only show experiments in that group
+- Imported `detect_benchmark_set` from `dashboard.utils.benchmark_detection`
+- Created `dashboard/tests/test_experiment_grouping.py` with 7 unit tests for the grouping function
+- Files changed: `dashboard/views/run_results.py`, `dashboard/tests/test_experiment_grouping.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - The experiment selector uses index-based selection (`range(len(exp_options))` with `format_func`) - not value-based
+  - When filtering experiments, the selectbox index is relative to the filtered list, not the original list
+  - Pre-existing ruff warnings in run_results.py (11 total) should not be fixed as part of feature stories
+  - Immutable grouping: use `[*groups[key], exp]` to build new lists rather than mutating with `.append()`
+  - Streamlit `st.selectbox` returns `None` if no items available, so always guard against that
 ---

@@ -22,6 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from benchmark.database import RunManager, TaskManager
 from benchmark.trace_parser import TraceParser
 
+from dashboard.utils.benchmark_detection import detect_benchmark_set
+
 # External runs directory - configurable via environment or default
 EXTERNAL_RUNS_DIR = Path(
     os.environ.get(
@@ -267,6 +269,22 @@ def load_external_tasks(exp_dir: Path, result: dict) -> list:
     return tasks
 
 
+def _group_experiments_by_benchmark(experiments: list) -> dict:
+    """
+    Group experiments by their detected benchmark set.
+
+    Returns an ordered dict of benchmark_name -> list of experiments.
+    Groups with no experiments are excluded.
+    """
+    groups: dict[str, list] = {}
+    for exp in experiments:
+        benchmark_name = detect_benchmark_set(exp["path"])
+        if benchmark_name not in groups:
+            groups[benchmark_name] = []
+        groups[benchmark_name] = [*groups[benchmark_name], exp]
+    return groups
+
+
 def show_run_results():
     """Main run results page."""
     st.title("Run Results")
@@ -283,9 +301,33 @@ def show_run_results():
 
     st.caption(f"Loading from: {EXTERNAL_RUNS_DIR}")
 
-    # Experiment selector with type indicator
+    # Group experiments by benchmark set
+    benchmark_groups = _group_experiments_by_benchmark(external_experiments)
+
+    # Benchmark set filter
+    group_options = [
+        f"{name} ({len(exps)})" for name, exps in benchmark_groups.items()
+    ]
+    all_option = f"All Benchmarks ({len(external_experiments)})"
+    filter_options = [all_option] + group_options
+
+    selected_filter = st.selectbox("Benchmark Set", filter_options)
+
+    # Determine which experiments to show based on filter
+    if selected_filter == all_option:
+        filtered_experiments = external_experiments
+    else:
+        # Extract benchmark name from "Name (count)" format
+        selected_benchmark = selected_filter.rsplit(" (", 1)[0]
+        filtered_experiments = benchmark_groups.get(selected_benchmark, [])
+
+    if not filtered_experiments:
+        st.info("No experiments in this benchmark set.")
+        return
+
+    # Experiment selector within the filtered group
     exp_options = []
-    for exp in external_experiments:
+    for exp in filtered_experiments:
         exp_type = "🔄 Paired" if exp.get("is_paired") else "📦 Single"
         exp_options.append(f"{exp_type} {exp['name']}")
 
@@ -298,7 +340,7 @@ def show_run_results():
     if selected_idx is None:
         return
 
-    selected_exp = external_experiments[selected_idx]
+    selected_exp = filtered_experiments[selected_idx]
 
     st.markdown("---")
 
