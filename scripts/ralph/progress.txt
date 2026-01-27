@@ -65,6 +65,10 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - ruff rejects variable name `l` (ambiguous); use `lv` for loop variables over LLM values
 - Dashboard page navigation: `st.session_state["current_page"]` + `st.rerun()` to switch views; page names must match `nav_items_analysis` in app.py
 - Analysis cards component: `dashboard/utils/analysis_cards.py` with `ANALYSIS_CARDS` tuple and `render_analysis_card_grid()`
+- GUI-driven analysis config pattern: frozen `StatisticalConfig` dataclass for immutable config, sidebar renders config widgets, `run_and_display_results()` calls `loader.load_statistical()` and renders inline Plotly charts + CSV export
+- Analysis views use `loader.load_statistical()` from `AnalysisLoader` which wraps `StatisticalAnalyzer.analyze_statistical_significance()` with caching
+- `StatisticalAnalysisResult.tests` is dict[variant_agent, dict[metric_name, SignificanceTest]] with SignificanceTest containing p_value, effect_size (EffectSize dataclass), observed_power
+- MagicMock `__exit__` return value determines exception suppression; use `MagicMock(return_value=False)` for `__exit__` when testing context managers with exceptions
 ---
 
 ## 2026-01-27 - US-002
@@ -541,5 +545,35 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - `st.button(use_container_width=True)` creates a full-width button that fits well under card HTML
   - f-strings without placeholders trigger ruff F541; use plain strings instead
   - Analysis cards component: `dashboard/utils/analysis_cards.py` with `ANALYSIS_CARDS` tuple and `render_analysis_card_grid()`
+  - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-024
+- Implemented GUI-driven statistical analysis configuration page
+- Created `dashboard/utils/statistical_config.py` with:
+  - `StatisticalConfig` frozen dataclass for immutable analysis configuration
+  - `render_statistical_config()` sidebar config panel: experiment multiselect, baseline agent selector, significance level input, test type multiselect (t-test, Mann-Whitney, chi-squared), effect size threshold slider, metric selector
+  - `run_and_display_results()` runs analysis via `loader.load_statistical()` for each selected experiment and renders inline results
+  - `_build_results_dataframe()` converts StatisticalAnalysisResult into a flat DataFrame with Variant, Metric, P-Value, Significant, Effect Size columns
+  - `_build_effect_size_chart()` Plotly horizontal bar chart of absolute effect sizes with threshold line
+  - `_build_pvalue_chart()` Plotly horizontal bar chart of p-values with alpha threshold line and color-coded significance
+  - `_build_confidence_interval_chart()` Plotly grouped bar chart comparing baseline vs variant means
+  - `_render_results()` renders summary cards (4), p-values table, 3 Plotly charts, and CSV export button
+- Updated `dashboard/views/analysis_statistical.py`:
+  - Replaced sidebar-only config with `render_statistical_config()` from new module
+  - Added "Run Analysis" primary button to trigger analysis execution
+  - Cached results in session state for re-rendering across Streamlit reruns
+  - Collapsed interpretation guide into `st.expander` for cleaner layout
+- Created `dashboard/tests/test_statistical_config.py` with 59 unit tests across 15 test classes
+- Files changed: `dashboard/utils/statistical_config.py` (NEW), `dashboard/views/analysis_statistical.py`, `dashboard/tests/test_statistical_config.py` (NEW), `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - `loader.load_statistical()` wraps `StatisticalAnalyzer.analyze_statistical_significance()` with caching; accepts confidence_level (not alpha), converts internally
+  - `StatisticalAnalysisResult.tests` is dict[str, dict[str, SignificanceTest]] keyed by variant_agent then metric_name
+  - `SignificanceTest.effect_size` is an `EffectSize` dataclass with `cohens_d`, `cramers_v`, and `interpretation` fields
+  - When testing `with st.spinner(...)` context managers, set `__exit__ = MagicMock(return_value=False)` to prevent exception suppression
+  - Plotly `fig.add_vline(x=threshold, line_dash="dash")` adds a reference line for thresholds on bar charts
+  - `pd.concat(dfs, ignore_index=True)` combines DataFrames from multiple experiments; add "Experiment" column before concat for disambiguation
+  - `st.download_button(data=csv_data, mime="text/csv")` provides inline CSV export without separate file creation
+  - `st.button(type="primary")` renders an emphasized action button suitable for "Run Analysis" actions
   - Browser verification not available in this environment; manual verification needed
 ---
