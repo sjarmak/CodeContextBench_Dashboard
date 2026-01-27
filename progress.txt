@@ -92,3 +92,23 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - When a story asks to "remove" something, verify it exists first before making changes
   - CCB_EXTERNAL_ARCHIVE_DIR is documented in patterns but not used in dashboard code
 ---
+
+## 2026-01-27 - US-003: Add benchmark set detection utility
+- What was implemented: Verified that benchmark detection utility was already fully implemented in a prior session
+- Files already present:
+  - dashboard/utils/benchmark_detection.py - detect_benchmark_set() function with manifest-first, directory-fallback strategy
+  - dashboard/tests/test_benchmark_detection.py - 32 passing tests covering all benchmark sets
+- Files changed:
+  - prd.json - Marked US-003 passes: true
+  - progress.txt - Added this entry
+- **Verification results:**
+  - All 32 unit tests pass (14 manifest tests, 11 directory pattern tests, 7 integration tests)
+  - Covers: LoCoBench, SWE-Bench Pro, SWE-Bench Verified, RepoQA, DIBench
+  - Already integrated into run_results.py and task_detail.py
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - benchmark_detection.py uses BENCHMARK_ID_TO_NAME dict for manifest IDs and DIRECTORY_PATTERNS list of regex for fallback
+  - detect_benchmark_set() accepts both str and Path, returns display name or "Unknown"
+  - Already used by _group_experiments_by_benchmark() in run_results.py for US-004
+  - When a story's code already exists, verify and mark as passing rather than reimplementing
+---

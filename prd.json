@@ -44,8 +44,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/benchmark_detection.py with 32 passing tests"
     },
     {
       "id": "US-004",
