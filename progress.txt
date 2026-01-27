@@ -407,3 +407,28 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - The tab also renders alignment metrics (US-022) via _extract_llm_scores_dict() and compute_alignment_metrics()
   - Widget keys use SESSION_KEY_PREFIX = "judge_human_alignment" namespace
 ---
+
+## 2026-01-27 - US-022: LLM judge - alignment agreement metrics
+- What was implemented: Verified that alignment agreement metrics were already fully implemented in a prior session
+- Files already present:
+  - dashboard/utils/judge_alignment_metrics.py - ScorePair, AlignmentMetrics dataclasses, compute_cohens_kappa(), compute_pearson_correlation(), compute_mean_absolute_error(), find_disagreements(), build_export_dataframe(), render_alignment_metrics_panel()
+  - dashboard/tests/test_judge_alignment_metrics.py - 67 passing tests
+  - dashboard/utils/judge_human_alignment.py (lines 673-683) - Integration calling compute_alignment_metrics() and render_alignment_metrics_panel()
+- Files changed:
+  - prd.json - Marked US-022 passes: true
+  - progress.txt - Added this entry
+- **Verification details:**
+  - All 67 tests pass (6 parse_llm_score, 9 build_score_pairs, 6 pearson_correlation, 4 mean_absolute_error, 6 cohens_kappa, 3 compute_alignment_metrics, 7 find_disagreements, 5 build_export_dataframe, 6 render_panel, 5 extract_llm_scores_dict, 2 score_pair_dataclass, 2 alignment_metrics_dataclass, 3 kappa_edge_cases, 3 integration)
+  - Cohen's kappa: categorical comparison with rounded LLM scores, confusion matrix approach
+  - Pearson correlation: manual computation (no numpy), handles constant scores
+  - Mean absolute error: sum of |human - llm| / n
+  - Disagreement highlighter: configurable threshold slider (default 2.0), red highlighting (#fee2e2)
+  - Export: CSV download button via build_export_dataframe() + st.download_button()
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - judge_alignment_metrics.py has no SQLite dependency — it takes pre-built dicts and returns frozen dataclasses
+  - compute_cohens_kappa() rounds LLM scores to nearest int for categorical comparison
+  - find_disagreements() uses exclusive threshold: abs(diff) > threshold (not >=)
+  - render_alignment_metrics_panel() renders: 4 metric cards -> disagreement slider + table -> CSV export button
+  - _extract_llm_scores_dict() in judge_human_alignment.py bridges TestPromptResult to the dict format needed by metrics
+---
