@@ -302,3 +302,28 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Global pre-commit hook at /Users/sjarmak/.config/pre-commit/hooks/ has false positive on "TOKEN" pattern; use `git -c core.hookspath=.git/hooks` to bypass
   - configs/judge_templates/ directory created on first save by save_config()
 ---
+
+## 2026-01-27 - US-018: LLM judge - test prompt on single task
+- What was implemented: Verified that the test prompt feature was already fully implemented in a prior session
+- Files already present:
+  - dashboard/utils/judge_test_prompt.py - run_test_prompt(), render_test_prompt_section(), _build_evaluation_prompt(), _parse_judge_response(), _load_task_data(), _display_result()
+  - dashboard/tests/test_judge_test_prompt.py - 67 passing tests covering all components
+  - dashboard/views/analysis_llm_judge.py (line 239) - Integration as render_test_prompt_section() in Prompt & Rubric Editor tab
+- Files changed:
+  - prd.json - Marked US-018 passes: true
+  - progress.txt - Added this entry
+- **Verification details:**
+  - All 67 tests pass (2 dataclass, 4 TestPromptResult, 9 code changes extraction, 5 description extraction, 11 task data loading, 9 prompt building, 6 response parsing, 6 experiment tasks, 4 run_test_prompt, 3 display, 3 render section, 2 run_and_display, 3 integration)
+  - Test Prompt button: st.button("Test Prompt") in render_test_prompt_section()
+  - Task selector: experiment selectbox + task selectbox populated from _find_experiment_tasks()
+  - Inline results: _display_result() renders per-dimension expanders and overall score metric
+  - Error handling: run_test_prompt() catches ImportError, missing API key, and API exceptions
+  - Loading spinner: st.spinner("Running judge evaluation...") wraps the API call
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - judge_test_prompt.py uses _session_state_to_config() from judge_editor.py to get the current editor config
+  - _load_task_data() supports multiple config formats: task.instruction, task.prompt, problem_statement, tests/config.json fallback
+  - _extract_code_changes() uses JSONL parsing (not regex), iterates lines and parses Edit/Write tool_use blocks
+  - _parse_judge_response() handles JSON in code blocks (```json ... ```) and partial JSON extraction with regex fallback
+  - Result stored in st.session_state["test_prompt_result"] for persistence across re-renders
+---
