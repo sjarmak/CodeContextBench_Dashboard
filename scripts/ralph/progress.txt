@@ -185,4 +185,34 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - The existing `show_claude_code_trace()` does its own inline JSONL parsing; the TraceSummary can be constructed from its existing parsed data without re-parsing
   - Plotly `px.bar()` with `update_layout(showlegend=False)` gives a clean chart without redundant color legend
   - `pd.DataFrame.sort_values().reset_index(drop=True)` is needed for clean dataframe display without stale indices
+  - Trace card rendering: `dashboard/utils/trace_cards.py` with `render_trace_cards(messages)` renders paginated styled cards from TraceMessage list
+  - Card styling uses inline HTML/CSS via `st.markdown(..., unsafe_allow_html=True)` with border-left color coding per type
+  - Pagination: `st.session_state[key]` stores page number; `st.rerun()` triggers page change; `st.button()` with unique keys for prev/next
+  - When mocking `st.columns()` for unpacking, mock `_render_pagination_controls` instead to avoid ValueError
+---
+
+## 2026-01-27 - US-011
+- Created `dashboard/utils/trace_cards.py` with full trace card rendering component
+- `render_trace_cards()` renders paginated (50/page) styled cards from TraceMessage list
+- Card styles by type:
+  - System messages: gray (#f0f0f0) background, shows init metadata (model, tools) and session ID
+  - Assistant text: white (#ffffff) background, renders content as markdown
+  - Assistant tool_use: light blue (#eff6ff) background, tool name as pill badge, JSON input in collapsible expander
+  - User tool_result: light green (#f0fdf4) background, syntax-highlighted code, truncates >100 lines with "Show more" expander
+- Token usage shown as compact label on assistant messages: `in: N | out: N | cached: N`
+- Pagination: 50 messages per page, Previous/Next buttons, "Showing X-Y of Z messages" indicator
+- Pagination controls rendered at top and bottom (bottom only for multi-page)
+- Page state persisted in `st.session_state` with clamping to valid range
+- Integrated into `show_claude_code_trace()` in `run_results.py`: renamed "Conversation" tab to "Full Trace", uses US-009 parser + trace cards
+- Created `dashboard/tests/test_trace_cards.py` with 54 unit tests covering all renderers, pagination, dispatch, constants
+- Files changed: `dashboard/utils/trace_cards.py`, `dashboard/views/run_results.py`, `dashboard/tests/test_trace_cards.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - `st.columns([1,2,1])` returns a tuple that must be unpacked; in tests, mock `_render_pagination_controls` to avoid `ValueError: not enough values to unpack`
+  - `st.rerun()` triggers a full Streamlit rerun; use it inside `st.button()` callbacks for page navigation
+  - `st.session_state` keys must be unique across the app; use a `session_key` parameter to allow multiple trace card instances
+  - `st.markdown(html, unsafe_allow_html=True)` is the standard way to inject styled HTML cards in Streamlit
+  - `json.dumps(dict, indent=2)` + `st.code(language="json")` gives better formatting than `st.json()` for tool input display
+  - The US-009 `parse_trace()` function returns all message types (system, assistant text/tool_use, user tool_result) - use it for full trace rendering
+  - The existing `show_claude_code_trace()` still does its own inline parsing for tool_calls/edits/bash data - the new cards only replace the Conversation tab
+  - Browser verification not available in this environment; manual verification needed
 ---
