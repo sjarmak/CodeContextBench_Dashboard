@@ -293,8 +293,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented via dashboard/utils/judge_config.py (data model + I/O) and dashboard/utils/judge_editor.py (Streamlit UI), integrated as 'Prompt & Rubric Editor' tab in analysis_llm_judge.py. 63 passing tests."
     },
     {
       "id": "US-018",

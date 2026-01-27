@@ -20,6 +20,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from dashboard.utils.judge_editor import render_judge_editor
+
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -210,7 +212,12 @@ def show_llm_judge():
         }
 
     # Tabs for different sections
-    tabs = st.tabs(["🧪 Run Evaluation", "📊 View Reports", "📋 Rubric Configuration"])
+    tabs = st.tabs([
+        "🧪 Run Evaluation",
+        "📊 View Reports",
+        "📋 Rubric Configuration",
+        "Prompt & Rubric Editor",
+    ])
 
     with tabs[0]:
         show_evaluation_config(project_root)
@@ -220,6 +227,9 @@ def show_llm_judge():
 
     with tabs[2]:
         show_rubric_config(project_root)
+
+    with tabs[3]:
+        render_judge_editor(project_root)
 
 
 def show_reports_view(project_root: Path):
