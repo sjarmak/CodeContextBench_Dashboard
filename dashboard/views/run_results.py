@@ -26,6 +26,7 @@ from dashboard.utils.benchmark_detection import detect_benchmark_set
 from dashboard.utils.task_detail import render_task_detail_panel
 from dashboard.utils.task_list import render_task_list
 from dashboard.utils.trace_cards import render_trace_cards
+from dashboard.utils.trace_file_tree import render_file_tree
 from dashboard.utils.trace_filters import render_trace_filter_controls
 from dashboard.utils.trace_timeline import render_tool_timeline
 
@@ -1553,41 +1554,48 @@ def show_claude_code_trace(claude_file: Path):
 
         structured_messages = parse_trace_messages(claude_file)
 
-        # Tabs for different views
-        tabs = st.tabs(
-            [
-                "💬 Full Trace",
-                "📊 Timeline",
-                "🔧 Tool Calls",
-                "📝 Code Changes",
-                "🖥️ Bash Commands",
-                "📄 Raw",
-            ]
-        )
+        # Two-column layout: file tree sidebar (left) + trace tabs (right)
+        file_tree_col, trace_col = st.columns([1, 3])
 
-        with tabs[0]:
-            filtered_messages = render_trace_filter_controls(
-                structured_messages, session_key="trace_filter"
+        with file_tree_col:
+            render_file_tree(structured_messages, session_key="trace_selected_file")
+
+        with trace_col:
+            # Tabs for different views
+            tabs = st.tabs(
+                [
+                    "💬 Full Trace",
+                    "📊 Timeline",
+                    "🔧 Tool Calls",
+                    "📝 Code Changes",
+                    "🖥️ Bash Commands",
+                    "📄 Raw",
+                ]
             )
-            render_trace_cards(filtered_messages)
 
-        with tabs[1]:
-            render_tool_timeline(structured_messages)
+            with tabs[0]:
+                filtered_messages = render_trace_filter_controls(
+                    structured_messages, session_key="trace_filter"
+                )
+                render_trace_cards(filtered_messages)
 
-        with tabs[2]:
-            show_claude_tool_calls(messages, tool_calls)
+            with tabs[1]:
+                render_tool_timeline(structured_messages)
 
-        with tabs[3]:
-            show_claude_edits(edits_made)
+            with tabs[2]:
+                show_claude_tool_calls(messages, tool_calls)
 
-        with tabs[4]:
-            show_claude_bash(bash_commands)
+            with tabs[3]:
+                show_claude_edits(edits_made)
 
-        with tabs[5]:
-            with st.expander("Raw JSONL (first 50 lines)", expanded=False):
-                with open(claude_file) as f:
-                    lines = f.readlines()[:50]
-                st.code("".join(lines), language="json")
+            with tabs[4]:
+                show_claude_bash(bash_commands)
+
+            with tabs[5]:
+                with st.expander("Raw JSONL (first 50 lines)", expanded=False):
+                    with open(claude_file) as f:
+                        lines = f.readlines()[:50]
+                    st.code("".join(lines), language="json")
 
     except Exception as e:
         st.error(f"Failed to parse claude-code.txt: {e}")
