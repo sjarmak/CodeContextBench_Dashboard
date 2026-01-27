@@ -29,8 +29,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "No archived runs UI or filtering logic existed in the dashboard code - acceptance criteria verified as already met"
     },
     {
       "id": "US-003",

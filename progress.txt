@@ -75,3 +75,20 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - The benchmark_detection.detect_benchmark_set() utility works on experiment-level paths, not instance-level
   - run_results.py has many pre-existing ruff linting issues (F841, E722, F401) - do not fix these as part of feature work
 ---
+
+## 2026-01-27 - US-002: Remove archived runs option from UI
+- What was implemented: Verified that no "archived runs" UI toggle, checkbox, or filtering logic exists in the dashboard codebase
+- Files changed:
+  - prd.json - Marked US-002 passes: true with note
+  - progress.txt - Added this entry
+- **Investigation results:**
+  - Searched dashboard/views/, dashboard/utils/, dashboard/components/ for any "archive" / "archived" / "ARCHIVE" references
+  - Searched src/ directory as well - no matches
+  - No checkbox/toggle, no filtering logic, no archived status field exists anywhere in the dashboard code
+  - The only "archive" reference is the CCB_EXTERNAL_ARCHIVE_DIR env var mentioned in progress.txt codebase patterns (documentation only)
+  - All acceptance criteria verified as already satisfied
+- **Learnings for future iterations:**
+  - The archived runs feature was either never implemented or was already removed in a prior cleanup
+  - When a story asks to "remove" something, verify it exists first before making changes
+  - CCB_EXTERNAL_ARCHIVE_DIR is documented in patterns but not used in dashboard code
+---
