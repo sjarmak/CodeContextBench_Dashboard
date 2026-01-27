@@ -42,6 +42,11 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - GitHub URL construction: task config.json `task.git_url` field provides repo URL; `_build_github_url()` converts to blob URL
 - `difflib.unified_diff()` with `splitlines(keepends=True)` generates standard unified diffs for Edit operations
 - Language detection: `_detect_language()` maps file extensions to syntax highlight language strings for `st.code()`
+- Judge config: `dashboard/utils/judge_config.py` has frozen dataclasses (JudgeConfig, ScoringDimension, ScoringCriterion) and save/load to `configs/judge_templates/`
+- Judge editor: `dashboard/utils/judge_editor.py` renders Streamlit widgets, stores mutable dict in session state, converts to/from JudgeConfig for persistence
+- Judge editor session keys: `judge_editor_{suffix}` prefix; `_session_key("data")` holds the mutable config dict, `_session_key("initialized")` tracks first load
+- Judge view tabs: analysis_llm_judge.py has 4 tabs: Run Evaluation, View Reports, Rubric Configuration, Prompt & Rubric Editor
+- Available Anthropic models: AVAILABLE_MODELS tuple in judge_config.py (haiku, sonnet, opus)
 ---
 
 ## 2026-01-27 - US-002
@@ -336,5 +341,24 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - The claude-code.txt file lives at `instance_dir/agent/claude-code.txt`; config.json is at `instance_dir/config.json`
   - Write operations display full file content; truncation at 5000 chars prevents Streamlit rendering issues with very large files
   - The Code Changes tab now uses the file tree selection from `st.session_state["trace_selected_file"]` to show per-file diffs
+  - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-017
+- Verified existing LLM judge prompt and rubric editor implementation in `dashboard/utils/judge_editor.py` and `dashboard/utils/judge_config.py`
+- All acceptance criteria already implemented: system prompt text area, scoring dimensions with name/weight/delete, add dimension button, per-level criteria (1-5), model dropdown, temperature slider, max_tokens input, save button
+- Editor integrated as Tab 3 ("Prompt & Rubric Editor") in `dashboard/views/analysis_llm_judge.py`
+- Fixed lint issues: removed unused imports (ScoringCriterion, ScoringDimension, add_dimension, remove_dimension, Optional) and f-string without placeholder
+- Created `dashboard/tests/test_judge_editor.py` with 51 unit tests covering all editor functions
+- Test classes: TestSessionKey (4), TestConfigToSessionState (5), TestSessionStateToConfig (4), TestEnsureInitialized (3), TestRenderSystemPrompt (3), TestRenderModelSettings (6), TestRenderDimensionRow (6), TestRenderDimensions (5), TestRenderSaveButton (6), TestRenderJudgeEditor (3), TestEditorIntegration (5), TestTabIntegration (1)
+- Files changed: `dashboard/utils/judge_editor.py` (lint fixes), `dashboard/utils/judge_config.py` (lint fix), `dashboard/tests/test_judge_editor.py` (new), `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - The judge editor was already fully implemented in a previous iteration but PRD was not marked as passes: true
+  - `judge_editor.py` stores config as a mutable dict in `st.session_state` for widget binding, then converts to frozen JudgeConfig for persistence
+  - `_config_to_session_state()` uses `config_to_dict()` to create mutable dict; `_session_state_to_config()` uses `dict_to_config()` to restore
+  - When mocking Streamlit for column-based layouts, use `mock_st.columns.return_value = (MagicMock(), MagicMock(), MagicMock())` for 3-column layouts
+  - `_render_dimension_row()` returns True/False for delete signal; caller processes deletions in reverse order
+  - Dimension criteria are padded to 5 levels in the editor (even if fewer in config) for consistent UI
+  - `st.expander` with `expanded=False` provides a collapsed-by-default section for per-level criteria
   - Browser verification not available in this environment; manual verification needed
 ---

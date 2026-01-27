@@ -15,14 +15,10 @@ import streamlit as st
 from dashboard.utils.judge_config import (
     AVAILABLE_MODELS,
     JudgeConfig,
-    ScoringCriterion,
-    ScoringDimension,
-    add_dimension,
     config_to_dict,
     default_config,
     dict_to_config,
     load_config,
-    remove_dimension,
     save_config,
 )
 
@@ -180,7 +176,7 @@ def _render_dimension_row(dim_data: dict, index: int) -> bool:
         criteria = [*criteria, {"level": len(criteria) + 1, "description": ""}]
     dim_data["criteria"] = criteria
 
-    with st.expander(f"Score criteria (1-5)", expanded=False):
+    with st.expander("Score criteria (1-5)", expanded=False):
         for level_idx, criterion in enumerate(criteria[:5]):
             level_num = criterion.get("level", level_idx + 1)
             new_desc = st.text_input(
