@@ -20,6 +20,10 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Environment variable for runs dir: CCB_EXTERNAL_RUNS_DIR (was CCB_EXTERNAL_JOBS_DIR)
 - Archive dir env var: CCB_EXTERNAL_ARCHIVE_DIR
 - Run output default path: runs/{run_id} (was jobs/{run_id})
+- Task detail panel lives in dashboard/utils/task_detail.py - reuse render_task_detail_panel() for any task detail view
+- result.json structure: verifier_result.rewards (reward breakdown), agent_result (tokens, exit_code, cost), timing phases (environment_setup, agent_setup, agent_execution, verifier)
+- Two task detail paths: show_paired_task_detail (paired experiments) and show_external_task_detail (single experiments) - both now use shared component
+- verifier/output.json in instance_dir contains additional verifier data that supplements result.json
 ---
 
 ## 2026-01-27 - US-001: Update data source path from jobs/ to runs/
@@ -48,4 +52,26 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - archive/ and artifacts/ directories contain copies of code that were NOT updated (they're historical snapshots)
   - The `eval_runs_v2/` path was only in documentation (EVAL_FRAMEWORK.md, GCP_BENCHMARK_EXECUTION.md), not in Python code
   - ruff is available for linting; pre-existing issues exist but should not be introduced by changes
+---
+
+## 2026-01-27 - US-007: Task detail view - metadata panel
+- What was implemented: Created a reusable task detail metadata panel component with 5 collapsible sections displayed via st.expander
+- Files changed:
+  - dashboard/utils/task_detail.py (NEW) - Reusable component with render_task_detail_panel() function, helper functions for timing, tokens, build env, verifier output extraction
+  - dashboard/views/run_results.py - Imported task_detail module, updated show_external_task_detail() and show_paired_task_detail() to use shared render_task_detail_panel()
+  - scripts/ralph/prd.json - Marked US-007 passes: true
+  - prd.json - Marked US-007 passes: true
+  - progress.txt - Added codebase patterns and this entry
+- **Sections implemented:**
+  1. Task Metadata (expanded) - task_id, benchmark source, language, difficulty, tags
+  2. Build Environment (expanded) - docker image, model, agent name, environment type, task source
+  3. Execution Metrics (expanded) - total duration, agent execution, env setup, verifier time, input/output/cached tokens, tool calls, reward score
+  4. Agent Result (expanded) - pass/fail/error status badge, exit code, error details
+  5. Verifier Output (collapsed) - test pass/fail/total counts, reward breakdown, test output
+- **Learnings for future iterations:**
+  - show_paired_task_detail loads instruction_content and task_metadata from task.toml - these are still loaded inline for LLM Judge Context tab
+  - result.json agent_result may contain: n_input_tokens, n_output_tokens, n_cached_tokens, n_tool_calls, exit_code, cost
+  - Instance dir layout varies: paired tasks at experiment/mode/timestamp/task_id/, single tasks at experiment/task_name/agent/
+  - The benchmark_detection.detect_benchmark_set() utility works on experiment-level paths, not instance-level
+  - run_results.py has many pre-existing ruff linting issues (F841, E722, F401) - do not fix these as part of feature work
 ---

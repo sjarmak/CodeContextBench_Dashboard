@@ -23,6 +23,7 @@ from benchmark.database import RunManager, TaskManager
 from benchmark.trace_parser import TraceParser
 
 from dashboard.utils.benchmark_detection import detect_benchmark_set
+from dashboard.utils.task_detail import render_task_detail_panel
 from dashboard.utils.task_list import render_task_list
 
 # External runs directory - configurable via environment or default
@@ -872,145 +873,25 @@ def show_paired_task_detail(task):
                     except Exception:
                         pass
 
-    # Task Information Section
-    with st.expander("📋 Task Information", expanded=True):
-        # Extract repository name from task metadata or task_id
-        repo_name = "Unknown"
-        if task_metadata.get("task", {}).get("repo"):
-            repo_name = task_metadata["task"]["repo"]
-        elif "task_id" in result_data:
-            task_id_info = result_data.get("task_id", {})
-            if isinstance(task_id_info, dict):
-                task_path = task_id_info.get("path", "")
-                # Extract repo from path like "instance_ansible__ansible-xxx"
-                if "instance_" in task_path:
-                    parts = task_path.split("/")[-1].replace("instance_", "").split("-")
-                    if len(parts) >= 2:
-                        repo_name = parts[0].replace("__", "/").replace("_", "-")
+    # Render metadata panel with collapsible sections
+    # Determine experiment path from instance_dir (go up to experiment level)
+    experiment_path = None
+    if instance_dir:
+        # instance_dir is typically: experiment/mode/timestamp/task_id/
+        # Go up enough levels to find the experiment directory
+        candidate = instance_dir.parent
+        for _ in range(4):
+            if candidate and (candidate / "manifest.json").exists():
+                experiment_path = candidate
+                break
+            if candidate.parent != candidate:
+                candidate = candidate.parent
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"**Repository:** `{repo_name}`")
-            st.markdown(f"**Task ID:** `{task['task_name']}`")
-            if task_metadata.get("metadata", {}).get("difficulty"):
-                st.markdown(
-                    f"**Difficulty:** {task_metadata['metadata']['difficulty']}"
-                )
-            if task_metadata.get("metadata", {}).get("category"):
-                st.markdown(f"**Category:** {task_metadata['metadata']['category']}")
-
-        with col2:
-            # Agent/Model info
-            agent_info = result_data.get("agent_info", {})
-            if agent_info:
-                st.markdown(f"**Agent:** {agent_info.get('name', 'Unknown')}")
-                model_info = agent_info.get("model_info", {})
-                if model_info:
-                    st.markdown(f"**Model:** {model_info.get('name', 'Unknown')}")
-
-            # Config info
-            config = result_data.get("config", {})
-            if config.get("agent", {}).get("model_name"):
-                st.markdown(f"**Model:** {config['agent']['model_name']}")
-
-        # Instruction
-        if instruction_content:
-            st.markdown("---")
-            st.markdown("**Instruction:**")
-            # Show first 2000 chars with option to expand
-            if len(instruction_content) > 2000:
-                st.markdown(instruction_content[:2000] + "...")
-                with st.expander("Show full instruction"):
-                    st.markdown(instruction_content)
-            else:
-                st.markdown(instruction_content)
-
-    # Timing/Metrics Section
-    with st.expander("⏱️ Execution Metrics", expanded=True):
-        # Calculate timing metrics
-        timing = {}
-        if result_data:
-            for timing_key in [
-                "environment_setup",
-                "agent_setup",
-                "agent_execution",
-                "verifier",
-            ]:
-                timing_data = result_data.get(timing_key, {})
-                if (
-                    timing_data
-                    and timing_data.get("started_at")
-                    and timing_data.get("finished_at")
-                ):
-                    try:
-                        start = datetime.fromisoformat(
-                            timing_data["started_at"].replace("Z", "+00:00")
-                        )
-                        end = datetime.fromisoformat(
-                            timing_data["finished_at"].replace("Z", "+00:00")
-                        )
-                        timing[timing_key] = (end - start).total_seconds()
-                    except Exception:
-                        pass
-
-        # Overall timing
-        if result_data.get("started_at") and result_data.get("finished_at"):
-            try:
-                start = datetime.fromisoformat(
-                    result_data["started_at"].replace("Z", "+00:00")
-                )
-                end = datetime.fromisoformat(
-                    result_data["finished_at"].replace("Z", "+00:00")
-                )
-                timing["total"] = (end - start).total_seconds()
-            except Exception:
-                pass
-
-        col1, col2, col3, col4, col5 = st.columns(5)
-
-        with col1:
-            reward = task.get("reward") or 0
-            st.metric("Reward", f"{reward:.4f}")
-
-        with col2:
-            st.metric("Status", task.get("status") or "unknown")
-
-        with col3:
-            total_time = timing.get("total", 0)
-            st.metric("Total Time", f"{total_time:.1f}s" if total_time else "N/A")
-
-        with col4:
-            agent_time = timing.get("agent_execution", 0)
-            st.metric("Agent Time", f"{agent_time:.1f}s" if agent_time else "N/A")
-
-        with col5:
-            verifier_time = timing.get("verifier", 0)
-            st.metric(
-                "Verifier Time", f"{verifier_time:.1f}s" if verifier_time else "N/A"
-            )
-
-        # Token metrics row
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            input_tokens = task.get("input_tokens") or 0
-            st.metric("Input Tokens", f"{input_tokens:,}")
-
-        with col2:
-            output_tokens = task.get("output_tokens") or 0
-            st.metric("Output Tokens", f"{output_tokens:,}")
-
-        with col3:
-            env_setup_time = timing.get("environment_setup", 0)
-            st.metric(
-                "Env Setup", f"{env_setup_time:.1f}s" if env_setup_time else "N/A"
-            )
-
-        with col4:
-            agent_setup_time = timing.get("agent_setup", 0)
-            st.metric(
-                "Agent Setup", f"{agent_setup_time:.1f}s" if agent_setup_time else "N/A"
-            )
+    render_task_detail_panel(
+        task=task,
+        instance_dir=instance_dir,
+        experiment_path=experiment_path,
+    )
 
     st.markdown("---")
 
@@ -1154,22 +1035,16 @@ def show_external_task_detail(exp_data, task):
     """Display detailed task results for external experiment."""
     st.subheader(f"Task: {task['task_name']}")
 
-    # Metrics
-    col1, col2, col3 = st.columns(3)
+    # Render metadata panel with collapsible sections
+    instance_dir = task.get("instance_dir")
+    if instance_dir is not None and not isinstance(instance_dir, Path):
+        instance_dir = Path(instance_dir)
 
-    with col1:
-        st.metric("Result", task.get("reward", "N/A"))
-
-    with col2:
-        st.metric("Status", task["status"])
-
-    with col3:
-        st.metric(
-            "Agent",
-            task["agent_name"].split("__")[0]
-            if "__" in task["agent_name"]
-            else task["agent_name"],
-        )
+    render_task_detail_panel(
+        task=task,
+        instance_dir=instance_dir,
+        experiment_path=exp_data.get("path"),
+    )
 
     st.markdown("---")
 
