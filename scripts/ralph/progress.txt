@@ -187,6 +187,7 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - `pd.DataFrame.sort_values().reset_index(drop=True)` is needed for clean dataframe display without stale indices
   - Trace card rendering: `dashboard/utils/trace_cards.py` with `render_trace_cards(messages)` renders paginated styled cards from TraceMessage list
 - Trace filtering: `dashboard/utils/trace_filters.py` with `render_trace_filter_controls(messages)` returns filtered messages; uses `TraceFilterState` frozen dataclass and `filter_messages()` pure function
+- Trace diffs: `dashboard/utils/trace_diffs.py` with `extract_file_operations(messages)` returns `dict[str, list[FileOperation]]` grouped by file path, sorted by sequence number
   - Card styling uses inline HTML/CSS via `st.markdown(..., unsafe_allow_html=True)` with border-left color coding per type
   - Pagination: `st.session_state[key]` stores page number; `st.rerun()` triggers page change; `st.button()` with unique keys for prev/next
   - When mocking `st.columns()` for unpacking, mock `_render_pagination_controls` instead to avoid ValueError
@@ -256,4 +257,25 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Plotly legend click-to-toggle provides built-in show/hide category functionality
   - Dynamic chart height: `max(400, min(len(df) * 4, 800))` scales with tool call count
   - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-014
+- Created `dashboard/utils/trace_diffs.py` with file diff extraction utility
+- `FileOperation` frozen dataclass with fields: operation, file_path, old_string, new_string, full_content, sequence_number
+- `extract_file_operations(messages)` main function: processes TraceMessages, returns `dict[str, list[FileOperation]]`
+- `_extract_read_operation()`: captures file_path from Read tool_use; content linked via `_link_read_results()`
+- `_extract_edit_operation()`: captures file_path, old_string, new_string from Edit tool_use
+- `_extract_write_operation()`: captures file_path and full content from Write tool_use
+- `_build_read_result_map()`: builds mapping of parent_tool_use_id -> tool_result content for linking Read results
+- `_link_read_results()`: matches Read FileOperations to their tool_result content via parent_tool_use_id
+- Operations grouped by file_path and sorted by sequence_number within each group
+- Created `dashboard/tests/test_trace_diffs.py` with 38 unit tests covering all extraction functions, edge cases, and integration scenarios
+- Files changed: `dashboard/utils/trace_diffs.py`, `dashboard/tests/test_trace_diffs.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Read tool_use messages store their tool_use_id in `parent_tool_use_id` field (confusingly named - it's the block's `id` from the content array)
+  - Tool result content for Read operations comes from the corresponding `user/tool_result` message matched by `parent_tool_use_id`
+  - The `_build_read_result_map()` pattern (parent_id -> result content) is reusable for linking any tool_use to its result
+  - Immutable grouping with dict spread (`{**grouped, path: [*existing, op]}`) follows project convention but is verbose
+  - FileOperation uses frozen dataclass for immutability, consistent with TraceMessage, NormalizedTask patterns
+  - Edit tool_input has `old_string`, `new_string`, `file_path`; Write has `file_path`, `content`; Read has `file_path`
 ---
