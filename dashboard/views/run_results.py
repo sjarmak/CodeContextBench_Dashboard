@@ -269,6 +269,129 @@ def load_external_tasks(exp_dir: Path, result: dict) -> list:
     return tasks
 
 
+def _load_manifest_pairs(experiments: list) -> list[dict]:
+    """
+    Load pre-defined pairs from manifest.json files across all experiments.
+
+    Returns a list of pair dicts with:
+      - pair_id, baseline_run_id, mcp_run_id, status
+      - baseline_exp, variant_exp (references to matching experiment dicts)
+    """
+    pairs: list[dict] = []
+
+    for exp in experiments:
+        manifest_path = exp["path"] / "manifest.json"
+        if not manifest_path.exists():
+            continue
+        try:
+            with open(manifest_path) as f:
+                manifest = json.load(f)
+        except Exception:
+            continue
+
+        manifest_pairs = manifest.get("pairs", [])
+        manifest_runs = manifest.get("runs", [])
+        if not manifest_pairs or not manifest_runs:
+            continue
+
+        # Build run_id -> experiment lookup from manifest runs
+        run_id_to_mode: dict[str, str] = {}
+        for run_entry in manifest_runs:
+            run_id_to_mode[run_entry.get("run_id", "")] = run_entry.get(
+                "mcp_mode", ""
+            )
+
+        for pair_def in manifest_pairs:
+            baseline_run_id = pair_def.get("baseline_run_id", "")
+            variant_run_id = pair_def.get("mcp_run_id", "")
+
+            # Try to find matching experiments by name or subdirectory
+            baseline_exp = _find_experiment_for_run(
+                experiments, exp, baseline_run_id
+            )
+            variant_exp = _find_experiment_for_run(
+                experiments, exp, variant_run_id
+            )
+
+            pairs.append(
+                {
+                    "pair_id": pair_def.get("pair_id", ""),
+                    "baseline_run_id": baseline_run_id,
+                    "variant_run_id": variant_run_id,
+                    "status": pair_def.get("status", "unknown"),
+                    "source_experiment": exp["name"],
+                    "baseline_exp": baseline_exp,
+                    "variant_exp": variant_exp,
+                }
+            )
+
+    return pairs
+
+
+def _find_experiment_for_run(
+    experiments: list, source_exp: dict, run_id: str
+) -> dict | None:
+    """
+    Find the experiment dict matching a run_id.
+
+    For paired experiments (baseline/deepsearch subdirs), check modes.
+    For single experiments, match by name prefix.
+    """
+    if not run_id:
+        return None
+
+    # If source experiment is paired, check its modes
+    if source_exp.get("is_paired"):
+        for mode_name, mode_data in source_exp.get("modes", {}).items():
+            if run_id.endswith(f"_{mode_name}") or mode_name in run_id:
+                return {
+                    **source_exp,
+                    "_matched_mode": mode_name,
+                    "_matched_mode_data": mode_data,
+                }
+
+    # Search all experiments by name match
+    for exp in experiments:
+        if exp["name"] in run_id or run_id.startswith(exp["name"]):
+            return exp
+
+    return None
+
+
+def _get_experiment_task_ids(exp: dict) -> set[str]:
+    """
+    Extract task IDs from an experiment for pairing comparison.
+
+    Works for both paired (has modes) and single (has result.json) experiments.
+    """
+    task_ids: set[str] = set()
+    exp_path = exp["path"]
+
+    if exp.get("is_paired"):
+        # For paired experiments, collect task names from all modes
+        for mode_data in exp.get("modes", {}).values():
+            for task in mode_data.get("tasks", []):
+                task_ids.add(task.get("task_name", ""))
+    else:
+        # For single experiments, scan for task directories
+        for item in exp_path.iterdir():
+            if item.is_dir() and not item.name.startswith("."):
+                if (item / "agent").exists() or (item / "result.json").exists():
+                    task_ids.add(item.name)
+
+    task_ids.discard("")
+    return task_ids
+
+
+def _find_common_task_runs(
+    exp_a: dict, exp_b: dict
+) -> set[str]:
+    """Find task IDs that are common between two experiments."""
+    tasks_a = _get_experiment_task_ids(exp_a)
+    tasks_b = _get_experiment_task_ids(exp_b)
+    return tasks_a & tasks_b
+
+
 def _group_experiments_by_benchmark(experiments: list) -> dict:
     """
     Group experiments by their detected benchmark set.
@@ -325,6 +448,29 @@ def show_run_results():
         st.info("No experiments in this benchmark set.")
         return
 
+    # --- Mode toggle: Individual Review vs Paired Comparison ---
+    if "experiment_mode" not in st.session_state:
+        st.session_state["experiment_mode"] = "Individual Review"
+
+    experiment_mode = st.radio(
+        "Selection Mode",
+        ["Individual Review", "Paired Comparison"],
+        horizontal=True,
+        key="experiment_mode_radio",
+        index=0
+        if st.session_state["experiment_mode"] == "Individual Review"
+        else 1,
+    )
+    st.session_state["experiment_mode"] = experiment_mode
+
+    if experiment_mode == "Individual Review":
+        _show_individual_mode(filtered_experiments)
+    else:
+        _show_paired_mode(filtered_experiments, external_experiments)
+
+
+def _show_individual_mode(filtered_experiments: list) -> None:
+    """Standard single-run experiment selection (existing behavior)."""
     # Experiment selector within the filtered group
     exp_options = []
     for exp in filtered_experiments:
@@ -353,6 +499,230 @@ def show_run_results():
         st.markdown("---")
         # Display task results
         show_external_task_results(selected_exp)
+
+
+def _show_paired_mode(
+    filtered_experiments: list, all_experiments: list
+) -> None:
+    """Paired comparison mode with baseline/variant dropdowns."""
+    # Auto-detect pairs from manifest.json
+    detected_pairs = _load_manifest_pairs(all_experiments)
+
+    # --- Pre-defined pairs section ---
+    if detected_pairs:
+        st.subheader("Detected Pairs")
+        pair_labels = []
+        for pair in detected_pairs:
+            label = (
+                f"{pair['source_experiment']}: "
+                f"{pair['baseline_run_id']} vs {pair['variant_run_id']}"
+            )
+            pair_labels.append(label)
+
+        auto_pair_option = "Manual pairing"
+        pair_select_options = [auto_pair_option] + pair_labels
+
+        selected_pair_label = st.selectbox(
+            "Select a detected pair or choose manual pairing",
+            pair_select_options,
+            key="paired_mode_pair_select",
+        )
+
+        if selected_pair_label != auto_pair_option:
+            pair_idx = pair_select_options.index(selected_pair_label) - 1
+            selected_pair = detected_pairs[pair_idx]
+
+            st.info(
+                f"Pair: **{selected_pair['pair_id']}** "
+                f"(status: {selected_pair['status']})"
+            )
+
+            baseline_exp = selected_pair.get("baseline_exp")
+            variant_exp = selected_pair.get("variant_exp")
+
+            if baseline_exp and variant_exp:
+                st.session_state["paired_baseline"] = baseline_exp
+                st.session_state["paired_variant"] = variant_exp
+                st.markdown("---")
+                _show_paired_comparison_view(baseline_exp, variant_exp)
+            else:
+                st.warning(
+                    "Could not resolve both experiments for this pair. "
+                    "Try manual pairing below."
+                )
+            return
+
+    # --- Manual pairing section ---
+    st.subheader("Manual Pairing")
+    st.caption(
+        "Select any two runs that share common tasks for comparison."
+    )
+
+    exp_names = [exp["name"] for exp in filtered_experiments]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        baseline_idx = st.selectbox(
+            "Baseline Run",
+            range(len(exp_names)),
+            format_func=lambda i: exp_names[i],
+            key="paired_baseline_select",
+        )
+
+    with col2:
+        # Default variant to second experiment if available
+        default_variant = min(1, len(exp_names) - 1)
+        variant_idx = st.selectbox(
+            "Variant Run",
+            range(len(exp_names)),
+            format_func=lambda i: exp_names[i],
+            key="paired_variant_select",
+            index=default_variant,
+        )
+
+    if baseline_idx is None or variant_idx is None:
+        return
+
+    baseline_exp = filtered_experiments[baseline_idx]
+    variant_exp = filtered_experiments[variant_idx]
+
+    # Store selections in session state
+    st.session_state["paired_baseline"] = baseline_exp
+    st.session_state["paired_variant"] = variant_exp
+
+    # Show common task count
+    if baseline_idx == variant_idx:
+        st.warning("Baseline and variant are the same experiment.")
+    else:
+        common_tasks = _find_common_task_runs(baseline_exp, variant_exp)
+        if common_tasks:
+            st.success(
+                f"Found {len(common_tasks)} common tasks between "
+                f"**{baseline_exp['name']}** and **{variant_exp['name']}**."
+            )
+        else:
+            st.warning(
+                "No common tasks found between the selected experiments. "
+                "Comparison may be limited."
+            )
+
+    st.markdown("---")
+    _show_paired_comparison_view(baseline_exp, variant_exp)
+
+
+def _show_paired_comparison_view(
+    baseline_exp: dict, variant_exp: dict
+) -> None:
+    """Display a side-by-side comparison of baseline and variant experiments."""
+    st.subheader(
+        f"Comparison: {baseline_exp['name']} vs {variant_exp['name']}"
+    )
+
+    # Summary metrics side by side
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**Baseline**")
+        _show_experiment_summary_card(baseline_exp)
+
+    with col2:
+        st.markdown("**Variant**")
+        _show_experiment_summary_card(variant_exp)
+
+    st.markdown("---")
+
+    # If both are paired experiments, show mode-level comparison
+    if baseline_exp.get("is_paired") and variant_exp.get("is_paired"):
+        _show_paired_experiment_comparison(baseline_exp, variant_exp)
+    else:
+        # Show individual experiment details in tabs
+        tab_baseline, tab_variant = st.tabs(
+            [f"Baseline: {baseline_exp['name']}", f"Variant: {variant_exp['name']}"]
+        )
+
+        with tab_baseline:
+            if baseline_exp.get("is_paired"):
+                show_paired_experiment(baseline_exp)
+            else:
+                show_external_run_overview(baseline_exp)
+                st.markdown("---")
+                show_external_task_results(baseline_exp)
+
+        with tab_variant:
+            if variant_exp.get("is_paired"):
+                show_paired_experiment(variant_exp)
+            else:
+                show_external_run_overview(variant_exp)
+                st.markdown("---")
+                show_external_task_results(variant_exp)
+
+
+def _show_experiment_summary_card(exp: dict) -> None:
+    """Display a compact summary card for an experiment."""
+    result = exp.get("result", {})
+    stats = result.get("stats", {})
+
+    n_trials = result.get("n_total_trials", 0)
+    n_errors = stats.get("n_errors", 0)
+    mean_reward = stats.get("mean_reward")
+
+    exp_type = "Paired" if exp.get("is_paired") else "Single"
+
+    st.markdown(f"- **Type:** {exp_type}")
+    st.markdown(f"- **Tasks:** {n_trials}")
+    st.markdown(f"- **Errors:** {n_errors}")
+    if mean_reward is not None:
+        st.markdown(f"- **Mean Reward:** {mean_reward:.4f}")
+    else:
+        # Try to extract from evals
+        evals = stats.get("evals", {})
+        if evals:
+            first_eval = next(iter(evals.values()))
+            metrics = first_eval.get("metrics", [{}])
+            mr = metrics[0].get("mean", "N/A") if metrics else "N/A"
+            st.markdown(f"- **Mean Reward:** {mr}")
+        else:
+            st.markdown("- **Mean Reward:** N/A")
+
+
+def _show_paired_experiment_comparison(
+    baseline_exp: dict, variant_exp: dict
+) -> None:
+    """Show comparison between two paired experiments at the mode level."""
+    baseline_modes = baseline_exp.get("modes", {})
+    variant_modes = variant_exp.get("modes", {})
+
+    all_modes = sorted(set(list(baseline_modes.keys()) + list(variant_modes.keys())))
+
+    if not all_modes:
+        st.info("No mode data available for comparison.")
+        return
+
+    comparison_rows = []
+    for mode_name in all_modes:
+        row: dict = {"Mode": mode_name}
+
+        for label, modes in [("Baseline", baseline_modes), ("Variant", variant_modes)]:
+            mode_data = modes.get(mode_name)
+            if mode_data:
+                tasks = mode_data.get("tasks", [])
+                rewards = [
+                    t.get("reward", 0)
+                    for t in tasks
+                    if t.get("reward") is not None
+                ]
+                row[f"{label} Tasks"] = len(tasks)
+                row[f"{label} Mean Reward"] = (
+                    f"{sum(rewards) / len(rewards):.4f}" if rewards else "N/A"
+                )
+            else:
+                row[f"{label} Tasks"] = 0
+                row[f"{label} Mean Reward"] = "N/A"
+
+        comparison_rows.append(row)
+
+    st.dataframe(comparison_rows, use_container_width=True, hide_index=True)
 
 
 def show_paired_experiment(exp_data):

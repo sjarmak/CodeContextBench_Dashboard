@@ -21,6 +21,11 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Benchmark detection: manifest.json `config.benchmarks` field maps to display names via BENCHMARK_ID_TO_NAME dict in dashboard/utils/benchmark_detection.py
 - Directory name patterns for benchmarks: locobench*, swebenchpro*, swebench_pro*, repoqa*, dibench*
 - Dashboard utility files in dashboard/utils/ use @dataclass, type annotations, logging, and follow immutable patterns
+- Pairing is metadata-based (manifest.json "pairs" array with baseline_run_id and mcp_run_id), NOT a physical "pairs/" directory
+- Paired experiments have baseline/ and deepsearch/ subdirectories, detected in load_external_experiments_from_dir()
+- manifest.json pairs can reference run_ids that match experiment names or mode suffixes (e.g., "exp_name_baseline")
+- Streamlit session_state persists radio/select state across reruns; use key= param for widget identification
+- show_run_results() is the main entry point; it delegates to _show_individual_mode() and _show_paired_mode()
 ---
 
 ## 2026-01-27 - US-002
@@ -67,4 +72,29 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Pre-existing ruff warnings in run_results.py (11 total) should not be fixed as part of feature stories
   - Immutable grouping: use `[*groups[key], exp]` to build new lists rather than mutating with `.append()`
   - Streamlit `st.selectbox` returns `None` if no items available, so always guard against that
+---
+
+## 2026-01-27 - US-005
+- Added paired vs individual experiment mode toggle to `show_run_results()` in `dashboard/views/run_results.py`
+- Added `st.radio` toggle at top of experiment selector: "Individual Review" (default) vs "Paired Comparison"
+- Refactored `show_run_results()` to delegate to `_show_individual_mode()` (existing behavior) and `_show_paired_mode()` (new)
+- **Individual mode**: preserves existing single-run experiment selector behavior unchanged
+- **Paired mode** features:
+  - Auto-detects pairs from `manifest.json` "pairs" array across all experiments via `_load_manifest_pairs()`
+  - Pre-populated pair selector with detected pairs, plus "Manual pairing" option
+  - Manual pairing: two dropdowns (Baseline Run / Variant Run) from filtered experiments
+  - Shows common task count between selected experiments via `_find_common_task_runs()`
+  - Side-by-side comparison view with summary cards and tabbed detail views
+  - Mode-level comparison table for paired experiments
+- Added helper functions: `_load_manifest_pairs()`, `_find_experiment_for_run()`, `_get_experiment_task_ids()`, `_find_common_task_runs()`, `_show_paired_mode()`, `_show_individual_mode()`, `_show_paired_comparison_view()`, `_show_experiment_summary_card()`, `_show_paired_experiment_comparison()`
+- Selection mode stored in `st.session_state["experiment_mode"]`; paired selections in `st.session_state["paired_baseline"]` and `st.session_state["paired_variant"]`
+- Created `dashboard/tests/test_paired_mode.py` with 17 unit tests for all new utility functions
+- Files changed: `dashboard/views/run_results.py`, `dashboard/tests/test_paired_mode.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - "pairs/" is NOT a physical directory - pairing info is in manifest.json "pairs" array with baseline_run_id and mcp_run_id
+  - Paired experiments are detected by baseline/ and deepsearch/ subdirectories in load_external_experiments_from_dir()
+  - manifest.json run_ids can be matched to experiments by name prefix or mode suffix matching
+  - Streamlit st.radio with horizontal=True creates a clean mode toggle; use key= and session_state for persistence
+  - When refactoring a large function, extract mode-specific logic into private functions (prefix with _) to keep the main function as a dispatcher
+  - test_analysis_ir.py has 12 pre-existing failures (missing dashboard.utils.view_base module) - not related to this feature
 ---
