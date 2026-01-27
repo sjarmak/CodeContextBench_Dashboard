@@ -22,11 +22,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from benchmark.database import RunManager, TaskManager
 from benchmark.trace_parser import TraceParser
 
-# External jobs directory - configurable via environment or default
-EXTERNAL_JOBS_DIR = Path(
+# External runs directory - configurable via environment or default
+EXTERNAL_RUNS_DIR = Path(
     os.environ.get(
-        "CCB_EXTERNAL_JOBS_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs"),
+        "CCB_EXTERNAL_RUNS_DIR",
+        os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs"),
     )
 )
 
@@ -34,25 +34,25 @@ EXTERNAL_JOBS_DIR = Path(
 EXTERNAL_ARCHIVE_DIR = Path(
     os.environ.get(
         "CCB_EXTERNAL_ARCHIVE_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/archive/jobs"),
+        os.path.expanduser("~/evals/custom_agents/agents/claudecode/archive/runs"),
     )
 )
 
 
 def load_external_experiments() -> list:
-    """Load experiments from default external jobs directory."""
-    return load_external_experiments_from_dir(EXTERNAL_JOBS_DIR)
+    """Load experiments from default external runs directory."""
+    return load_external_experiments_from_dir(EXTERNAL_RUNS_DIR)
 
 
-def load_external_experiments_from_dir(jobs_dir: Path) -> list:
-    """Load experiments from a specified jobs directory."""
+def load_external_experiments_from_dir(runs_dir: Path) -> list:
+    """Load experiments from a specified runs directory."""
     experiments = []
 
-    if not jobs_dir.exists():
+    if not runs_dir.exists():
         return experiments
 
     for exp_dir in sorted(
-        jobs_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
+        runs_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
     ):
         if not exp_dir.is_dir() or exp_dir.name.startswith("."):
             continue
@@ -293,13 +293,13 @@ def show_run_results():
         external_experiments.extend(archive_experiments)
 
     if not external_experiments:
-        st.info(f"No experiments found in {EXTERNAL_JOBS_DIR}")
+        st.info(f"No experiments found in {EXTERNAL_RUNS_DIR}")
         st.caption(
-            "Set CCB_EXTERNAL_JOBS_DIR environment variable to change the jobs directory."
+            "Set CCB_EXTERNAL_RUNS_DIR environment variable to change the runs directory."
         )
         return
 
-    sources = [str(EXTERNAL_JOBS_DIR)]
+    sources = [str(EXTERNAL_RUNS_DIR)]
     if include_archive:
         sources.append(str(EXTERNAL_ARCHIVE_DIR))
     st.caption(f"📁 Loading from: {', '.join(sources)}")
@@ -992,7 +992,7 @@ def show_task_detail(run_data, task):
 
     # Fallback to constructed path if no stored paths
     if not result_files and not trajectory_files and not claude_files:
-        output_dir = Path(run_data.get("output_dir", f"jobs/{run_data['run_id']}"))
+        output_dir = Path(run_data.get("output_dir", f"runs/{run_data['run_id']}"))
         # Sanitize agent name same way as orchestrator (replace : with __, / with _)
         safe_agent_name = task["agent_name"].replace(":", "__").replace("/", "_")
         task_output_dir = output_dir / f"{task['task_name']}_{safe_agent_name}"

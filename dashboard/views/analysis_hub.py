@@ -17,10 +17,10 @@ import os
 from dashboard.utils.analysis_loader import AnalysisLoader, DatabaseNotFoundError
 
 
-# External jobs directory - same as run_results
-EXTERNAL_JOBS_DIR = Path(os.environ.get(
-    "CCB_EXTERNAL_JOBS_DIR",
-    os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs")
+# External runs directory - same as run_results
+EXTERNAL_RUNS_DIR = Path(os.environ.get(
+    "CCB_EXTERNAL_RUNS_DIR",
+    os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs")
 ))
 
 
@@ -39,21 +39,21 @@ def auto_ingest_if_needed(db_path: Path, project_root: Path) -> tuple[bool, str]
         db_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Check if we have results to ingest
-        if not EXTERNAL_JOBS_DIR.exists():
-            return False, f"External jobs directory not found: {EXTERNAL_JOBS_DIR}"
+        if not EXTERNAL_RUNS_DIR.exists():
+            return False, f"External runs directory not found: {EXTERNAL_RUNS_DIR}"
         
         experiment_dirs = [
-            d for d in EXTERNAL_JOBS_DIR.iterdir() 
+            d for d in EXTERNAL_RUNS_DIR.iterdir() 
             if d.is_dir() and not d.name.startswith('.') and (d / "result.json").exists()
         ]
         
         if not experiment_dirs:
-            return False, "No experiments found in external jobs directory"
+            return False, "No experiments found in external runs directory"
         
         # Create orchestrator and ingest
         orchestrator = IngestionOrchestrator(
             db_path=db_path,
-            results_dir=EXTERNAL_JOBS_DIR,
+            results_dir=EXTERNAL_RUNS_DIR,
         )
         
         total_results = 0
@@ -147,7 +147,7 @@ def show_analysis_hub():
             else:
                 st.error(message)
     
-    st.caption(f"📁 Results from: {EXTERNAL_JOBS_DIR}")
+    st.caption(f"📁 Results from: {EXTERNAL_RUNS_DIR}")
     
     st.markdown("---")
     

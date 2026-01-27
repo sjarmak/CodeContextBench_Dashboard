@@ -1,153 +1,20 @@
 # Ralph Progress Log
-Started: Fri Jan 23 16:26:49 EST 2026
+Started: Mon Jan 27 13:12:00 EST 2026
 
 ## Codebase Patterns
-- LoCoBench scenario IDs follow pattern: `{language}_{domain}_{complexity}_{num}_{task_category}_{difficulty}_{variant}`
-- Context file paths in scenarios use `//` separator (needs normalization to `/`)
-- Ground truth format varies by task category (string for analysis, object for bug investigation)
-- Project location: match scenario ID prefix to `data/generated/{prefix}/`
-- Harbor models import from installed package: `from harbor.models.task.config import TaskConfig`
-- TOML templates must have valid syntax - use static placeholder values, update metadata after parsing
-- JSONL may be incomplete; LoCoBenchLoader supplements from raw scenario JSON files
-- Harbor uploads tests to container at verification time via `docker compose cp` - do NOT copy tests in Dockerfile
-- Oracle agent requires `solution/solve.sh` that writes expected solution to the agent's output location
-- Harbor task structure: task.toml, instruction.md, tests/, environment/, solution/ (for oracle)
----
-
-## 2026-01-23 - US-002
-- What was implemented: Created DATA_EXPLORATION.md documenting the LoCoBench-Agent dataset structure
-- Files changed: benchmarks/locobench_agent/DATA_EXPLORATION.md (created)
-- **Learnings for future iterations:**
-  - Dataset has 8000 scenarios across 1000 synthetic projects
-  - 8 task categories: architectural_understanding, bug_investigation, code_comprehension, cross_file_refactoring, feature_implementation, integration_testing, multi_session_development, security_analysis
-  - 10 languages: c, cpp, csharp, go, java, javascript, php, python, rust, typescript
-  - Key fields for complexity selection: context_length, metadata.files_count
-  - agent_scenarios/ contains extended multi-turn conversation formats
-  - validation/test_suites/ has automated test definitions for each scenario
----
-
-## 2026-01-23 - US-003
-- What was implemented: Created task selection criteria documentation defining how to score and select high-complexity tasks
-- Files changed: benchmarks/locobench_agent/docs/TASK_SELECTION_CRITERIA.md (created)
-- **Learnings for future iterations:**
-  - Scoring formula: score = (0.3 * context_score) + (0.3 * files_score) + (0.4 * category_bonus)
-  - Minimum thresholds: context_length > 50K tokens, files_count > 5
-  - Category bonuses prioritize architectural_understanding (1.0), cross_file_refactoring (0.9), bug_investigation (0.8)
-  - Selection is complexity-driven, not language-driven - natural diversity expected through complexity ranking
-  - Target: top 50 tasks from the 8000 available scenarios
----
-
-## 2026-01-23 - US-004
-- What was implemented: Created extract_dataset.py to normalize LoCoBench scenarios into JSONL format
-- Files changed: benchmarks/locobench_agent/extract_dataset.py (created)
-- **Learnings for future iterations:**
-  - Script outputs to locobench_dataset.jsonl in the same directory
-  - Language is parsed from scenario ID prefix (first underscore-separated token)
-  - files_count comes from metadata.files_count, falls back to counting context_files array
-  - ground_truth can be string OR object depending on task_category (object for bug_investigation)
-  - 800 scenarios per language, 1000 per task category (8000 total = 8 categories × 1000 projects)
-  - No mypy/pyright installed in environment - syntax validation only
----
-
-## 2026-01-23 - US-005
-- What was implemented: Created select_tasks.py to score and rank tasks, selecting top 50 by MCP value
-- Files changed: benchmarks/locobench_agent/select_tasks.py (created), benchmarks/locobench_agent/selected_tasks.json (created)
-- **Learnings for future iterations:**
-  - 7110 of 8000 tasks meet minimum thresholds (context_length > 50K, files_count > 5)
-  - Top 50 tasks dominated by architectural_understanding (34) and cross_file_refactoring (13)
-  - Score normalization uses max values from filtered set, not entire dataset
-  - selected_tasks.json includes selection_criteria metadata for reproducibility
-  - Rust, C, and C# dominate top tasks due to inherent verbosity driving higher context lengths
-  - Average context length in top 50: ~968K tokens (much higher than 50K minimum)
----
-
-## 2026-01-23 - US-006
-- What was implemented: Created Harbor task templates for LoCoBench-Agent adapter
-- Files changed:
-  - benchmarks/locobench_agent/templates/task.toml (created)
-  - benchmarks/locobench_agent/templates/instruction.md (created)
-  - benchmarks/locobench_agent/templates/environment/Dockerfile (created)
-  - benchmarks/locobench_agent/templates/tests/test.sh (created)
-  - benchmarks/locobench_agent/templates/tests/verify.py (created)
-- **Learnings for future iterations:**
-  - Harbor templates follow consistent pattern: task.toml, instruction.md, environment/Dockerfile, tests/test.sh
-  - Template placeholders use {placeholder} syntax (not {{}} or $VAR)
-  - test.sh must always exit 0 for Harbor compatibility - errors logged but don't fail
-  - Reward written to /logs/verifier/reward.txt (float) or /logs/verifier/reward.json (object with score)
-  - Dockerfile needs multi-language support: Python, Node.js, Rust, Go, Java, .NET, PHP for all 10 LoCoBench languages
-  - Verifier uses keyword overlap + file references + code blocks for semantic similarity (extendable to LLM-based)
-  - Solution expected at /app/solution.md - standard output location for agents
----
-
-## 2026-01-23 - US-007
-- What was implemented: Created LoCoBenchTask dataclass and LoCoBenchLoader class in adapter.py
-- Files changed: benchmarks/locobench_agent/adapter.py (created)
-- **Learnings for future iterations:**
-  - Follow existing adapter patterns from repoqa/adapter.py and dibench/adapter.py
-  - LoCoBenchTask dataclass has 11 fields: id, task_category, difficulty, title, description, context_files, context_length, task_prompt, ground_truth, evaluation_criteria, language
-  - ground_truth field uses Union[str, Dict[str, Any]] type to handle both formats
-  - from_dict() method parses language from ID prefix if not explicitly provided
-  - LoCoBenchLoader loads from JSONL format with filter methods for task_category, language, and difficulty
-  - Added filter_by_difficulty() and get_all_tasks() beyond PRD requirements for completeness
-  - Successfully tested loading all 8000 tasks: 800 per language, 1000 per category
----
-
-## 2026-01-23 - US-008
-- What was implemented: Added LoCoBenchAdapter class with full Harbor task generation capability
-- Files changed:
-  - benchmarks/locobench_agent/adapter.py (updated)
-  - benchmarks/locobench_agent/templates/task.toml (updated)
-- **Learnings for future iterations:**
-  - Import Harbor models (TaskConfig, TaskPaths) from installed package, not dynamic file import
-  - task.toml template must use valid TOML with static placeholder values (not {placeholders} in numeric fields)
-  - LoCoBenchLoader supplements missing JSONL fields (context_files, description, expected_approach) from raw scenario files
-  - Added expected_approach field to LoCoBenchTask dataclass with default empty string
-  - _get_project_dir() extracts project prefix by finding task_category keyword in scenario ID parts
-  - Project subdirectory (e.g., EduGate_ScholarLink) is the first non-__pycache__ directory in project folder
-  - Generated task includes: instruction.md, task.toml, environment/Dockerfile, environment/project/, tests/test.sh, tests/verify.py, tests/ground_truth.json, tests/task_metadata.json
----
-
-## 2026-01-23 - US-009
-- What was implemented: Created run_adapter.py CLI for generating Harbor tasks from LoCoBench scenarios
-- Files changed: benchmarks/locobench_agent/run_adapter.py (created)
-- **Learnings for future iterations:**
-  - CLI uses argparse with detailed help and examples in epilog
-  - Supports --dataset_path, --output_dir (required), --task_ids, --limit, --selected_tasks, --data_dir
-  - Added --selected_tasks option to load task IDs from selected_tasks.json (useful for US-010)
-  - Progress logging format: [N/M] task_id - matches PRD requirement exactly
-  - Error handling continues with next task rather than stopping - logs all errors at end for review
-  - LoCoBenchLoader handles supplementing JSONL with raw scenario data automatically
-  - Can test with --limit 2 to verify functionality before running full generation
----
-
-## 2026-01-23 - US-010
-- What was implemented: Generated all 50 selected Harbor tasks from LoCoBench scenarios
-- Files changed:
-  - benchmarks/locobench_agent/locobench_dataset.jsonl (regenerated with 8000 scenarios)
-  - benchmarks/locobench_agent/selected_tasks.json (regenerated with top 50 tasks)
-  - benchmarks/locobench_agent/tasks/ (created 50 task directories)
-- **Learnings for future iterations:**
-  - Full pipeline: extract_dataset.py → select_tasks.py → run_adapter.py --selected_tasks
-  - All 50 tasks generated without errors in ~2 seconds (symlink-based project copying is fast)
-  - Category distribution in generated tasks: 34 architectural_understanding, 13 cross_file_refactoring, 3 bug_investigation
-  - Language distribution: rust(10), c(9), csharp(8), python(7), cpp(5), java(4), typescript(3), javascript(3), go(1)
-  - Each task directory structure: instruction.md, task.toml, tests/{ground_truth.json,test.sh,verify.py,task_metadata.json}, environment/{Dockerfile,project/}
-  - Tasks ready for harbor run with baseline agent (US-011)
----
-
-## 2026-01-23 - US-011
-- What was implemented: Smoke tested LoCoBench-Agent adapter with Harbor, documented results
-- Files changed:
-  - benchmarks/locobench_agent/templates/environment/Dockerfile (removed incorrect COPY commands for tests)
-  - benchmarks/locobench_agent/templates/solution/solve.sh (created - oracle agent support)
-  - benchmarks/locobench_agent/adapter.py (added solution directory generation)
-  - benchmarks/locobench_agent/tasks/* (regenerated all 50 tasks with fixes)
-  - benchmarks/locobench_agent/SMOKE_TEST_RESULTS.md (created)
-- **Learnings for future iterations:**
-  - Harbor uploads tests to /tests at verification time using docker compose cp - do NOT copy tests in Dockerfile
-  - Oracle agent requires solution/solve.sh that writes expected output to /app/solution.md
-  - Heavy multi-language Dockerfile causes build timeouts (>5min) - consider pre-built base image
-  - podman-compose may have issues with docker compose cp on newly-built images
-  - swebench_pro tasks work fine with Harbor (using pre-built images), confirming adapter pattern is correct
-  - Each task now includes: instruction.md, task.toml, solution/solve.sh, tests/*, environment/*
+- Dashboard framework: Streamlit with Plotly charts, Pandas for data processing
+- Dashboard entry point: dashboard/app.py with views in dashboard/views/
+- Data ingestion: src/ingest/ (transcript_parser.py, harbor_parser.py, database.py)
+- Analysis modules: src/analysis/ (8 analyzers: statistical, comparator, cost, failure, time_series, ir, llm_judge, recommendation)
+- Benchmark management: src/benchmark/ (database.py, llm_judge.py, trace_parser.py)
+- Config files: configs/ directory with YAML and JSON formats
+- claude-code.txt is JSONL format (one JSON object per line), NOT plain text
+- Token usage embedded in assistant message usage field (input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens)
+- parent_tool_use_id links sub-agent tool calls to parent for hierarchical traces
+- Experiment runs have manifest.json (metadata), index.json (task-to-run mapping), runs/ and pairs/ subdirs
+- Task config.json contains agent info (model, import_path) and task info (path, git_url, source)
+- Result.json contains verifier_result.rewards, agent_result (tokens, cost), timing data
+- LoCoBench task IDs follow: {language}_{domain}_{complexity}_{num}_{task_category}_{difficulty}_{variant}
+- SWE-Bench Pro task IDs follow: instance_{org}__{repo}__{hash}
+- Runs directory path: ~/evals/custom_agents/agents/claudecode/runs/
 ---

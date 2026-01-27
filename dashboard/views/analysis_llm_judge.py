@@ -33,11 +33,11 @@ except ImportError:
     load_locobench_oracle = None
     analyze_mcp_tool_usage = None
 
-# External jobs directory - same as run_results
-EXTERNAL_JOBS_DIR = Path(
+# External runs directory - same as run_results
+EXTERNAL_RUNS_DIR = Path(
     os.environ.get(
-        "CCB_EXTERNAL_JOBS_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs"),
+        "CCB_EXTERNAL_RUNS_DIR",
+        os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs"),
     )
 )
 
@@ -649,9 +649,9 @@ def show_evaluation_config(project_root: Path):
     experiments = []
     paired_experiments = {}  # Track which experiments are paired (baseline/deepsearch)
 
-    if EXTERNAL_JOBS_DIR.exists():
+    if EXTERNAL_RUNS_DIR.exists():
         for d in sorted(
-            EXTERNAL_JOBS_DIR.iterdir(),
+            EXTERNAL_RUNS_DIR.iterdir(),
             key=lambda x: x.stat().st_mtime,
             reverse=True,
         ):
@@ -678,9 +678,9 @@ def show_evaluation_config(project_root: Path):
 
     if not experiments:
         st.info(
-            "No experiments found. Check that CCB_EXTERNAL_JOBS_DIR is set correctly."
+            "No experiments found. Check that CCB_EXTERNAL_RUNS_DIR is set correctly."
         )
-        st.caption(f"Current directory: {EXTERNAL_JOBS_DIR}")
+        st.caption(f"Current directory: {EXTERNAL_RUNS_DIR}")
         return
 
     selected_exp = st.selectbox("Experiment", experiments, key="eval_exp_select")
@@ -705,7 +705,7 @@ def show_evaluation_config(project_root: Path):
                 task_dirs.append(subdir.name)
     else:
         # Standard Harbor format
-        exp_dir = EXTERNAL_JOBS_DIR / selected_exp
+        exp_dir = EXTERNAL_RUNS_DIR / selected_exp
         task_dirs = [
             d.name
             for d in exp_dir.iterdir()
@@ -1032,7 +1032,7 @@ def run_llm_judge_evaluation(
         mode, mode_dir = paired_experiments[experiment]
         base_dir = mode_dir
     else:
-        base_dir = EXTERNAL_JOBS_DIR / experiment
+        base_dir = EXTERNAL_RUNS_DIR / experiment
 
     try:
         if use_enhanced:

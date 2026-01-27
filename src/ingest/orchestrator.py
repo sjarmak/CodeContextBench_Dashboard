@@ -191,8 +191,8 @@ class IngestionOrchestrator:
     def _extract_job_id(self, result_file: Path) -> Optional[str]:
         """Extract job ID from result file path."""
         # Try various path patterns
-        # Pattern: jobs/{job_id}/result.json
-        if result_file.parent.parent.name == "jobs":
+        # Pattern: runs/{job_id}/result.json
+        if result_file.parent.parent.name == "runs":
             return result_file.parent.name
         
         # Pattern: {experiment}/{job_id}/result.json

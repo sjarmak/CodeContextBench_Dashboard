@@ -1,0 +1,51 @@
+# Ralph Progress Log
+Started: Mon Jan 27 13:12:00 EST 2026
+
+## Codebase Patterns
+- Dashboard framework: Streamlit with Plotly charts, Pandas for data processing
+- Dashboard entry point: dashboard/app.py with views in dashboard/views/
+- Data ingestion: src/ingest/ (transcript_parser.py, harbor_parser.py, database.py)
+- Analysis modules: src/analysis/ (8 analyzers: statistical, comparator, cost, failure, time_series, ir, llm_judge, recommendation)
+- Benchmark management: src/benchmark/ (database.py, llm_judge.py, trace_parser.py)
+- Config files: configs/ directory with YAML and JSON formats
+- claude-code.txt is JSONL format (one JSON object per line), NOT plain text
+- Token usage embedded in assistant message usage field (input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens)
+- parent_tool_use_id links sub-agent tool calls to parent for hierarchical traces
+- Experiment runs have manifest.json (metadata), index.json (task-to-run mapping), runs/ and pairs/ subdirs
+- Task config.json contains agent info (model, import_path) and task info (path, git_url, source)
+- Result.json contains verifier_result.rewards, agent_result (tokens, cost), timing data
+- LoCoBench task IDs follow: {language}_{domain}_{complexity}_{num}_{task_category}_{difficulty}_{variant}
+- SWE-Bench Pro task IDs follow: instance_{org}__{repo}__{hash}
+- Runs directory path: ~/evals/custom_agents/agents/claudecode/runs/
+- Environment variable for runs dir: CCB_EXTERNAL_RUNS_DIR (was CCB_EXTERNAL_JOBS_DIR)
+- Archive dir env var: CCB_EXTERNAL_ARCHIVE_DIR
+- Run output default path: runs/{run_id} (was jobs/{run_id})
+---
+
+## 2026-01-27 - US-001: Update data source path from jobs/ to runs/
+- What was implemented: Migrated all data source path references from `jobs/` to `runs/` across the entire codebase
+- Files changed:
+  - dashboard/views/run_results.py - EXTERNAL_JOBS_DIR → EXTERNAL_RUNS_DIR, CCB_EXTERNAL_JOBS_DIR → CCB_EXTERNAL_RUNS_DIR, jobs_dir param → runs_dir, fallback path updated
+  - dashboard/views/analysis_hub.py - Same env var and variable rename, user-facing messages updated
+  - dashboard/views/analysis_llm_judge.py - Same env var and variable rename
+  - dashboard/app.py - Help text updated from jobs to runs
+  - src/benchmark/run_orchestrator.py - Default output_dir changed from jobs/{run_id} to runs/{run_id} (two locations)
+  - src/benchmark/log_streamer.py - Default job_dir path updated
+  - src/benchmark/profile_runner.py - Default jobs_root updated to runs/benchmark_profiles
+  - src/benchmark/oracle_validator.py - Result pattern updated to runs/
+  - src/benchmark/metrics_extractor.py - Docstring examples updated
+  - src/ingest/orchestrator.py - Path pattern comment and check updated
+  - src/sync/pull.py - Docstring updated
+  - cli/main.py - VM path changed from /jobs to /runs
+  - scripts/analyze_evals_v2.py - jobs subdirectory → runs subdirectory
+  - scripts/test_pipeline_e2e.py - evals_base path updated
+  - scripts/import_swebench_to_dashboard.py - Default evals-dir updated
+  - scripts/analyze_time_allocation.py, comprehension_analysis_v2.py, comprehension_success_analysis.py, extract_enterprise_metrics.py - Historical script paths updated
+  - tests/test_benchmark_profile_runner.py - Test config updated
+- **Learnings for future iterations:**
+  - The env variable CCB_EXTERNAL_RUNS_DIR controls where the dashboard looks for experiment data
+  - Three dashboard views (run_results, analysis_hub, analysis_llm_judge) each independently define EXTERNAL_RUNS_DIR - consider centralizing
+  - archive/ and artifacts/ directories contain copies of code that were NOT updated (they're historical snapshots)
+  - The `eval_runs_v2/` path was only in documentation (EVAL_FRAMEWORK.md, GCP_BENCHMARK_EXECUTION.md), not in Python code
+  - ruff is available for linting; pre-existing issues exist but should not be introduced by changes
+---

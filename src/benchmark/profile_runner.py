@@ -126,7 +126,7 @@ class BenchmarkProfileRunner:
         jobs_root = self._resolve_path(
             spec.get("jobs_root")
             or self.profile_config.get("defaults", {}).get("jobs_root")
-            or "jobs/benchmark_profiles",
+            or "runs/benchmark_profiles",
             base=self.project_root,
         )
         run_dir = jobs_root / profile_id / self.run_id

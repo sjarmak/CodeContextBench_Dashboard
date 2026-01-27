@@ -83,7 +83,7 @@ def get_run_logs(run_id: str, job_dir: Optional[Path] = None) -> List[str]:
         List of log lines
     """
     if job_dir is None:
-        job_dir = Path(f"jobs/{run_id}")
+        job_dir = Path(f"runs/{run_id}")
 
     if not job_dir.exists():
         return ["No logs directory found"]

@@ -105,8 +105,8 @@ def main():
     print("\nReference: Human developers spend ~58% on comprehension, 35% navigation")
     
     jobs = [
-        ('Baseline', 'jobs/baseline-10task-20251219'),
-        ('MCP', 'jobs/mcp-10task-20251219'),
+        ('Baseline', 'runs/baseline-10task-20251219'),
+        ('MCP', 'runs/mcp-10task-20251219'),
     ]
     
     all_results = {}

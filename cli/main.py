@@ -101,7 +101,7 @@ def cmd_sync_pull(args):
     
     result = pull_results(
         manifest.vm_host,
-        manifest.vm_path + "/jobs" if manifest.vm_path else "~/evals/jobs",
+        manifest.vm_path + "/runs" if manifest.vm_path else "~/evals/runs",
         project_root / "data" / "results",
         experiment_id=args.experiment,
         manifest=manifest,

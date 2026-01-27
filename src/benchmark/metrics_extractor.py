@@ -31,7 +31,7 @@ class MetricsExtractor:
         Initialize extractor for a trial directory.
 
         Args:
-            trial_dir: Path to trial directory (e.g., jobs/.../task__trial_id/)
+            trial_dir: Path to trial directory (e.g., runs/.../task__trial_id/)
         """
         self.trial_dir = trial_dir
         self.result_path = trial_dir / "result.json"
@@ -234,7 +234,7 @@ def extract_experiment_metrics(experiment_dir: Path) -> List[AgentRunEvaluation]
     Extract metrics from all trials in an experiment directory.
 
     Args:
-        experiment_dir: Path to experiment directory (e.g., jobs/2025-12-23__11-13-40/)
+        experiment_dir: Path to experiment directory (e.g., runs/2025-12-23__11-13-40/)
 
     Returns:
         List of AgentRunEvaluation objects
