@@ -505,3 +505,24 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Scatter plot adds a diagonal reference line for equal performance comparison
   - The view caches results in session state using keys like "comparison_config_baseline_result"
 ---
+
+## 2026-01-27T18:50 - US-026
+- Implemented GUI-driven cost analysis and failure analysis config modules
+- **Files created:**
+  - dashboard/utils/cost_config.py - CostConfig frozen dataclass, experiment/baseline/metric selectors, cost DataFrame builder, regression DataFrame builder, token distribution chart (Plotly), cost breakdown chart (Plotly), CSV export
+  - dashboard/utils/failure_config.py - FailureConfig frozen dataclass, experiment/agent selectors, pattern/category/difficulty DataFrame builders, category pie chart (Plotly), pattern bar chart (Plotly), CSV export
+  - dashboard/tests/test_cost_config.py - 53 tests covering dataclass, formatters, DataFrame builders, chart builders, render functions, orchestration, view integration
+  - dashboard/tests/test_failure_config.py - 45 tests covering dataclass, DataFrame builders, chart builders, render functions, orchestration, view integration
+- **Files modified:**
+  - dashboard/views/analysis_cost.py - Rewrote to use cost_config.py (sidebar config, run button, cached results, interpretation guide)
+  - dashboard/views/analysis_failure.py - Rewrote to use failure_config.py (sidebar config, run button, cached results, interpretation guide)
+  - prd.json - US-026 passes: true
+- **Learnings for future iterations:**
+  - cost_config.py and failure_config.py follow the same pattern as statistical_config.py: frozen dataclass + render functions + run_and_display + chart builders
+  - CostAnalysisResult has agent_metrics dict (AgentCostMetrics per agent) + regressions list (CostRegression) + summary fields (cheapest_agent, most_efficient_agent)
+  - FailureAnalysisResult has patterns list (FailurePattern with pattern_name, frequency, confidence, suggested_fix) + top_failing_categories/difficulties as list[tuple[str, int]]
+  - When mocking st.spinner for tests, set __exit__ return_value=False to prevent exception swallowing
+  - When mocking st.columns(4), return a list of 4 MagicMock context managers (not a single MagicMock)
+  - For view integration tests, use MagicMock() for session_state (not dict) to allow get() side_effect configuration
+  - Initialize variables before try/except blocks to avoid UnboundLocalError when exception occurs before assignment
+---
