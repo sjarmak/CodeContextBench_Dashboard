@@ -38,6 +38,10 @@ Started: Mon Jan 27 13:12:00 EST 2026
 - Global pre-commit hook at ~/.config/pre-commit/hooks/ has a bug; use `git -c core.hookspath=.git/hooks commit` to bypass
 - Trace summary panel: `dashboard/utils/trace_summary.py` with `render_trace_summary_panel(summary)` takes TraceSummary from US-009 parser
 - Plotly charts in dashboard: use `px.bar()` with `fig.update_layout(showlegend=False)` and `st.plotly_chart(fig, use_container_width=True)`
+- Diff viewer: `dashboard/utils/trace_diff_viewer.py` with `render_file_diff_panel()` renders diffs for selected file from file tree
+- GitHub URL construction: task config.json `task.git_url` field provides repo URL; `_build_github_url()` converts to blob URL
+- `difflib.unified_diff()` with `splitlines(keepends=True)` generates standard unified diffs for Edit operations
+- Language detection: `_detect_language()` maps file extensions to syntax highlight language strings for `st.code()`
 ---
 
 ## 2026-01-27 - US-002
@@ -304,5 +308,33 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - `st.expander` with `expanded=depth < 2` auto-expands the first two directory levels for visibility
   - `st.button` with `use_container_width=True` creates full-width file selection buttons in the tree sidebar
   - `st.columns([1, 3])` creates a 1:3 ratio layout suitable for sidebar + main content in trace view
+  - Browser verification not available in this environment; manual verification needed
+---
+
+## 2026-01-27 - US-016
+- Created `dashboard/utils/trace_diff_viewer.py` with file diff viewer panel component
+- `DiffEntry` frozen dataclass captures per-operation diff data: sequence_number, operation, file_path, unified_diff, old_text, new_text
+- `_generate_unified_diff()`: uses `difflib.unified_diff()` to generate standard unified diffs from old/new text
+- `_build_diff_entries()`: converts FileOperations to DiffEntry list, skipping Read operations (baseline-only)
+- `_build_github_url()`: constructs GitHub blob URL from git_url (supports HTTPS and SSH formats)
+- `_detect_language()`: maps file extensions to syntax highlighting language strings (25+ extensions)
+- `_render_diff_header()`: renders operation badge (blue Edit / green Write), sequence number, and optional GitHub link
+- `_render_unified_diff()`: renders Edit diffs with `st.code(language="diff")`, Write operations with full content display
+- `_render_side_by_side_diff()`: renders Edit diffs in two-column layout (Before/After), Write operations as single display
+- `render_diff_viewer()`: main component with diff format toggle (Unified/Side-by-Side), per-operation expanders
+- `render_file_diff_panel()`: entry point called from trace view, delegates to render_diff_viewer for selected file
+- Added `_extract_git_url_from_trace_context()` to `run_results.py`: extracts git_url from config.json adjacent to claude-code.txt
+- Integrated into `show_claude_code_trace()` in `run_results.py`: replaced old `show_claude_edits()` in Code Changes tab with new diff viewer
+- File operations extracted once via `extract_file_operations()` and passed to diff viewer panel
+- Created `dashboard/tests/test_trace_diff_viewer.py` with 57 unit tests covering all functions
+- Files changed: `dashboard/utils/trace_diff_viewer.py`, `dashboard/views/run_results.py`, `dashboard/tests/test_trace_diff_viewer.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - `difflib.unified_diff()` requires `splitlines(keepends=True)` for proper line-by-line diffing; returns empty iterator for identical inputs
+  - `st.code(language="diff")` provides syntax highlighting for unified diff format (red/green coloring for removals/additions)
+  - `st.radio(horizontal=True)` creates an inline radio toggle suitable for format selection (Unified vs Side-by-Side)
+  - Task config.json `task.git_url` field contains the repo URL; may be HTTPS or SSH format
+  - The claude-code.txt file lives at `instance_dir/agent/claude-code.txt`; config.json is at `instance_dir/config.json`
+  - Write operations display full file content; truncation at 5000 chars prevents Streamlit rendering issues with very large files
+  - The Code Changes tab now uses the file tree selection from `st.session_state["trace_selected_file"]` to show per-file diffs
   - Browser verification not available in this environment; manual verification needed
 ---

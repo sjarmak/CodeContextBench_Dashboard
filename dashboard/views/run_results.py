@@ -26,6 +26,8 @@ from dashboard.utils.benchmark_detection import detect_benchmark_set
 from dashboard.utils.task_detail import render_task_detail_panel
 from dashboard.utils.task_list import render_task_list
 from dashboard.utils.trace_cards import render_trace_cards
+from dashboard.utils.trace_diff_viewer import render_file_diff_panel
+from dashboard.utils.trace_diffs import extract_file_operations
 from dashboard.utils.trace_file_tree import render_file_tree
 from dashboard.utils.trace_filters import render_trace_filter_controls
 from dashboard.utils.trace_timeline import render_tool_timeline
@@ -1410,6 +1412,39 @@ def _build_file_access_from_trace(
     )
 
 
+def _extract_git_url_from_trace_context(claude_file: Path) -> str:
+    """Extract git_url from the task config.json adjacent to the trace file.
+
+    The claude-code.txt is typically at instance_dir/agent/claude-code.txt.
+    The config.json is at instance_dir/config.json and may contain
+    task.git_url for constructing GitHub links.
+
+    Args:
+        claude_file: Path to the claude-code.txt file
+
+    Returns:
+        Git URL string, or empty string if not found
+    """
+    try:
+        # claude-code.txt is at instance_dir/agent/claude-code.txt
+        instance_dir = claude_file.parent.parent
+        config_path = instance_dir / "config.json"
+
+        if not config_path.exists():
+            return ""
+
+        with open(config_path) as f:
+            config_data = json.load(f)
+
+        task_info = config_data.get("task", {})
+        if isinstance(task_info, dict):
+            return task_info.get("git_url", "")
+
+        return ""
+    except (json.JSONDecodeError, OSError, KeyError):
+        return ""
+
+
 def show_claude_code_trace(claude_file: Path):
     """Display agent trace from SWEBench claude-code.txt JSONL format."""
 
@@ -1554,6 +1589,12 @@ def show_claude_code_trace(claude_file: Path):
 
         structured_messages = parse_trace_messages(claude_file)
 
+        # Extract file operations for diff viewer (US-016)
+        file_ops = extract_file_operations(structured_messages)
+
+        # Extract git_url from task config for GitHub links (US-016)
+        git_url = _extract_git_url_from_trace_context(claude_file)
+
         # Two-column layout: file tree sidebar (left) + trace tabs (right)
         file_tree_col, trace_col = st.columns([1, 3])
 
@@ -1586,7 +1627,16 @@ def show_claude_code_trace(claude_file: Path):
                 show_claude_tool_calls(messages, tool_calls)
 
             with tabs[3]:
-                show_claude_edits(edits_made)
+                # US-016: File diff viewer panel
+                selected_file = st.session_state.get(
+                    "trace_selected_file", ""
+                )
+                render_file_diff_panel(
+                    selected_file=selected_file,
+                    file_operations=file_ops,
+                    git_url=git_url,
+                    session_key="trace_diff_viewer",
+                )
 
             with tabs[4]:
                 show_claude_bash(bash_commands)
