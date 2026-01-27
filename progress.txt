@@ -253,3 +253,26 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - Tab structure is now: Full Trace, Timeline, Tool Calls, Code Changes, Bash Commands, Raw (6 tabs)
   - structured_messages (from parse_trace) is shared between Full Trace tab and Timeline tab
 ---
+
+## 2026-01-27 - US-014, US-015, US-016: Batch verification of trace diff extraction, file tree, and diff viewer
+- What was implemented: Verified that all three stories were already fully implemented in prior sessions
+- Files already present:
+  - dashboard/utils/trace_diffs.py - US-014: FileOperation dataclass, extract_file_operations() function
+  - dashboard/tests/test_trace_diffs.py - 38 passing tests
+  - dashboard/utils/trace_file_tree.py - US-015: TreeNode, FileAccessInfo, build_tree(), render_file_tree()
+  - dashboard/tests/test_trace_file_tree.py - 47 passing tests
+  - dashboard/utils/trace_diff_viewer.py - US-016: DiffEntry, render_diff_viewer(), render_file_diff_panel()
+  - dashboard/tests/test_trace_diff_viewer.py - 57 passing tests
+- Files changed:
+  - prd.json - Marked US-014, US-015, US-016 as passes: true
+  - progress.txt - Added this entry
+- **Verification details:**
+  - US-014: extract_file_operations() processes Read/Edit/Write tool_use messages, builds per-file operation history, links Read results via parent_tool_use_id
+  - US-015: classify_file_access() determines created/modified/read-only, build_tree() creates hierarchical TreeNode from paths, render_file_tree_node() uses st.expander for directories and st.button for files with icon badges
+  - US-016: _generate_unified_diff() uses difflib.unified_diff, _build_github_url() constructs links from git URLs, render_diff_viewer() toggles unified/side-by-side format
+- **Learnings for future iterations:**
+  - trace_diffs.py: FileOperation is frozen, _link_read_results() maps tool_use parent_tool_use_id to tool_result content for Read baseline capture
+  - trace_file_tree.py: classify_file_access() priority: created (Write w/o prior Read) > modified (Edit or Write after Read) > read-only
+  - trace_diff_viewer.py: _detect_language() maps 20+ file extensions for syntax highlighting, _build_github_url() handles both HTTPS and SSH git URLs
+  - All three modules use immutable patterns (frozen dataclasses, spread operator for dicts/lists)
+---

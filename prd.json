@@ -238,8 +238,8 @@
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/trace_diffs.py with 38 passing tests, FileOperation dataclass and extract_file_operations() function"
     },
     {
       "id": "US-015",
@@ -256,8 +256,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/trace_file_tree.py with 47 passing tests, TreeNode/FileAccessInfo dataclasses and render_file_tree() function"
     },
     {
       "id": "US-016",
@@ -274,8 +274,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/trace_diff_viewer.py with 57 passing tests, DiffEntry dataclass and render_diff_viewer()/render_file_diff_panel() functions"
     },
     {
       "id": "US-017",
