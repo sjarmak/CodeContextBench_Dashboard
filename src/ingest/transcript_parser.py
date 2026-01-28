@@ -144,28 +144,99 @@ class TranscriptParser:
     def parse_text(self, content: str) -> TranscriptMetrics:
         """
         Parse transcript content as text.
-        
+
         Args:
             content: Full transcript content
-            
+
         Returns:
             TranscriptMetrics with extracted patterns
         """
         metrics = TranscriptMetrics(transcript_length=len(content))
-        
-        # Extract tool calls
+
+        # Try JSONL format first (claude-code.txt from Claude Code)
+        if content.strip().startswith("{"):
+            self._extract_jsonl_metrics(content, metrics)
+
+        # Extract tool calls (works for both formats)
         self._extract_tool_calls(content, metrics)
-        
+
         # Extract file access patterns
         self._extract_file_patterns(content, metrics)
-        
+
         # Extract search queries
         self._extract_search_patterns(content, metrics)
-        
+
         # Calculate derived metrics
         self._calculate_derived_metrics(metrics)
-        
+
         return metrics
+
+    def _extract_jsonl_metrics(self, content: str, metrics: TranscriptMetrics) -> None:
+        """
+        Extract metrics from JSONL-formatted transcript (claude-code.txt).
+
+        Looks for the final "type":"result" entry which contains:
+        - total_cost_usd
+        - usage (input_tokens, output_tokens, cache_read_input_tokens, etc.)
+        - modelUsage (per-model breakdown)
+        """
+        import json
+
+        # Find the result entry (usually at the end)
+        for line in reversed(content.split("\n")):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                if entry.get("type") == "result":
+                    # Extract total cost
+                    if "total_cost_usd" in entry:
+                        metrics.cost_usd = entry["total_cost_usd"]
+
+                    # Extract usage stats
+                    usage = entry.get("usage", {})
+                    if usage:
+                        metrics.total_input_tokens = usage.get("input_tokens", 0)
+                        metrics.total_output_tokens = usage.get("output_tokens", 0)
+                        metrics.cached_tokens = usage.get("cache_read_input_tokens", 0)
+
+                        # Also count cache creation tokens
+                        cache_creation = usage.get("cache_creation_input_tokens", 0)
+
+                        # Build tokens_by_category from result
+                        # All tokens at this level are aggregated, attribute to OTHER
+                        total_prompt = metrics.total_input_tokens + metrics.cached_tokens + cache_creation
+                        metrics.tokens_by_category = {
+                            "other": {
+                                "prompt": total_prompt,
+                                "completion": metrics.total_output_tokens,
+                                "cached": metrics.cached_tokens,
+                            }
+                        }
+
+                    # Extract per-model usage for more detail
+                    model_usage = entry.get("modelUsage", {})
+                    if model_usage:
+                        total_input = 0
+                        total_output = 0
+                        total_cached = 0
+                        total_cache_creation = 0
+
+                        for model_name, model_data in model_usage.items():
+                            total_input += model_data.get("inputTokens", 0)
+                            total_output += model_data.get("outputTokens", 0)
+                            total_cached += model_data.get("cacheReadInputTokens", 0)
+                            total_cache_creation += model_data.get("cacheCreationInputTokens", 0)
+
+                        # Update with more accurate per-model totals
+                        metrics.total_input_tokens = total_input + total_cached + total_cache_creation
+                        metrics.total_output_tokens = total_output
+                        metrics.cached_tokens = total_cached
+
+                    break  # Found result entry, stop searching
+            except json.JSONDecodeError:
+                continue
     
     def _extract_tool_calls(self, content: str, metrics: TranscriptMetrics) -> None:
         """Extract tool calls from transcript."""
