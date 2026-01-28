@@ -5,6 +5,14 @@ Provides tools for validating benchmarks against HOW2BENCH criteria,
 pre-flight checks, compliance auditing, and task quality scoring.
 """
 
+from src.quality.compliance_auditor import (
+    ComplianceAuditor,
+    ComplianceCategory,
+    ComplianceCheck,
+    ComplianceCheckResult,
+    ComplianceReport,
+    ComplianceSeverity,
+)
 from src.quality.how2bench_checklist import (
     BenchmarkAuditReport,
     ChecklistCriterion,
@@ -22,6 +30,13 @@ from src.quality.preflight_validator import (
 )
 
 __all__ = [
+    # Compliance auditor
+    "ComplianceAuditor",
+    "ComplianceCategory",
+    "ComplianceCheck",
+    "ComplianceCheckResult",
+    "ComplianceReport",
+    "ComplianceSeverity",
     # HOW2BENCH checklist
     "BenchmarkAuditReport",
     "ChecklistCriterion",
