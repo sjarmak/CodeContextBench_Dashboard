@@ -21,12 +21,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from benchmark.database import RunManager, TaskManager
 from benchmark.trace_parser import TraceParser
+from ingest.harbor_parser import HarborResultParser
+from ingest.trajectory_parser import TrajectoryParser
 
-# External jobs directory - configurable via environment or default
-EXTERNAL_JOBS_DIR = Path(
+from dashboard.utils.task_list import render_task_list
+
+# Singleton parser for language inference
+_harbor_parser = HarborResultParser()
+
+# External runs directory - configurable via environment or default
+EXTERNAL_RUNS_DIR = Path(
     os.environ.get(
-        "CCB_EXTERNAL_JOBS_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs"),
+        "CCB_EXTERNAL_RUNS_DIR",
+        os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs"),
     )
 )
 
@@ -34,25 +41,25 @@ EXTERNAL_JOBS_DIR = Path(
 EXTERNAL_ARCHIVE_DIR = Path(
     os.environ.get(
         "CCB_EXTERNAL_ARCHIVE_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/archive/jobs"),
+        os.path.expanduser("~/evals/custom_agents/agents/claudecode/archive/runs"),
     )
 )
 
 
 def load_external_experiments() -> list:
-    """Load experiments from default external jobs directory."""
-    return load_external_experiments_from_dir(EXTERNAL_JOBS_DIR)
+    """Load experiments from default external runs directory."""
+    return load_external_experiments_from_dir(EXTERNAL_RUNS_DIR)
 
 
-def load_external_experiments_from_dir(jobs_dir: Path) -> list:
-    """Load experiments from a specified jobs directory."""
+def load_external_experiments_from_dir(runs_dir: Path) -> list:
+    """Load experiments from a specified runs directory."""
     experiments = []
 
-    if not jobs_dir.exists():
+    if not runs_dir.exists():
         return experiments
 
     for exp_dir in sorted(
-        jobs_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
+        runs_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
     ):
         if not exp_dir.is_dir() or exp_dir.name.startswith("."):
             continue
@@ -177,15 +184,21 @@ def _scan_paired_mode_tasks(mode_dir: Path) -> list:
                     rewards = verifier_result.get("rewards") or {}
                     reward = rewards.get("reward", 0.0)
 
-                    # Extract timing
-                    timing = result.get("timing") or {}
-
                     # Extract token usage
                     agent_result = result.get("agent_result") or {}
 
+                    # Timing is at top level in Harbor format (not nested in timing dict)
+                    started_at = result.get("started_at", "")
+                    finished_at = result.get("finished_at", "")
+
+                    task_name = result.get("task_name", task_dir.name)
+
+                    # Extract language from task name
+                    task_language = _harbor_parser._infer_language_from_task_id(task_name)
+
                     tasks.append(
                         {
-                            "task_name": result.get("task_name", task_dir.name),
+                            "task_name": task_name,
                             "trial_name": result.get("trial_name", task_dir.name),
                             "reward": reward,
                             "status": "completed"
@@ -194,10 +207,11 @@ def _scan_paired_mode_tasks(mode_dir: Path) -> list:
                             "error": result.get("exception_info"),
                             "input_tokens": agent_result.get("n_input_tokens", 0),
                             "output_tokens": agent_result.get("n_output_tokens", 0),
-                            "started_at": timing.get("started_at", ""),
-                            "finished_at": timing.get("finished_at", ""),
+                            "started_at": started_at,
+                            "finished_at": finished_at,
                             "instance_dir": task_dir,
                             "result_path": str(result_file),
+                            "task_language": task_language,
                         }
                     )
                 except Exception:
@@ -251,6 +265,9 @@ def load_external_tasks(exp_dir: Path, result: dict) -> list:
                         reward = float(reward_val)
                         break
 
+        # Extract language from task name
+        task_language = _harbor_parser._infer_language_from_task_id(instance_name)
+
         tasks.append(
             {
                 "task_name": instance_name,
@@ -269,6 +286,7 @@ def load_external_tasks(exp_dir: Path, result: dict) -> list:
                 "result_path": str(instance_result_file)
                 if instance_result_file.exists()
                 else None,
+                "task_language": task_language,
             }
         )
 
@@ -282,7 +300,7 @@ def show_run_results():
     # Option to include archive
     include_archive = st.checkbox("Include archived runs", value=False)
 
-    # Load experiments from external jobs directory
+    # Load experiments from external runs directory
     external_experiments = load_external_experiments()
 
     # Optionally load from archive
@@ -293,27 +311,24 @@ def show_run_results():
         external_experiments.extend(archive_experiments)
 
     if not external_experiments:
-        st.info(f"No experiments found in {EXTERNAL_JOBS_DIR}")
+        st.info(f"No experiments found in {EXTERNAL_RUNS_DIR}")
         st.caption(
-            "Set CCB_EXTERNAL_JOBS_DIR environment variable to change the jobs directory."
+            "Set CCB_EXTERNAL_RUNS_DIR environment variable to change the runs directory."
         )
         return
 
-    sources = [str(EXTERNAL_JOBS_DIR)]
+    sources = [str(EXTERNAL_RUNS_DIR)]
     if include_archive:
         sources.append(str(EXTERNAL_ARCHIVE_DIR))
-    st.caption(f"📁 Loading from: {', '.join(sources)}")
+    st.caption(f"Loading from: {', '.join(sources)}")
 
-    # Experiment selector with type indicator
-    exp_options = []
-    for exp in external_experiments:
-        exp_type = "🔄 Paired" if exp.get("is_paired") else "📦 Single"
-        exp_options.append(f"{exp_type} {exp['name']}")
+    # Experiment selector
+    exp_names = [exp["name"] for exp in external_experiments]
 
     selected_idx = st.selectbox(
         "Select Experiment",
-        range(len(exp_options)),
-        format_func=lambda i: exp_options[i],
+        range(len(exp_names)),
+        format_func=lambda i: exp_names[i],
     )
 
     if selected_idx is None:
@@ -403,35 +418,18 @@ def show_paired_mode_tasks(mode_data, mode_name):
         st.info("No tasks found for this mode.")
         return
 
-    # Create task table
-    task_table = []
-    for task in sorted(tasks, key=lambda t: t.get("reward") or 0, reverse=True):
-        reward = task.get("reward")
-        input_tok = task.get("input_tokens")
-        output_tok = task.get("output_tokens")
-        task_table.append(
-            {
-                "Task": task["task_name"][:50],
-                "Reward": f"{reward:.4f}" if reward is not None else "N/A",
-                "Status": task.get("status", "unknown"),
-                "Input Tokens": f"{input_tok:,}" if input_tok is not None else "N/A",
-                "Output Tokens": f"{output_tok:,}" if output_tok is not None else "N/A",
-            }
-        )
-
-    st.dataframe(task_table, use_container_width=True, hide_index=True)
+    # Use the task list component with filtering
+    selected_task_id = render_task_list(
+        tasks,
+        key_prefix=f"paired_{mode_name}",
+    )
 
     st.markdown("---")
 
-    # Task detail selector
-    task_names = [t["task_name"] for t in tasks]
-    selected_task_name = st.selectbox(
-        "View Task Details", task_names, key=f"task_select_{mode_name}"
-    )
-
-    if selected_task_name:
+    # Show task detail if selected
+    if selected_task_id:
         selected_task = next(
-            (t for t in tasks if t["task_name"] == selected_task_name), None
+            (t for t in tasks if t.get("task_name") == selected_task_id), None
         )
         if selected_task:
             show_paired_task_detail(selected_task)
@@ -479,7 +477,7 @@ def show_paired_task_detail(task):
                         pass
 
     # Task Information Section
-    with st.expander("📋 Task Information", expanded=True):
+    with st.expander("Task Information", expanded=True):
         # Extract repository name from task metadata or task_id
         repo_name = "Unknown"
         if task_metadata.get("task", {}).get("repo"):
@@ -532,7 +530,7 @@ def show_paired_task_detail(task):
                 st.markdown(instruction_content)
 
     # Timing/Metrics Section
-    with st.expander("⏱️ Execution Metrics", expanded=True):
+    with st.expander("Execution Metrics", expanded=True):
         # Calculate timing metrics
         timing = {}
         if result_data:
@@ -1032,6 +1030,75 @@ def show_task_detail(run_data, task):
         )
 
 
+def show_token_breakdown_by_tool(trajectory_file: Path):
+    """Display per-tool token breakdown from trajectory.json using TrajectoryParser."""
+    try:
+        parser = TrajectoryParser(calculate_cost=True)
+        metrics = parser.parse_file(trajectory_file)
+
+        if metrics is None:
+            return
+
+        # Show token breakdown by category
+        if metrics.tokens_by_category:
+            st.write("**Token Usage by Category:**")
+            import pandas as pd
+
+            cat_data = []
+            for category, tokens in metrics.tokens_by_category.items():
+                cat_name = category.value if hasattr(category, 'value') else str(category)
+                prompt = tokens.get("prompt", 0)
+                completion = tokens.get("completion", 0)
+                total = prompt + completion
+                if total > 0:
+                    cat_data.append({
+                        "Category": cat_name.upper(),
+                        "Prompt": f"{prompt:,}",
+                        "Completion": f"{completion:,}",
+                        "Total": f"{total:,}",
+                    })
+
+            if cat_data:
+                cat_df = pd.DataFrame(cat_data)
+                st.dataframe(cat_df, use_container_width=True, hide_index=True)
+
+        # Show token breakdown by tool (top 10)
+        if metrics.tokens_by_tool:
+            st.write("**Top Token-Consuming Tools:**")
+            import pandas as pd
+
+            # Sort by total tokens
+            sorted_tools = sorted(
+                metrics.tokens_by_tool.items(),
+                key=lambda x: x[1].get("prompt", 0) + x[1].get("completion", 0),
+                reverse=True
+            )[:10]
+
+            tool_data = []
+            for tool, tokens in sorted_tools:
+                prompt = tokens.get("prompt", 0)
+                completion = tokens.get("completion", 0)
+                total = prompt + completion
+                if total > 0:
+                    tool_data.append({
+                        "Tool": tool,
+                        "Prompt": f"{prompt:,}",
+                        "Completion": f"{completion:,}",
+                        "Total": f"{total:,}",
+                    })
+
+            if tool_data:
+                tool_df = pd.DataFrame(tool_data)
+                st.dataframe(tool_df, use_container_width=True, hide_index=True)
+
+        # Show cost if available
+        if metrics.cost_usd:
+            st.metric("Estimated Cost", f"${metrics.cost_usd:.4f}")
+
+    except Exception as e:
+        st.warning(f"Could not parse token breakdown: {e}")
+
+
 def show_agent_trace(claude_files, trajectory_files):
     """Display agent execution trace."""
     st.subheader("Agent Trace")
@@ -1069,12 +1136,16 @@ def show_agent_trace(claude_files, trajectory_files):
                 st.write(f"- Cached: {token_summary['total_cached']:,}")
 
             with col2:
-                st.write("**Tool Usage:**")
+                st.write("**Tool Usage (call counts):**")
                 tool_summary = TraceParser.get_tool_usage_summary(steps)
                 for tool_name, count in sorted(
                     tool_summary.items(), key=lambda x: x[1], reverse=True
-                ):
+                )[:10]:
                     st.write(f"- {tool_name}: {count}")
+
+            # Per-tool token breakdown
+            st.markdown("---")
+            show_token_breakdown_by_tool(trajectory_file)
 
         st.markdown("---")
 
@@ -1231,7 +1302,7 @@ def show_claude_code_trace(claude_file: Path):
                                 )
 
         # Display Summary
-        with st.expander("📊 Execution Summary", expanded=True):
+        with st.expander("Execution Summary", expanded=True):
             col1, col2, col3 = st.columns(3)
 
             with col1:
@@ -1261,11 +1332,11 @@ def show_claude_code_trace(claude_file: Path):
         # Tabs for different views
         tabs = st.tabs(
             [
-                "💬 Conversation",
-                "🔧 Tool Calls",
-                "📝 Code Changes",
-                "🖥️ Bash Commands",
-                "📄 Raw",
+                "Conversation",
+                "Tool Calls",
+                "Code Changes",
+                "Bash Commands",
+                "Raw",
             ]
         )
 
@@ -1309,11 +1380,11 @@ def show_claude_conversation(messages):
 
         elif msg_type == "tool_call":
             tool_name = msg["tool_name"]
-            with st.expander(f"🔧 Tool: **{tool_name}**", expanded=False):
+            with st.expander(f"Tool: **{tool_name}**", expanded=False):
                 st.json(msg["tool_input"])
 
         elif msg_type == "tool_result":
-            with st.expander(f"📤 Tool Result", expanded=False):
+            with st.expander(f"Tool Result", expanded=False):
                 content = msg["content"]
                 if msg.get("truncated"):
                     st.code(content + "\n...(truncated)")
@@ -1500,15 +1571,15 @@ def show_comprehensive_diffs(instance_dir):
     # Determine task type based on changes
     if code_diffs and not output_diffs:
         task_type = "Code Modification"
-        st.success("📝 **Task Type:** Code Modification (agent edited source files)")
+        st.success("Task Type: Code Modification (agent edited source files)")
     elif output_diffs and not code_diffs:
         task_type = "Analysis/Understanding"
         st.info(
-            "📊 **Task Type:** Analysis/Understanding (agent wrote analysis report)"
+            "Task Type: Analysis/Understanding (agent wrote analysis report)"
         )
     elif code_diffs and output_diffs:
         task_type = "Mixed"
-        st.warning("🔄 **Task Type:** Mixed (both code changes and analysis output)")
+        st.warning("Task Type: Mixed (both code changes and analysis output)")
     else:
         task_type = "Unknown"
 
@@ -1521,13 +1592,13 @@ def show_comprehensive_diffs(instance_dir):
 
     # List of modified files grouped by type
     if code_files:
-        with st.expander(f"📁 Source Code Files ({len(code_files)})", expanded=False):
+        with st.expander(f"Source Code Files ({len(code_files)})", expanded=False):
             for f in sorted(code_files):
                 st.markdown(f"- `{f}`")
 
     if output_files:
         with st.expander(
-            f"📄 Analysis Output Files ({len(output_files)})", expanded=False
+            f"Analysis Output Files ({len(output_files)})", expanded=False
         ):
             for f in sorted(output_files):
                 st.markdown(f"- `{f}`")
@@ -1544,11 +1615,11 @@ def show_comprehensive_diffs(instance_dir):
 
     # Display CODE changes first (more important for evaluation)
     if code_diffs:
-        st.markdown("### 🔧 Source Code Changes")
+        st.markdown("### Source Code Changes")
         for file_path in sorted(code_files):
             file_diffs = diffs_by_file.get(file_path, [])
             with st.expander(
-                f"📄 `{file_path}` ({len(file_diffs)} changes)", expanded=True
+                f"`{file_path}` ({len(file_diffs)} changes)", expanded=True
             ):
                 for i, diff in enumerate(file_diffs, 1):
                     if diff["type"] == "edit":
@@ -1580,11 +1651,11 @@ def show_comprehensive_diffs(instance_dir):
 
     # Display OUTPUT files second (analysis reports)
     if output_diffs:
-        st.markdown("### 📊 Analysis Output")
+        st.markdown("### Analysis Output")
         for file_path in sorted(output_files):
             file_diffs = diffs_by_file.get(file_path, [])
             with st.expander(
-                f"📄 `{file_path}` ({len(file_diffs)} changes)", expanded=not code_diffs
+                f"`{file_path}` ({len(file_diffs)} changes)", expanded=not code_diffs
             ):
                 for i, diff in enumerate(file_diffs, 1):
                     if diff["type"] == "edit":
@@ -1753,18 +1824,18 @@ def analyze_mcp_tool_usage(tool_counts: dict, trace_content: str = "") -> dict:
     # Generate recommendations
     if not analysis["sourcegraph_tools_used"]:
         analysis["recommendations"].append(
-            "🔴 **No Sourcegraph MCP tools used.** The agent should use `mcp__sourcegraph__sg_deepsearch` "
+            "No Sourcegraph MCP tools used.** The agent should use `mcp__sourcegraph__sg_deepsearch` "
             "for semantic code search to better understand the codebase architecture."
         )
     elif not analysis["search_patterns"]["used_deep_search"]:
         analysis["recommendations"].append(
-            "🟡 **Deep Search not used.** Consider using `mcp__sourcegraph__sg_deepsearch` for "
+            "Deep Search not used.** Consider using `mcp__sourcegraph__sg_deepsearch` for "
             "complex architectural questions that require understanding relationships between components."
         )
 
     if analysis["search_patterns"]["used_deep_search"]:
         analysis["recommendations"].append(
-            "✅ **Good:** Used Deep Search for semantic code understanding."
+            "Good: Used Deep Search for semantic code understanding."
         )
 
     # Check for over-reliance on basic tools
@@ -1777,7 +1848,7 @@ def analyze_mcp_tool_usage(tool_counts: dict, trace_content: str = "") -> dict:
 
     if basic_tools > 20 and mcp_search_tools < 3:
         analysis["recommendations"].append(
-            "🟡 **Heavy use of basic Read/Grep/Glob.** For large codebases, Sourcegraph's semantic "
+            "Heavy use of basic Read/Grep/Glob.** For large codebases, Sourcegraph's semantic "
             "search can find relevant code more efficiently than manual file traversal."
         )
 
@@ -1968,10 +2039,10 @@ def show_llm_judge_context(
     # Create tabs for different views
     judge_tabs = st.tabs(
         [
-            "📊 Oracle & Criteria",
-            "🔧 MCP Tool Analysis",
-            "📋 Agent Output",
-            "📤 Export for LLM Judge",
+            "Oracle & Criteria",
+            "MCP Tool Analysis",
+            "Agent Output",
+            "Export for LLM Judge",
         ]
     )
 
@@ -1980,7 +2051,7 @@ def show_llm_judge_context(
         st.markdown("#### Oracle Data (Ground Truth)")
 
         if oracle_data.get("ground_truth"):
-            st.success("✅ Oracle data available for this task")
+            st.success("Oracle data available for this task")
 
             col1, col2 = st.columns(2)
             with col1:
@@ -2030,7 +2101,7 @@ def show_llm_judge_context(
                         )
         else:
             st.warning(
-                "⚠️ No oracle data found for this task. This may not be a LoCoBench task."
+                "No oracle data found for this task. This may not be a LoCoBench task."
             )
             st.caption(
                 "Oracle data provides ground truth for evaluating the agent's response."
@@ -2058,12 +2129,12 @@ def show_llm_judge_context(
             st.markdown("##### Search Patterns")
             patterns = mcp_analysis["search_patterns"]
             st.markdown(
-                f"- Deep Search: {'✅' if patterns['used_deep_search'] else '❌'}"
+                f"- Deep Search: {'Yes' if patterns['used_deep_search'] else 'No'}"
             )
             st.markdown(
-                f"- Keyword Search: {'✅' if patterns['used_keyword_search'] else '❌'}"
+                f"- Keyword Search: {'Yes' if patterns['used_keyword_search'] else 'No'}"
             )
-            st.markdown(f"- File Read: {'✅' if patterns['used_file_read'] else '❌'}")
+            st.markdown(f"- File Read: {'Yes' if patterns['used_file_read'] else 'No'}")
 
         with col2:
             st.markdown("##### All MCP Tools Used")
@@ -2081,7 +2152,7 @@ def show_llm_judge_context(
             for rec in mcp_analysis["recommendations"]:
                 st.markdown(rec)
         else:
-            st.success("✅ Good MCP tool usage patterns detected")
+            st.success("Good MCP tool usage patterns detected")
 
         # Compare with basic tool usage
         st.markdown("---")
@@ -2189,7 +2260,7 @@ def show_llm_judge_context(
         export_json = json.dumps(export_data, indent=2, default=str)
 
         st.download_button(
-            "📥 Download Full LLM Judge Context (JSON)",
+            "Download Full LLM Judge Context (JSON)",
             export_json,
             file_name=f"{task.get('task_name', 'task')}_llm_judge_context.json",
             mime="application/json",
@@ -2249,7 +2320,7 @@ Respond with a JSON object containing your evaluation."""
             st.code(judge_prompt, language="markdown")
 
         st.download_button(
-            "📥 Download LLM Judge Prompt",
+            "Download LLM Judge Prompt",
             judge_prompt,
             file_name=f"{task.get('task_name', 'task')}_judge_prompt.md",
             mime="text/markdown",
@@ -2308,7 +2379,7 @@ def show_conversation_view(steps):
 def show_full_conversation(steps):
     """Show full conversation with all details."""
     for idx, step in enumerate(steps, 1):
-        icon = "👤" if step.source == "user" else "🤖"
+        icon = "[User]" if step.source == "user" else "[Assistant]"
         source_label = "User" if step.source == "user" else "Assistant"
 
         st.markdown(f"**{icon} {source_label} - Step {idx}**")
@@ -2452,7 +2523,7 @@ def show_test_results(trajectory_file):
 def show_trace_step(step, step_number=None):
     """Display a single trace step."""
     # Step header
-    icon = "👤" if step.source == "user" else "🤖"
+    icon = "[User]" if step.source == "user" else "[Assistant]"
     source_label = "User" if step.source == "user" else "Assistant"
 
     # Use sequential numbering for display, show actual step_id in parentheses
@@ -2767,8 +2838,8 @@ def _display_checklist_result(result, checklist):
             continue
 
         # Create expander for each item
-        status_icon = "✅" if eval_item.covered else "❌"
-        severity_badge = {"must": "🔴", "should": "🟡", "nice": "🟢"}[
+        status_icon = "Yes" if eval_item.covered else "No"
+        severity_badge = {"must": "[Critical]", "should": "[Medium]", "nice": "[Low]"}[
             item.severity.value
         ]
 

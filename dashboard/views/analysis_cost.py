@@ -45,53 +45,55 @@ def show_cost_analysis():
     st.title("Cost Analysis")
     st.markdown("**Analyze API costs and efficiency metrics**")
     st.markdown("---")
-    
+
     # Initialize loader from session state
     loader = st.session_state.get("analysis_loader")
     if loader is None:
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
+        st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
-    
-    # Sidebar configuration
-    with st.sidebar:
-        st.subheader("Configuration")
-        
-        # Experiment selector
-        experiment_id = experiment_selector()
-        if experiment_id is None:
+
+    # Configuration in main area
+    st.subheader("Configuration")
+
+    col_exp, col_agent = st.columns(2)
+
+    with col_exp:
+        try:
+            experiments = loader.list_experiments()
+            if not experiments:
+                st.error("No experiments found in database.")
+                return
+
+            experiment_id = st.selectbox(
+                "Select Experiment",
+                experiments,
+                key="cost_experiment",
+                help="Choose an experiment to analyze"
+            )
+        except Exception as e:
+            st.error(f"Failed to load experiments: {e}")
             return
-        
-        # Update navigation context
-        nav_context.navigate_to("analysis_cost", experiment=experiment_id)
-        
-        # Baseline agent selector
+
+    # Update navigation context
+    nav_context.navigate_to("analysis_cost", experiment=experiment_id)
+
+    with col_agent:
         agents = loader.list_agents(experiment_id)
         if not agents:
-            st.error(f"No agents found for experiment {experiment_id}")
-            return
-        
+            st.warning(f"No agents found for experiment {experiment_id}")
+            agents = ["(no agents)"]
+
         baseline_agent = st.selectbox(
             "Baseline Agent (for comparison)",
             agents,
+            key="cost_baseline",
             help="Agent to compare costs against"
         )
-        
-        nav_context.navigate_to("analysis_cost", experiment=experiment_id, agents=[baseline_agent])
-        
-        # Cost metric selector
-        cost_metrics = ["total_cost", "cost_per_success", "input_tokens", "output_tokens", "efficiency_score"]
-        selected_metrics = st.multiselect(
-            "Cost Metrics",
-            cost_metrics,
-            default=["total_cost", "cost_per_success", "efficiency_score"],
-            help="Metrics to display and compare"
-        )
-        
-        st.markdown("---")
-        
-        # Advanced filtering section
-        st.subheader("Advanced Filters")
-        filter_config = render_filter_panel("cost", loader, experiment_id)
+
+    # Advanced filtering in expander
+    with st.expander("Advanced Filters"):
+        filter_config = render_filter_panel("cost", loader, experiment_id, key_suffix="cost")
     
     # Load cost analysis
     try:
@@ -110,19 +112,20 @@ def show_cost_analysis():
     # Apply filters if any are active
     filter_engine = FilterEngine()
     if filter_config.has_filters():
-        st.info(f"💰 Filters applied: {filter_engine.get_filter_summary(filter_config)}")
+        st.info(f"Filters applied: {filter_engine.get_filter_summary(filter_config)}")
         # Note: Filter application would go here when metrics are extracted
     
     # Summary statistics
     st.subheader("Cost Summary")
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
+
     try:
-        total_experiment_cost = cost_result.total_cost if hasattr(cost_result, 'total_cost') else 0
+        total_experiment_cost = cost_result.total_experiment_cost if hasattr(cost_result, 'total_experiment_cost') else 0
         total_tokens = cost_result.total_tokens if hasattr(cost_result, 'total_tokens') else 0
-        agents_compared = len(cost_result.agent_costs) if hasattr(cost_result, 'agent_costs') else 0
-        
+        total_cached = cost_result.total_cached_tokens if hasattr(cost_result, 'total_cached_tokens') else 0
+        agents_compared = len(cost_result.agent_metrics) if hasattr(cost_result, 'agent_metrics') else 0
+
         with col1:
             display_summary_card(
                 "Total Experiment Cost",
@@ -130,15 +133,15 @@ def show_cost_analysis():
                 "all agents combined",
                 color="blue"
             )
-        
+
         with col2:
             display_summary_card(
                 "Total Tokens",
                 f"{total_tokens:,.0f}",
-                "input + output",
+                f"cached: {total_cached:,.0f}",
                 color="blue"
             )
-        
+
         with col3:
             display_summary_card(
                 "Agents Compared",
@@ -146,193 +149,255 @@ def show_cost_analysis():
                 "total",
                 color="blue"
             )
-        
+
         with col4:
             # Find most expensive agent
-            if hasattr(cost_result, 'agent_costs') and cost_result.agent_costs:
+            if hasattr(cost_result, 'agent_metrics') and cost_result.agent_metrics:
                 max_cost_agent = max(
-                    cost_result.agent_costs.items(),
-                    key=lambda x: x[1].get('total_cost', 0)
+                    cost_result.agent_metrics.items(),
+                    key=lambda x: x[1].total_cost_usd
                 )
                 display_summary_card(
                     "Most Expensive Agent",
                     max_cost_agent[0],
-                    f"${max_cost_agent[1].get('total_cost', 0):.2f}",
-                    color="orange"
+                    f"${max_cost_agent[1].total_cost_usd:.2f}",
+                    color="gray"
                 )
-    
+
     except Exception as e:
         st.warning(f"Could not calculate summary: {e}")
     
     st.markdown("---")
-    
+
+    # Token Breakdown by Category (NEW SECTION)
+    st.subheader("Token Usage by Category")
+
+    try:
+        tokens_by_cat = cost_result.tokens_by_category if hasattr(cost_result, 'tokens_by_category') else {}
+
+        if tokens_by_cat:
+            cat_data = []
+            total_prompt = 0
+            total_completion = 0
+
+            for category, tokens in tokens_by_cat.items():
+                prompt = tokens.get("prompt", 0)
+                completion = tokens.get("completion", 0)
+                cached = tokens.get("cached", 0)
+                total_prompt += prompt
+                total_completion += completion
+
+                cat_data.append({
+                    "Category": category.upper(),
+                    "Prompt Tokens": f"{prompt:,}",
+                    "Completion Tokens": f"{completion:,}",
+                    "Cached Tokens": f"{cached:,}",
+                    "Total": f"{prompt + completion:,}",
+                })
+
+            if cat_data:
+                cat_df = pd.DataFrame(cat_data)
+                st.dataframe(cat_df, use_container_width=True, hide_index=True)
+
+                # Show MCP vs Local comparison
+                mcp_tokens = tokens_by_cat.get("mcp", {})
+                local_tokens = tokens_by_cat.get("local", {})
+                mcp_total = mcp_tokens.get("prompt", 0) + mcp_tokens.get("completion", 0)
+                local_total = local_tokens.get("prompt", 0) + local_tokens.get("completion", 0)
+
+                if mcp_total > 0 or local_total > 0:
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("MCP Tool Tokens", f"{mcp_total:,}")
+                    with col2:
+                        st.metric("Local Tool Tokens", f"{local_total:,}")
+                    with col3:
+                        if local_total > 0:
+                            ratio = mcp_total / local_total
+                            st.metric("MCP/Local Ratio", f"{ratio:.2f}")
+                        else:
+                            st.metric("MCP/Local Ratio", "N/A (no local)")
+        else:
+            st.info("No token category breakdown available. Re-ingest data with trajectory.json files to see this breakdown.")
+
+    except Exception as e:
+        st.warning(f"Could not display token breakdown: {e}")
+
+    st.markdown("---")
+
     # Agent cost rankings
     st.subheader("Agent Cost Rankings")
-    
+
     try:
-        if hasattr(cost_result, 'agent_costs') and cost_result.agent_costs:
+        if hasattr(cost_result, 'agent_metrics') and cost_result.agent_metrics:
             cost_data = []
-            
-            for agent_name, cost_info in cost_result.agent_costs.items():
+
+            for agent_name, metrics in cost_result.agent_metrics.items():
                 cost_row = {
                     "Agent": agent_name,
-                    "Total Cost": f"${cost_info.get('total_cost', 0):.2f}",
-                    "Input Tokens": f"{cost_info.get('input_tokens', 0):,.0f}",
-                    "Output Tokens": f"{cost_info.get('output_tokens', 0):,.0f}",
-                    "Cost/Success": f"${cost_info.get('cost_per_success', 0):.2f}",
-                    "Efficiency": f"{cost_info.get('efficiency_score', 0):.2f}",
+                    "Total Cost": f"${metrics.total_cost_usd:.2f}",
+                    "Input Tokens": f"{metrics.total_input_tokens:,.0f}",
+                    "Output Tokens": f"{metrics.total_output_tokens:,.0f}",
+                    "Cached Tokens": f"{metrics.total_cached_tokens:,.0f}",
+                    "Cost/Success": f"${metrics.cost_per_success:.2f}",
+                    "Cost Rank": metrics.cost_rank or "N/A",
                 }
                 cost_data.append(cost_row)
-            
+
             # Sort by total cost
             cost_df = pd.DataFrame(cost_data)
             st.dataframe(cost_df, use_container_width=True, hide_index=True)
         else:
             display_no_data_message("No cost data available")
-    
+
     except Exception as e:
         display_error_message(f"Failed to display cost rankings: {e}")
     
     st.markdown("---")
-    
+
     # Cost per success analysis
     st.subheader("Cost Efficiency Analysis")
-    
+
     try:
-        if hasattr(cost_result, 'agent_costs') and cost_result.agent_costs:
+        if hasattr(cost_result, 'agent_metrics') and cost_result.agent_metrics:
             efficiency_data = []
-            
-            for agent_name, cost_info in cost_result.agent_costs.items():
-                # Calculate efficiency metrics
-                success_count = cost_info.get('success_count', 0)
-                total_cost = cost_info.get('total_cost', 0)
-                efficiency = cost_info.get('efficiency_score', 0)
-                
+
+            for agent_name, metrics in cost_result.agent_metrics.items():
                 efficiency_row = {
                     "Agent": agent_name,
-                    "Successes": success_count,
-                    "Total Cost": f"${total_cost:.2f}",
-                    "Cost/Success": f"${cost_info.get('cost_per_success', 0):.2f}",
-                    "Efficiency Score": f"{efficiency:.2f}",
-                    "Efficiency Rank": "⭐" * min(5, int(efficiency))
+                    "Tasks": metrics.total_tasks,
+                    "Passed": metrics.passed_tasks,
+                    "Pass Rate": f"{metrics.pass_rate:.1%}",
+                    "Total Cost": f"${metrics.total_cost_usd:.2f}",
+                    "Cost/Success": f"${metrics.cost_per_success:.2f}",
+                    "Efficiency Rank": metrics.efficiency_rank or "N/A",
                 }
                 efficiency_data.append(efficiency_row)
-            
+
             if efficiency_data:
                 efficiency_df = pd.DataFrame(efficiency_data)
                 st.dataframe(efficiency_df, use_container_width=True, hide_index=True)
-    
+
     except Exception as e:
         display_error_message(f"Failed to display efficiency analysis: {e}")
     
     st.markdown("---")
-    
+
     # Cost regressions
     st.subheader("Cost Regressions")
-    
+
     try:
-        if hasattr(cost_result, 'cost_regressions') and cost_result.cost_regressions:
+        if hasattr(cost_result, 'regressions') and cost_result.regressions:
             regression_data = []
-            
-            for regression in cost_result.cost_regressions:
+
+            for regression in cost_result.regressions:
                 regression_row = {
-                    "Agent": regression.get('agent_name', 'N/A'),
-                    "Metric": regression.get('metric', 'N/A'),
-                    "Previous": f"${regression.get('previous_value', 0):.2f}",
-                    "Current": f"${regression.get('current_value', 0):.2f}",
-                    "Change": f"{regression.get('percent_change', 0):+.1f}%",
-                    "Severity": regression.get('severity', 'medium').upper(),
+                    "Agent": regression.agent_name,
+                    "Metric": regression.metric_name,
+                    "Baseline": f"${regression.baseline_value:.2f}",
+                    "Current": f"${regression.regression_value:.2f}",
+                    "Change": f"{regression.delta_percent:+.1f}%",
+                    "Severity": regression.severity.upper(),
                 }
                 regression_data.append(regression_row)
-            
+
             if regression_data:
                 regression_df = pd.DataFrame(regression_data)
                 st.dataframe(regression_df, use_container_width=True, hide_index=True)
             else:
-                st.success("✓ No cost regressions detected")
+                st.success("No cost regressions detected")
         else:
-            st.success("✓ No cost regressions detected")
-    
+            st.success("No cost regressions detected")
+
     except Exception as e:
         display_error_message(f"Failed to display regressions: {e}")
     
     st.markdown("---")
-    
-    # Model pricing breakdown
-    st.subheader("Token Usage by Model")
-    
+
+    # Per-Tool Token Breakdown (NEW - shows which tools consume most tokens)
+    st.subheader("Top Token-Consuming Tools")
+
     try:
-        if hasattr(cost_result, 'model_breakdown') and cost_result.model_breakdown:
-            model_data = []
-            
-            for model, metrics in cost_result.model_breakdown.items():
-                model_row = {
-                    "Model": model,
-                    "Input Tokens": f"{metrics.get('input_tokens', 0):,.0f}",
-                    "Output Tokens": f"{metrics.get('output_tokens', 0):,.0f}",
-                    "Total Tokens": f"{metrics.get('total_tokens', 0):,.0f}",
-                    "Cost": f"${metrics.get('cost', 0):.2f}",
-                }
-                model_data.append(model_row)
-            
-            if model_data:
-                model_df = pd.DataFrame(model_data)
-                st.dataframe(model_df, use_container_width=True, hide_index=True)
+        # Aggregate tokens by tool across all agents
+        all_tools = {}
+        if hasattr(cost_result, 'agent_metrics') and cost_result.agent_metrics:
+            for agent_name, metrics in cost_result.agent_metrics.items():
+                for tool, tokens in metrics.tokens_by_tool.items():
+                    if tool not in all_tools:
+                        all_tools[tool] = {"prompt": 0, "completion": 0, "cached": 0}
+                    for key in ["prompt", "completion", "cached"]:
+                        all_tools[tool][key] += tokens.get(key, 0)
+
+        if all_tools:
+            # Sort by total tokens (prompt + completion)
+            sorted_tools = sorted(
+                all_tools.items(),
+                key=lambda x: x[1]["prompt"] + x[1]["completion"],
+                reverse=True
+            )[:15]  # Top 15 tools
+
+            tool_data = []
+            for tool, tokens in sorted_tools:
+                total = tokens["prompt"] + tokens["completion"]
+                tool_data.append({
+                    "Tool": tool,
+                    "Prompt Tokens": f"{tokens['prompt']:,}",
+                    "Completion Tokens": f"{tokens['completion']:,}",
+                    "Total": f"{total:,}",
+                    "Cached": f"{tokens['cached']:,}",
+                })
+
+            if tool_data:
+                tool_df = pd.DataFrame(tool_data)
+                st.dataframe(tool_df, use_container_width=True, hide_index=True)
             else:
-                st.info("No model breakdown available")
+                st.info("No per-tool token data available")
         else:
-            st.info("No model breakdown available")
-    
+            st.info("No per-tool token data available. Re-ingest data with trajectory.json files to see this breakdown.")
+
     except Exception as e:
-        display_error_message(f"Failed to display model breakdown: {e}")
+        display_error_message(f"Failed to display tool breakdown: {e}")
     
     st.markdown("---")
-    
+
     # Cost vs performance trade-off
     st.subheader("Cost vs Performance Trade-Off")
-    
+
     try:
-        if hasattr(cost_result, 'agent_costs') and cost_result.agent_costs:
+        if hasattr(cost_result, 'agent_metrics') and cost_result.agent_metrics:
             tradeoff_data = []
-            
-            for agent_name, cost_info in cost_result.agent_costs.items():
-                # Get pass rate from comparison (attempt to load)
-                try:
-                    comparison = loader.load_comparison(experiment_id, baseline_agent=agent_name)
-                    agent_metrics = comparison.agent_results.get(agent_name, {})
-                    pass_rate = agent_metrics.get('pass_rate', 0)
-                except:
-                    pass_rate = 0
-                
+
+            for agent_name, metrics in cost_result.agent_metrics.items():
                 tradeoff_row = {
                     "Agent": agent_name,
-                    "Pass Rate": f"{pass_rate:.1%}" if pass_rate else "N/A",
-                    "Cost/Success": f"${cost_info.get('cost_per_success', 0):.2f}",
-                    "Total Cost": f"${cost_info.get('total_cost', 0):.2f}",
+                    "Pass Rate": f"{metrics.pass_rate:.1%}",
+                    "Cost/Success": f"${metrics.cost_per_success:.2f}",
+                    "Total Cost": f"${metrics.total_cost_usd:.2f}",
+                    "Avg Cost/Task": f"${metrics.avg_cost_per_task:.2f}",
                 }
                 tradeoff_data.append(tradeoff_row)
-            
+
             if tradeoff_data:
                 tradeoff_df = pd.DataFrame(tradeoff_data)
                 st.dataframe(tradeoff_df, use_container_width=True, hide_index=True)
-                
+
                 st.markdown("""
                 **Interpretation**:
                 - Agents with high pass rate AND low cost/success are most efficient
                 - Agents with high cost/success may need prompt/tool optimization
                 - Consider pass rate when evaluating cost improvements
                 """)
-    
+
     except Exception as e:
         display_error_message(f"Failed to display trade-off analysis: {e}")
     
     st.markdown("---")
-    
+
     # Export functionality
     st.subheader("Export Results")
-    
+
     try:
-        export_data = {
+        export_data = cost_result.to_dict() if hasattr(cost_result, 'to_dict') else {
             "experiment_id": experiment_id,
             "baseline_agent": baseline_agent,
             "summary": {
@@ -340,26 +405,30 @@ def show_cost_analysis():
                 "total_tokens": total_tokens,
                 "agents_compared": agents_compared,
             },
-            "agent_costs": cost_result.agent_costs if hasattr(cost_result, 'agent_costs') else {},
-            "cost_regressions": cost_result.cost_regressions if hasattr(cost_result, 'cost_regressions') else [],
-            "model_breakdown": cost_result.model_breakdown if hasattr(cost_result, 'model_breakdown') else {},
         }
-        
+
         export_json_button(export_data, f"cost_{experiment_id}_{baseline_agent}")
-    
+
     except Exception as e:
         display_error_message(f"Failed to export data: {e}")
     
     st.markdown("---")
-    
+
     # View notes
     st.subheader("Metrics Explained")
     st.markdown("""
     - **Total Cost**: Sum of all API calls for this agent across all tasks
     - **Input Tokens**: Tokens sent to model (prompt + context)
     - **Output Tokens**: Tokens generated by model (response)
+    - **Cached Tokens**: Tokens served from cache (reduced cost)
     - **Cost/Success**: Average cost per successful task completion
-    - **Efficiency Score**: Composite metric (lower cost + higher pass rate = higher score)
+    - **Efficiency Rank**: Ranking based on pass rate per dollar (higher is better)
     - **Cost Regression**: Agent cost increased compared to baseline
-    - **Token Usage**: Cost breakdown by model type (Haiku vs Sonnet vs Opus)
+
+    **Token Categories**:
+    - **MCP**: Tokens used by MCP tools (Sourcegraph, Deep Search servers)
+    - **LOCAL**: Tokens used by local tools (Bash, Read, Write, Grep, etc.)
+    - **OTHER**: Tokens from steps without tool calls (reasoning, planning)
+
+    Token category data requires trajectory.json files (ATIF format) from agent runs.
     """)
