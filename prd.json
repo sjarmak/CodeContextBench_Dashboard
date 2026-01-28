@@ -1,191 +1,468 @@
 {
   "project": "CodeContextBench",
-  "branchName": "ralph/locobench-agent-adapter",
-  "description": "LoCoBench-Agent Harbor Adapter - Select ~50 high-complexity tasks and create adapter for benchmark execution",
+  "branchName": "ralph/benchmark-trace-reviewer",
+  "description": "Benchmark Trace Reviewer & Experiment Explorer - GUI-driven experiment discovery, trace review, paired comparison, LLM judge configuration, and unified analysis hub for coding agent benchmarks",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Download LoCoBench-Agent dataset",
-      "description": "As a developer, I need to download the LoCoBench-Agent data from Google Drive so I can analyze its structure.",
+      "title": "Update data source path from jobs/ to runs/",
+      "description": "As a developer, I need the dashboard to read from ~/evals/custom_agents/agents/claudecode/runs/ instead of jobs/ so future benchmark runs are discovered automatically.",
       "acceptanceCriteria": [
-        "Download LoCoBench-Agent data using gdown from https://drive.google.com/uc?id=1HwPztd0bipUUi8zs7Pxo3StZCOnJBwVR",
-        "Unzip data.zip to benchmarks/locobench_agent/data/",
-        "Verify data directory exists with expected contents"
+        "Find all references to 'jobs/' path in dashboard code (app.py, views/, utils/) and update to 'runs/'",
+        "Find all references to 'eval_runs_v2/' and update to use 'runs/'",
+        "Update the default RUNS_DIR in .env.local or config to ~/evals/custom_agents/agents/claudecode/runs/",
+        "Ensure harbor_parser.py and transcript_parser.py accept the new path",
+        "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Data manually downloaded and extracted. Located at benchmarks/locobench_agent/data/ with subfolders: generated/ (1000 synthetic projects), output/scenarios/ (8000 task JSON files)"
+      "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Explore and document dataset structure",
-      "description": "As a developer, I need to understand the LoCoBench-Agent data format so I can build the extraction script.",
+      "title": "Remove archived runs option from UI",
+      "description": "As a developer, I need to remove the 'include archived runs' toggle and related filtering logic from the dashboard.",
       "acceptanceCriteria": [
-        "Create benchmarks/locobench_agent/DATA_EXPLORATION.md documenting directory structure",
-        "Document that scenarios are in data/output/scenarios/*.json (8000 files)",
-        "Document key fields: id, task_category, difficulty, title, description, context_files, context_length, task_prompt, ground_truth, evaluation_criteria",
-        "Document the 8 task categories: architectural_understanding, bug_investigation, code_comprehension, cross_file_refactoring, feature_implementation, integration_testing, multi_session_development, security_analysis",
-        "Include sample scenario JSON showing actual field names and types"
+        "Remove the 'include archived runs' checkbox/toggle from all UI views (search in dashboard/views/ and dashboard/utils/)",
+        "Remove related filtering logic in filters.py and filter_ui.py that references 'archived' status",
+        "No references to 'archived' run status remain in the dashboard code",
+        "Typecheck passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Created DATA_EXPLORATION.md documenting dataset structure, scenarios format, 8 task categories, 10 languages, and key fields for task selection."
+      "notes": "No archived runs UI or filtering logic existed in the dashboard code - acceptance criteria verified as already met"
     },
     {
       "id": "US-003",
-      "title": "Define task selection criteria",
-      "description": "As a benchmark designer, I want documented criteria for selecting tasks that maximize MCP value demonstration.",
+      "title": "Add benchmark set detection utility",
+      "description": "As a developer, I need a utility function that derives the benchmark set name (LoCoBench, SWE-Bench Pro, etc.) from a run's manifest.json or directory name.",
       "acceptanceCriteria": [
-        "Create benchmarks/locobench_agent/docs/TASK_SELECTION_CRITERIA.md",
-        "Define quantitative metrics: min context_length (>50K tokens), min files_count (>5)",
-        "Define scoring weights: context_length (0.3), files_count (0.3), task_category_bonus (0.4)",
-        "Define task category bonuses: architectural_understanding=1.0, cross_file_refactoring=0.9, bug_investigation=0.8, security_analysis=0.7, feature_implementation=0.5",
-        "Document that selection is complexity-driven, not language-driven"
+        "Create a function in dashboard/utils/ that accepts a run directory path and returns the benchmark set name",
+        "Detection logic: first check manifest.json config.benchmarks field, then fall back to directory name pattern matching (locobench_* -> LoCoBench, swebenchpro_* -> SWE-Bench Pro, repoqa_* -> RepoQA, dibench_* -> DIBench)",
+        "Returns 'Unknown' for unrecognized patterns",
+        "Unit test verifying detection for each known benchmark set",
+        "Typecheck passes"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Created TASK_SELECTION_CRITERIA.md with scoring formula, weights, category bonuses, and complexity-driven selection philosophy."
+      "notes": "Already implemented in dashboard/utils/benchmark_detection.py with 32 passing tests"
     },
     {
       "id": "US-004",
-      "title": "Create dataset extraction script",
-      "description": "As a developer, I need to extract LoCoBench-Agent scenarios into normalized JSONL format.",
+      "title": "Benchmark set grouping in experiment selector",
+      "description": "As an evaluator, I want experiments grouped by benchmark set in the experiment selector so I can quickly find runs for a specific benchmark.",
       "acceptanceCriteria": [
-        "Create benchmarks/locobench_agent/extract_dataset.py",
-        "Script reads all JSON files from data/output/scenarios/*.json",
-        "Outputs normalized JSONL with fields: id, task_category, difficulty, title, context_length, files_count, task_prompt, ground_truth, evaluation_criteria, language (parsed from id)",
-        "Handles missing fields gracefully with sensible defaults",
-        "Outputs to benchmarks/locobench_agent/locobench_dataset.jsonl",
-        "Typecheck passes"
+        "Experiment selector in run_results.py displays a two-level hierarchy: benchmark set header > experiment entries",
+        "Use the benchmark set detection utility from US-003 to categorize each experiment",
+        "Each benchmark group header shows the count of experiments in parentheses",
+        "Selecting a benchmark set filters to only show its experiments",
+        "Groups with no experiments are hidden",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Created extract_dataset.py that reads all 8000 scenarios, normalizes fields, parses language from ID, and outputs to locobench_dataset.jsonl. Successfully extracted all scenarios with category/language distribution stats."
+      "notes": "Already implemented in run_results.py with _group_experiments_by_benchmark() and benchmark set selectbox filter"
     },
     {
       "id": "US-005",
-      "title": "Implement task scoring and selection script",
-      "description": "As a benchmark designer, I need to score and rank tasks to select the top 50 by MCP value.",
+      "title": "Paired vs individual experiment mode toggle",
+      "description": "As an evaluator, I want to toggle between paired comparison and individual review modes when selecting experiments.",
       "acceptanceCriteria": [
-        "Create benchmarks/locobench_agent/select_tasks.py",
-        "Implement scoring function using weights from TASK_SELECTION_CRITERIA.md",
-        "Score based on: context_length, files_count, task_category bonus",
-        "Output ranked list with scores to benchmarks/locobench_agent/selected_tasks.json",
-        "Select top 50 tasks and log selection rationale to stdout",
-        "Typecheck passes"
+        "Add a radio button toggle: 'Paired Comparison' | 'Individual Review' at the top of the experiment selector",
+        "In Individual mode: standard single-run selection (existing behavior)",
+        "In Paired mode: show two dropdowns for baseline and variant run selection",
+        "In Paired mode: auto-detect available pairs from pairs/ directory and pre-populate selections",
+        "In Paired mode: allow manual pairing of any two runs that share common task_ids",
+        "Store selection mode in Streamlit session state",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "Created select_tasks.py implementing scoring formula from criteria docs. Selected top 50 tasks: 34 architectural_understanding, 13 cross_file_refactoring, 3 bug_investigation. Average context: 968K tokens, average files: 81. Score range: 0.87-0.98."
+      "notes": "Already implemented in run_results.py with radio toggle, individual/paired modes, auto-detect pairs from manifest, and manual pairing"
     },
     {
       "id": "US-006",
-      "title": "Create Harbor task templates",
-      "description": "As a developer, I need templates for consistent Harbor task generation.",
+      "title": "Task list with inline metrics and filtering",
+      "description": "As an evaluator, I want to filter and sort the task list within an experiment by status, language, task type, and other criteria.",
       "acceptanceCriteria": [
-        "Create benchmarks/locobench_agent/templates/task.toml with metadata placeholders",
-        "Create benchmarks/locobench_agent/templates/instruction.md with task description format",
-        "Create benchmarks/locobench_agent/templates/environment/Dockerfile that copies synthetic project files",
-        "Create benchmarks/locobench_agent/templates/tests/test.sh that invokes verifier",
-        "Templates use {placeholder} syntax for: id, task_category, difficulty, context_length, task_prompt"
+        "Task list table shows columns: task_id (truncated), status badge (pass/fail/error), language, duration, token count, reward score",
+        "Filter sidebar with: status multiselect (pass/fail/error), language multiselect, task type multiselect, difficulty select",
+        "Text search input that filters by task_id substring",
+        "Sort dropdown: name, duration, token count, reward, status",
+        "In paired mode: show side-by-side status columns for baseline and variant",
+        "Clicking a task row sets it as the selected task in session state",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
       "passes": true,
-      "notes": "Created all templates: task.toml (metadata with placeholders), instruction.md (task description format), Dockerfile (multi-language support for all 10 LoCoBench languages), test.sh (invokes verify.py), verify.py (keyword-based semantic similarity verifier)."
+      "notes": "Already implemented in dashboard/utils/task_list.py with render_task_list(), filtering, sorting, and paired mode"
     },
     {
       "id": "US-007",
-      "title": "Create LoCoBenchTask dataclass and loader",
-      "description": "As a developer, I need data models to represent LoCoBench tasks.",
+      "title": "Task detail view - metadata panel",
+      "description": "As an evaluator, I want to see task metadata, build environment, and execution metrics on the task detail page.",
       "acceptanceCriteria": [
-        "Create benchmarks/locobench_agent/adapter.py",
-        "Implement LoCoBenchTask dataclass with fields: id, task_category, difficulty, title, description, context_files, context_length, task_prompt, ground_truth, evaluation_criteria, language",
-        "Implement LoCoBenchTask.from_dict() class method",
-        "Implement LoCoBenchLoader class to load from JSONL file",
-        "Implement LoCoBenchLoader.load(), all_ids(), filter_by_task_category(), filter_by_language() methods",
-        "Typecheck passes"
+        "Display task metadata in a card: task_id, benchmark source, language, difficulty, tags",
+        "Display build environment from config.json: docker image, agent model name, agent name, environment type",
+        "Display execution metrics: total duration, token usage (input/output/cached), tool call count, reward score",
+        "Display agent result: exit code, pass/fail status",
+        "Display verifier output: test pass/fail counts, reward breakdown from verifier/output.json",
+        "All sections wrapped in st.expander for collapsibility",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
       "passes": true,
-      "notes": "Created adapter.py with LoCoBenchTask dataclass (all 11 fields), from_dict() class method, and LoCoBenchLoader with load(), all_ids(), filter_by_task_category(), filter_by_language(), filter_by_difficulty(), and get_all_tasks() methods. Successfully tested loading all 8000 tasks."
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Implement LoCoBenchAdapter class",
-      "description": "As a developer, I need the adapter class that generates Harbor task directories.",
+      "title": "Task detail view - CLAUDE.md and task prompt display",
+      "description": "As an evaluator, I want to see the CLAUDE.md content and the task instruction prompt on the task detail page.",
       "acceptanceCriteria": [
-        "Add LoCoBenchAdapter class to benchmarks/locobench_agent/adapter.py",
-        "Import Harbor models (TaskConfig, TaskPaths) using dynamic import pattern from repoqa/dibench",
-        "Implement _render_template() for placeholder substitution",
-        "Implement _create_instruction() to generate instruction.md content",
-        "Implement _prepare_task_from_template() to create full task directory structure",
-        "Implement generate_task(task_id, local_task_id) public method",
-        "Typecheck passes"
+        "Extract CLAUDE.md content from the agent session directory (sessions/.claude.json or the project's CLAUDE.md if available)",
+        "Display CLAUDE.md content in a collapsible expander with markdown rendering",
+        "Extract the task instruction prompt from the first system message in claude-code.txt or from the task config",
+        "Display the task prompt in a collapsible expander with markdown rendering",
+        "If CLAUDE.md or prompt is not found, show 'Not available' message instead of error",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
       "passes": true,
-      "notes": "Implemented LoCoBenchAdapter with _render_template(), _create_instruction(), _prepare_task_from_template(), generate_task(). Imports Harbor TaskConfig and TaskPaths from installed package. LoCoBenchLoader supplements missing JSONL fields from raw scenario files. Added expected_approach field to LoCoBenchTask dataclass."
+      "notes": "Already implemented in dashboard/utils/task_detail.py with CLAUDE.md extraction and task prompt display in collapsible expanders"
     },
     {
       "id": "US-009",
-      "title": "Create run_adapter.py CLI",
-      "description": "As a developer, I need a CLI to generate Harbor tasks from selected LoCoBench tasks.",
+      "title": "JSONL trace parser for claude-code.txt",
+      "description": "As a developer, I need a parser that reads claude-code.txt JSONL files and produces structured trace data for the UI to render.",
       "acceptanceCriteria": [
-        "Create benchmarks/locobench_agent/run_adapter.py",
-        "Support arguments: --dataset_path, --output_dir, --task_ids (optional), --limit (optional)",
-        "Load tasks from dataset_path JSONL file",
-        "Generate Harbor task directories to output_dir",
-        "Log progress: [N/M] task_id for each generated task",
-        "Handle and log errors gracefully without stopping entire run",
+        "Create src/ingest/trace_viewer_parser.py with a parse_trace(file_path) function",
+        "Parser reads each line as JSON, skipping malformed lines with a warning",
+        "Returns a list of TraceMessage dataclasses with fields: type, subtype, content, tool_name, tool_input, tool_result, token_usage, parent_tool_use_id, session_id, uuid, sequence_number",
+        "Extracts token usage from assistant message usage field (input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens)",
+        "Computes summary metrics: total_messages, total_tool_calls, unique_tools, total_tokens, tools_by_name (count dict), files_accessed (dict of path -> {read_count, write_count, edit_count})",
+        "Unit test with sample JSONL data verifying parsing and metrics computation",
         "Typecheck passes"
       ],
       "priority": 9,
       "passes": true,
-      "notes": "Created run_adapter.py CLI with argparse. Supports --dataset_path, --output_dir, --task_ids, --limit, --selected_tasks (bonus), --data_dir. Logs progress as [N/M] task_id, handles errors gracefully continuing with next task. Tested successfully generating tasks from both direct IDs and selected_tasks.json."
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Generate 50 selected tasks",
-      "description": "As a developer, I need to run the adapter to create the 50 task directories.",
+      "title": "Trace summary overview panel",
+      "description": "As an evaluator, I want a summary panel at the top of the trace view showing tool call metrics, file access summary, and key statistics.",
       "acceptanceCriteria": [
-        "Run extract_dataset.py to create locobench_dataset.jsonl",
-        "Run select_tasks.py to create selected_tasks.json with top 50 tasks",
-        "Run run_adapter.py with selected task IDs to generate task directories",
-        "Tasks saved to benchmarks/locobench_agent/tasks/",
-        "Each task directory contains: instruction.md, task.toml, tests/ground_truth.json, tests/test.sh, environment/Dockerfile",
-        "No generation errors for selected tasks"
+        "Summary panel uses metrics from US-009 parser output",
+        "Display metric cards in a row: total messages, total tool calls, unique tools, total tokens, session duration",
+        "Bar chart (Plotly) showing tool call count per tool name, sorted descending",
+        "File access table: file path, read count, write count, edit count - sorted by total access count descending",
+        "Panel rendered at top of trace tab, above the full trace",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
       "passes": true,
-      "notes": "Generated all 50 selected tasks to benchmarks/locobench_agent/tasks/. Each task has: instruction.md, task.toml, tests/ground_truth.json, tests/test.sh, tests/verify.py, tests/task_metadata.json, environment/Dockerfile, environment/project/. No generation errors occurred."
+      "notes": "Already implemented in dashboard/utils/trace_summary.py with 18 passing tests, integrated at run_results.py:1530-1546"
     },
     {
       "id": "US-011",
-      "title": "Smoke test with baseline agent",
-      "description": "As a developer, I need to validate the adapter works by running 1-2 tasks with the baseline agent.",
+      "title": "Full trace card rendering - message display",
+      "description": "As an evaluator, I want each trace message rendered as a styled card with type-specific formatting.",
       "acceptanceCriteria": [
-        "Select 2 diverse tasks from the 50 (different task categories)",
-        "Run harbor run with baseline agent on each task",
-        "Tasks execute without adapter/framework errors (agent success/failure is acceptable)",
-        "Create benchmarks/locobench_agent/SMOKE_TEST_RESULTS.md documenting: tasks tested, commands run, results, any issues found"
+        "Each TraceMessage from the parser is rendered as a card using st.container with custom CSS",
+        "System messages (type=system): gray background, show init metadata (model, tools, session_id)",
+        "Assistant text messages: white background, render content as markdown",
+        "Assistant tool_use messages: light blue background, show tool name as a badge, show input as syntax-highlighted JSON in a collapsible expander",
+        "User tool_result messages: light green background, show content with syntax highlighting for code, truncate results longer than 100 lines with 'Show more' expander",
+        "Token usage shown as a small label on assistant messages (e.g., 'in: 2349 | out: 1 | cached: 18053')",
+        "Pagination: show 50 messages per page with page navigation buttons",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
       "passes": true,
-      "notes": "Tested two tasks: csharp_data_warehouse_expert_012_architectural_understanding_expert_01 (architectural_understanding) and c_blockchain_nft_expert_071_bug_investigation_expert_01 (bug_investigation). Adapter generates correct Harbor task structure. Fixed Dockerfile (removed incorrect test file COPY commands) and added solution/solve.sh for oracle testing. Infrastructure issues identified: Docker build timeout (heavy multi-language Dockerfile) and podman-compose cp compatibility. These are environment issues, not adapter/framework errors. See SMOKE_TEST_RESULTS.md for full details."
+      "notes": "Already implemented in dashboard/utils/trace_cards.py with 54 passing tests, integrated in run_results.py Full Trace tab"
     },
     {
       "id": "US-012",
-      "title": "Create benchmark documentation",
-      "description": "As a developer, I need documentation so others can understand and use the LoCoBench adapter.",
+      "title": "Trace search and type filtering",
+      "description": "As an evaluator, I want to search trace messages by text and filter by message type and tool name.",
       "acceptanceCriteria": [
-        "Create benchmarks/locobench_agent/README.md with overview, setup instructions, and usage examples",
-        "Create benchmarks/locobench_agent/DESIGN.md explaining adapter architecture and data flow",
-        "Include example commands for: extracting data, selecting tasks, generating tasks, running with harbor",
-        "Document task selection criteria summary and MCP value hypothesis"
+        "Text search input above the trace cards that filters messages containing the search term (case-insensitive)",
+        "Message type multiselect filter: system, assistant, user (tool_result)",
+        "Tool name dropdown filter populated from unique tool names in the trace",
+        "Toggle: show/hide tool results (hides user type messages to focus on agent decisions)",
+        "Result count indicator: 'Showing X of Y messages'",
+        "Filters applied in combination (AND logic)",
+        "Filtered state preserved in session state across interactions",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/trace_filters.py with 51 passing tests, integrated in run_results.py Full Trace tab"
+    },
+    {
+      "id": "US-013",
+      "title": "Tool call timeline visualization",
+      "description": "As an evaluator, I want a visual timeline showing tool calls in sequence with color-coded categories.",
+      "acceptanceCriteria": [
+        "Plotly timeline chart showing tool calls as markers on a vertical axis (sequence order) with horizontal position by tool category",
+        "Color coding by category: file read (blue: Read), file write (green: Write, Edit), search (yellow: Grep, Glob), bash (gray: Bash), planning (purple: EnterPlanMode, ExitPlanMode, TodoWrite), other (orange)",
+        "Hover tooltip shows: tool name, sequence number, brief description (file path for file ops, command preview for Bash, pattern for search)",
+        "Legend shows category colors with toggle to show/hide categories",
+        "Rendered in a tab alongside the full trace view",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "Implemented in dashboard/utils/trace_timeline.py with 40 passing tests, integrated as Timeline tab in run_results.py"
+    },
+    {
+      "id": "US-014",
+      "title": "Extract file diffs from trace Edit/Write operations",
+      "description": "As a developer, I need a utility that extracts file modifications from Edit and Write tool calls in the trace to build diff views.",
+      "acceptanceCriteria": [
+        "Create a function in dashboard/utils/ that takes a list of TraceMessages and returns a dict of file_path -> list of {operation (Edit/Write), old_string, new_string, sequence_number, full_content}",
+        "For Edit operations: extract old_string and new_string from tool input",
+        "For Write operations: extract file_path and content from tool input",
+        "For Read operations: capture file content as the baseline state for that file",
+        "Return results sorted by sequence number per file",
+        "Unit test with sample trace data",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/trace_diffs.py with 38 passing tests, FileOperation dataclass and extract_file_operations() function"
+    },
+    {
+      "id": "US-015",
+      "title": "Embedded file tree from trace data",
+      "description": "As an evaluator, I want a file tree showing all files the agent accessed, built from the trace data.",
+      "acceptanceCriteria": [
+        "Build a file tree structure from all file paths in Read/Edit/Write tool calls",
+        "Display as a nested tree using st.expander for directories",
+        "Each file shows an icon badge: read-only (eye), modified (pencil), created (plus)",
+        "Files the agent did not access are not shown (we only know about accessed files)",
+        "Clicking a file name sets it as the selected file in session state for the diff viewer",
+        "Rendered in a sidebar or left panel of the trace detail view",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/trace_file_tree.py with 47 passing tests, TreeNode/FileAccessInfo dataclasses and render_file_tree() function"
+    },
+    {
+      "id": "US-016",
+      "title": "File diff viewer panel",
+      "description": "As an evaluator, I want to see diffs for files modified by the agent with syntax highlighting.",
+      "acceptanceCriteria": [
+        "When a modified file is selected from the file tree, show its edit history",
+        "For Edit operations: show old_string -> new_string as a unified diff with red/green highlighting using difflib",
+        "For Write operations: show the full file content that was written",
+        "Each diff entry shows the sequence number linking back to the trace message",
+        "Toggle between unified and side-by-side diff format",
+        "Include a link to the GitHub locobench* repo for the file path (constructed from repo reference in task config)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/trace_diff_viewer.py with 57 passing tests, DiffEntry dataclass and render_diff_viewer()/render_file_diff_panel() functions"
+    },
+    {
+      "id": "US-017",
+      "title": "LLM judge - prompt and rubric editor UI",
+      "description": "As an evaluator, I want to edit the LLM judge system prompt, scoring dimensions, and rubric from the GUI.",
+      "acceptanceCriteria": [
+        "System prompt text area (large, resizable) pre-populated with current judge prompt from config",
+        "Scoring dimensions list: each dimension shown as a row with name input, weight slider (0-1), and delete button",
+        "Add dimension button to append a new dimension row",
+        "Per-dimension criteria text area: editable description of what each score level (1-5) means",
+        "Model selection dropdown populated from available Anthropic models",
+        "Temperature slider (0.0-1.0) and max_tokens numeric input",
+        "Save button that writes the config to configs/judge_templates/active_config.json",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": "Implemented via dashboard/utils/judge_config.py (data model + I/O) and dashboard/utils/judge_editor.py (Streamlit UI), integrated as 'Prompt & Rubric Editor' tab in analysis_llm_judge.py. 63 passing tests."
+    },
+    {
+      "id": "US-018",
+      "title": "LLM judge - test prompt on single task",
+      "description": "As an evaluator, I want to test the current judge configuration on a single task and see the result inline.",
+      "acceptanceCriteria": [
+        "Test Prompt button on the judge config page",
+        "Task selector dropdown to pick a task from the currently loaded experiment",
+        "Clicking Test Prompt calls the existing llm_judge_analyzer with current config on the selected task",
+        "Result displayed inline: per-dimension scores, overall score, judge reasoning text",
+        "Error handling: if API call fails, show error message without crashing",
+        "Loading spinner while judge is running",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/judge_test_prompt.py with 67 passing tests, integrated in analysis_llm_judge.py Prompt & Rubric Editor tab"
+    },
+    {
+      "id": "US-019",
+      "title": "LLM judge - template save and load",
+      "description": "As an evaluator, I want to save the current judge config as a named template and load previously saved templates.",
+      "acceptanceCriteria": [
+        "Save Template button with a text input for template name",
+        "Saves current config (prompt, dimensions, weights, model, temperature, max_tokens) as JSON to configs/judge_templates/{name}.json",
+        "Template list sidebar showing all saved templates with name, creation date, and model used",
+        "Load button on each template that populates all editor fields with the template's values",
+        "Delete button on each template with confirmation",
+        "Duplicate button that creates a copy with '-copy' suffix",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/judge_template_manager.py with 61 passing tests. Fixed tab integration test for 6-tab layout."
+    },
+    {
+      "id": "US-020",
+      "title": "LLM judge - A/B comparison mode",
+      "description": "As an evaluator, I want to run two different judge templates on the same tasks and compare scores side-by-side.",
+      "acceptanceCriteria": [
+        "A/B Comparison tab on the judge page",
+        "Two template selectors: Template A and Template B",
+        "Task set selector: choose which experiment and tasks to evaluate",
+        "Run Comparison button that executes both judges on all selected tasks",
+        "Results table: task_id, Template A scores (per dimension), Template B scores (per dimension), delta",
+        "Summary stats: mean score per template, correlation between templates, agreement rate",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/judge_ab_comparison.py with 55 passing tests, integrated as A/B Comparison tab in analysis_llm_judge.py"
+    },
+    {
+      "id": "US-021",
+      "title": "LLM judge - human alignment score entry",
+      "description": "As an evaluator, I want to enter human scores alongside LLM judge scores and see agreement metrics.",
+      "acceptanceCriteria": [
+        "Human Alignment tab on the judge page",
+        "Table showing: task_id, LLM scores per dimension, editable human score inputs (1-5) per dimension",
+        "Human scores saved to SQLite table (task_id, dimension, human_score, llm_score, annotator, timestamp)",
+        "Progress indicator: 'X of Y tasks reviewed'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/judge_human_alignment.py with 47 passing tests, SQLite persistence, and integration in analysis_llm_judge.py Human Alignment tab"
+    },
+    {
+      "id": "US-022",
+      "title": "LLM judge - alignment agreement metrics",
+      "description": "As an evaluator, I want to see statistical agreement between human and LLM judge scores.",
+      "acceptanceCriteria": [
+        "Compute and display Cohen's kappa between human and LLM scores (treating as ordinal categories)",
+        "Compute and display Pearson correlation between human and LLM scores",
+        "Compute and display mean absolute error between human and LLM scores",
+        "Disagreement highlighter: rows where |human - LLM| > configurable threshold (default 2) are highlighted red",
+        "Export button: download human+LLM scores as CSV",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/judge_alignment_metrics.py with 67 passing tests, integrated in judge_human_alignment.py render panel"
+    },
+    {
+      "id": "US-023",
+      "title": "Analysis Hub - card-based navigation page",
+      "description": "As an evaluator, I want the Analysis Hub to show cards for each analysis type that I can click to configure and run.",
+      "acceptanceCriteria": [
+        "Analysis Hub page (dashboard/views/analysis_hub.py) displays 6 cards in a 2x3 grid: Statistical, Comparison, Time Series, Cost, Failure, LLM Judge",
+        "Each card shows: icon, title, brief description, and a 'Configure & Run' button",
+        "Clicking a card navigates to the corresponding analysis view using Streamlit session state",
+        "Cards show a status badge if results are already available (green check) or not (gray dash)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": "Already implemented in dashboard/views/analysis_hub.py and dashboard/utils/analysis_cards.py with 38 passing tests"
+    },
+    {
+      "id": "US-024",
+      "title": "Analysis Hub - GUI-driven statistical analysis config",
+      "description": "As an evaluator, I want to configure and run statistical analysis from the GUI without using the terminal.",
+      "acceptanceCriteria": [
+        "Statistical analysis page has: experiment selector (multiselect), task filter (reuse existing filters), significance level input (default 0.05), test type selector (t-test, Mann-Whitney, chi-squared), effect size threshold input",
+        "Run Analysis button that calls the existing statistical_analyzer.py with selected parameters",
+        "Results displayed inline: p-values table, confidence intervals, effect sizes with Plotly charts",
+        "Export button: download results as CSV",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": "Already implemented in dashboard/utils/statistical_config.py and dashboard/views/analysis_statistical.py with 59 passing tests"
+    },
+    {
+      "id": "US-025",
+      "title": "Analysis Hub - GUI-driven comparison analysis config",
+      "description": "As an evaluator, I want to configure and run comparison analysis between two runs from the GUI.",
+      "acceptanceCriteria": [
+        "Comparison page has: two run selectors (baseline and variant), metric selector (pass rate, reward, duration, tokens), task filter",
+        "Run Comparison button that calls the existing comparator.py",
+        "Results: comparison table with deltas, bar chart of pass rates, scatter plot of per-task metrics",
+        "Export button: download comparison report as CSV",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": "Implemented in dashboard/utils/comparison_config.py and dashboard/views/analysis_comparison.py with 52 passing tests"
+    },
+    {
+      "id": "US-026",
+      "title": "Analysis Hub - GUI-driven cost and failure analysis config",
+      "description": "As an evaluator, I want to configure and run cost analysis and failure analysis from the GUI.",
+      "acceptanceCriteria": [
+        "Cost analysis page: experiment selector, view token costs (input/output/cached), execution time per task, cost per model - all using existing cost_analyzer.py",
+        "Cost results: Plotly bar charts for token distribution, cost breakdown table, exportable as CSV",
+        "Failure analysis page: experiment selector, view error clusters, failure patterns, top error messages - using existing failure_analyzer.py",
+        "Failure results: error category pie chart, failure pattern table, root cause summary",
+        "Both pages require no CLI commands",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 26,
+      "passes": true,
       "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Analysis Hub - GUI-driven time series analysis config",
+      "description": "As an evaluator, I want to configure and run time series analysis from the GUI.",
+      "acceptanceCriteria": [
+        "Time series page: metric selector (pass rate, reward, duration, tokens), date range picker, aggregation level (per-run, per-day, per-week)",
+        "Run Analysis button that calls existing time_series_analyzer.py",
+        "Results: Plotly line chart with trend line, anomaly markers, data table below chart",
+        "Export button: download data as CSV",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 27,
+      "passes": true,
+      "notes": "Implemented in dashboard/utils/timeseries_config.py and dashboard/views/analysis_timeseries.py with 55 passing tests"
     }
   ]
 }

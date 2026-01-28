@@ -231,7 +231,7 @@ def show_home():
     with col2:
         st.markdown("**Evaluation Results**")
         st.markdown("- Use **Run Results** to view evaluation outputs from the VM")
-        st.markdown("- Results are loaded from `~/evals/custom_agents/agents/claudecode/jobs`")
+        st.markdown("- Results are loaded from `~/evals/custom_agents/agents/claudecode/runs`")
 
 
 def show_benchmark_manager():

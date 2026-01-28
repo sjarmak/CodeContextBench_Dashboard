@@ -5,22 +5,22 @@ Provides:
 - Auto-ingestion of results from external jobs directory
 - Database connectivity status
 - Experiment overview
-- Analysis component availability checklist
+- Card-based navigation to analysis components
 - Quick-start workflow
 """
 
 import streamlit as st
 from pathlib import Path
-from datetime import datetime
 import os
 
+from dashboard.utils.analysis_cards import render_analysis_card_grid
 from dashboard.utils.analysis_loader import AnalysisLoader, DatabaseNotFoundError
 
 
-# External jobs directory - same as run_results
-EXTERNAL_JOBS_DIR = Path(os.environ.get(
-    "CCB_EXTERNAL_JOBS_DIR",
-    os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs")
+# External runs directory - same as run_results
+EXTERNAL_RUNS_DIR = Path(os.environ.get(
+    "CCB_EXTERNAL_RUNS_DIR",
+    os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs")
 ))
 
 
@@ -39,21 +39,21 @@ def auto_ingest_if_needed(db_path: Path, project_root: Path) -> tuple[bool, str]
         db_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Check if we have results to ingest
-        if not EXTERNAL_JOBS_DIR.exists():
-            return False, f"External jobs directory not found: {EXTERNAL_JOBS_DIR}"
+        if not EXTERNAL_RUNS_DIR.exists():
+            return False, f"External runs directory not found: {EXTERNAL_RUNS_DIR}"
         
         experiment_dirs = [
-            d for d in EXTERNAL_JOBS_DIR.iterdir() 
+            d for d in EXTERNAL_RUNS_DIR.iterdir() 
             if d.is_dir() and not d.name.startswith('.') and (d / "result.json").exists()
         ]
         
         if not experiment_dirs:
-            return False, "No experiments found in external jobs directory"
+            return False, "No experiments found in external runs directory"
         
         # Create orchestrator and ingest
         orchestrator = IngestionOrchestrator(
             db_path=db_path,
-            results_dir=EXTERNAL_JOBS_DIR,
+            results_dir=EXTERNAL_RUNS_DIR,
         )
         
         total_results = 0
@@ -147,7 +147,7 @@ def show_analysis_hub():
             else:
                 st.error(message)
     
-    st.caption(f"📁 Results from: {EXTERNAL_JOBS_DIR}")
+    st.caption(f"📁 Results from: {EXTERNAL_RUNS_DIR}")
     
     st.markdown("---")
     
@@ -182,52 +182,11 @@ def show_analysis_hub():
     
     st.markdown("---")
     
-    # Analysis components checklist
-    st.subheader("3. Available Analysis Components")
-    
-    components = {
-        "Experiment Comparison": {
-            "description": "Compare agent performance metrics",
-            "view": "Comparison Analysis",
-            "metrics": ["Pass Rate", "Duration", "MCP Calls"]
-        },
-        "Statistical Significance": {
-            "description": "Determine if differences are statistically significant",
-            "view": "Statistical Analysis",
-            "metrics": ["t-tests", "Chi-square", "Effect Sizes"]
-        },
-        "Time-Series Trends": {
-            "description": "Track metric changes across experiments",
-            "view": "Time-Series Analysis",
-            "metrics": ["Trends", "Anomalies", "Improvement Rate"]
-        },
-        "Cost Analysis": {
-            "description": "Analyze API costs and efficiency",
-            "view": "Cost Analysis",
-            "metrics": ["Token Usage", "Cost/Success", "Efficiency"]
-        },
-        "Failure Patterns": {
-            "description": "Understand failure modes and categories",
-            "view": "Failure Analysis",
-            "metrics": ["Patterns", "Categories", "Fixes"]
-        },
-        "Recommendations": {
-            "description": "Get prioritized improvement suggestions",
-            "view": "Recommendations",
-            "metrics": ["Quick Wins", "High Priority", "Medium Priority"]
-        }
-    }
-    
-    for component, info in components.items():
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            st.markdown(f"**{component}**")
-            st.caption(info["description"])
-            st.caption(f"Metrics: {', '.join(info['metrics'])}")
-        
-        with col2:
-            st.markdown(f"→ [{info['view']}](#{info['view'].lower().replace(' ', '-')})")
+    # Analysis components card grid
+    st.subheader("3. Analysis Components")
+    st.caption("Click a card to configure and run the analysis.")
+
+    render_analysis_card_grid(project_root=project_root)
     
     st.markdown("---")
     

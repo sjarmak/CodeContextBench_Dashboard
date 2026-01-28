@@ -100,8 +100,8 @@ def run_oracle_validation(
             result["reward"] = 1.0
 
             # Try to parse result.json if available
-            # Harbor creates jobs in PROJECT_ROOT/jobs/
-            result_json_pattern = PROJECT_ROOT / "jobs" / "*" / "result.json"
+            # Harbor creates runs in PROJECT_ROOT/runs/
+            result_json_pattern = PROJECT_ROOT / "runs" / "*" / "result.json"
             import glob
             result_files = sorted(glob.glob(str(result_json_pattern)), key=lambda x: Path(x).stat().st_mtime, reverse=True)
 

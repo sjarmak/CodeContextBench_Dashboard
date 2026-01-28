@@ -55,7 +55,7 @@ def test_profile_runner_writes_profile_manifest(tmp_path):
     profile_config = {
         "defaults": {
             "model": "anthropic/claude-haiku-4-5-20251001",
-            "jobs_root": "jobs/benchmark_profiles",
+            "jobs_root": "runs/benchmark_profiles",
             "harbor": {"n_tasks": 1, "timeout_multiplier": 1.5},
         },
         "profiles": {

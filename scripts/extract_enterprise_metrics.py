@@ -111,8 +111,8 @@ def compute_summary(metrics_list):
 
 
 def main():
-    baseline_path = Path("jobs/baseline-10task-20251219")
-    mcp_path = Path("jobs/mcp-10task-20251219")
+    baseline_path = Path("runs/baseline-10task-20251219")
+    mcp_path = Path("runs/mcp-10task-20251219")
     
     print("Extracting enterprise metrics from trajectories...\n")
     

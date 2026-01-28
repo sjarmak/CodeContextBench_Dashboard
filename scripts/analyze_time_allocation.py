@@ -119,8 +119,8 @@ def aggregate(results):
 
 
 def main():
-    baseline_results = analyze_all('jobs/baseline-10task-20251219')
-    mcp_results = analyze_all('jobs/mcp-10task-20251219')
+    baseline_results = analyze_all('runs/baseline-10task-20251219')
+    mcp_results = analyze_all('runs/mcp-10task-20251219')
     
     baseline_agg = aggregate(baseline_results)
     mcp_agg = aggregate(mcp_results)

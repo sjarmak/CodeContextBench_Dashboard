@@ -204,7 +204,7 @@ class EvaluationOrchestrator:
         TaskManager.update_status(self.run_id, task_name, agent, "running")
 
         # Prepare output directory
-        output_dir = Path(self.run_data.get("output_dir", f"jobs/{self.run_id}"))
+        output_dir = Path(self.run_data.get("output_dir", f"runs/{self.run_id}"))
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Sanitize agent name for filesystem/Docker (replace : with __)
@@ -507,7 +507,7 @@ def create_evaluation_run(
     run_id = f"{benchmark_name}_{agent_suffix}_{timestamp}"
 
     # Create output directory
-    output_dir = f"jobs/{run_id}"
+    output_dir = f"runs/{run_id}"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # Create run record

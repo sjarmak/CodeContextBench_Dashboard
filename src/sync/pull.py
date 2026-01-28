@@ -33,7 +33,7 @@ def pull_results(
     
     Args:
         vm_host: VM hostname or SSH destination
-        vm_jobs_path: Remote jobs directory (e.g., "~/evals/custom_agents/agents/claudecode/jobs")
+        vm_jobs_path: Remote runs directory (e.g., "~/evals/custom_agents/agents/claudecode/runs")
         local_results_dir: Local directory to store results
         experiment_id: Optional specific experiment to pull (pulls all if None)
         manifest: Optional manifest to record sync

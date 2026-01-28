@@ -56,8 +56,8 @@ def main():
     print("COMPREHENSION vs SUCCESS CORRELATION ANALYSIS")
     print("=" * 80)
     
-    for agent_name, job_path in [('Baseline', 'jobs/baseline-10task-20251219'), 
-                                  ('MCP', 'jobs/mcp-10task-20251219')]:
+    for agent_name, job_path in [('Baseline', 'runs/baseline-10task-20251219'),
+                                  ('MCP', 'runs/mcp-10task-20251219')]:
         results = []
         for traj_path in Path(job_path).rglob('trajectory.json'):
             try:

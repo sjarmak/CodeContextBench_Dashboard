@@ -20,6 +20,12 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from dashboard.utils.judge_ab_comparison import render_ab_comparison_tab
+from dashboard.utils.judge_editor import render_judge_editor
+from dashboard.utils.judge_human_alignment import render_human_alignment_tab
+from dashboard.utils.judge_template_manager import render_template_manager
+from dashboard.utils.judge_test_prompt import render_test_prompt_section
+
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -33,11 +39,11 @@ except ImportError:
     load_locobench_oracle = None
     analyze_mcp_tool_usage = None
 
-# External jobs directory - same as run_results
-EXTERNAL_JOBS_DIR = Path(
+# External runs directory - same as run_results
+EXTERNAL_RUNS_DIR = Path(
     os.environ.get(
-        "CCB_EXTERNAL_JOBS_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs"),
+        "CCB_EXTERNAL_RUNS_DIR",
+        os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs"),
     )
 )
 
@@ -210,7 +216,14 @@ def show_llm_judge():
         }
 
     # Tabs for different sections
-    tabs = st.tabs(["🧪 Run Evaluation", "📊 View Reports", "📋 Rubric Configuration"])
+    tabs = st.tabs([
+        "🧪 Run Evaluation",
+        "📊 View Reports",
+        "📋 Rubric Configuration",
+        "Prompt & Rubric Editor",
+        "A/B Comparison",
+        "Human Alignment",
+    ])
 
     with tabs[0]:
         show_evaluation_config(project_root)
@@ -220,6 +233,18 @@ def show_llm_judge():
 
     with tabs[2]:
         show_rubric_config(project_root)
+
+    with tabs[3]:
+        render_judge_editor(project_root)
+        render_test_prompt_section(project_root)
+        st.markdown("---")
+        render_template_manager(project_root)
+
+    with tabs[4]:
+        render_ab_comparison_tab(project_root)
+
+    with tabs[5]:
+        render_human_alignment_tab(project_root)
 
 
 def show_reports_view(project_root: Path):
@@ -649,9 +674,9 @@ def show_evaluation_config(project_root: Path):
     experiments = []
     paired_experiments = {}  # Track which experiments are paired (baseline/deepsearch)
 
-    if EXTERNAL_JOBS_DIR.exists():
+    if EXTERNAL_RUNS_DIR.exists():
         for d in sorted(
-            EXTERNAL_JOBS_DIR.iterdir(),
+            EXTERNAL_RUNS_DIR.iterdir(),
             key=lambda x: x.stat().st_mtime,
             reverse=True,
         ):
@@ -678,9 +703,9 @@ def show_evaluation_config(project_root: Path):
 
     if not experiments:
         st.info(
-            "No experiments found. Check that CCB_EXTERNAL_JOBS_DIR is set correctly."
+            "No experiments found. Check that CCB_EXTERNAL_RUNS_DIR is set correctly."
         )
-        st.caption(f"Current directory: {EXTERNAL_JOBS_DIR}")
+        st.caption(f"Current directory: {EXTERNAL_RUNS_DIR}")
         return
 
     selected_exp = st.selectbox("Experiment", experiments, key="eval_exp_select")
@@ -705,7 +730,7 @@ def show_evaluation_config(project_root: Path):
                 task_dirs.append(subdir.name)
     else:
         # Standard Harbor format
-        exp_dir = EXTERNAL_JOBS_DIR / selected_exp
+        exp_dir = EXTERNAL_RUNS_DIR / selected_exp
         task_dirs = [
             d.name
             for d in exp_dir.iterdir()
@@ -1032,7 +1057,7 @@ def run_llm_judge_evaluation(
         mode, mode_dir = paired_experiments[experiment]
         base_dir = mode_dir
     else:
-        base_dir = EXTERNAL_JOBS_DIR / experiment
+        base_dir = EXTERNAL_RUNS_DIR / experiment
 
     try:
         if use_enhanced:

@@ -22,37 +22,39 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from benchmark.database import RunManager, TaskManager
 from benchmark.trace_parser import TraceParser
 
-# External jobs directory - configurable via environment or default
-EXTERNAL_JOBS_DIR = Path(
-    os.environ.get(
-        "CCB_EXTERNAL_JOBS_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs"),
-    )
-)
+from dashboard.utils.benchmark_detection import detect_benchmark_set
+from dashboard.utils.task_detail import render_task_detail_panel
+from dashboard.utils.task_list import render_task_list
+from dashboard.utils.trace_cards import render_trace_cards
+from dashboard.utils.trace_diff_viewer import render_file_diff_panel
+from dashboard.utils.trace_diffs import extract_file_operations
+from dashboard.utils.trace_file_tree import render_file_tree
+from dashboard.utils.trace_filters import render_trace_filter_controls
+from dashboard.utils.trace_timeline import render_tool_timeline
 
-# Archive directory for historical runs
-EXTERNAL_ARCHIVE_DIR = Path(
+# External runs directory - configurable via environment or default
+EXTERNAL_RUNS_DIR = Path(
     os.environ.get(
-        "CCB_EXTERNAL_ARCHIVE_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/archive/jobs"),
+        "CCB_EXTERNAL_RUNS_DIR",
+        os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs"),
     )
 )
 
 
 def load_external_experiments() -> list:
-    """Load experiments from default external jobs directory."""
-    return load_external_experiments_from_dir(EXTERNAL_JOBS_DIR)
+    """Load experiments from default external runs directory."""
+    return load_external_experiments_from_dir(EXTERNAL_RUNS_DIR)
 
 
-def load_external_experiments_from_dir(jobs_dir: Path) -> list:
-    """Load experiments from a specified jobs directory."""
+def load_external_experiments_from_dir(runs_dir: Path) -> list:
+    """Load experiments from a specified runs directory."""
     experiments = []
 
-    if not jobs_dir.exists():
+    if not runs_dir.exists():
         return experiments
 
     for exp_dir in sorted(
-        jobs_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
+        runs_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
     ):
         if not exp_dir.is_dir() or exp_dir.name.startswith("."):
             continue
@@ -275,38 +277,211 @@ def load_external_tasks(exp_dir: Path, result: dict) -> list:
     return tasks
 
 
+def _load_manifest_pairs(experiments: list) -> list[dict]:
+    """
+    Load pre-defined pairs from manifest.json files across all experiments.
+
+    Returns a list of pair dicts with:
+      - pair_id, baseline_run_id, mcp_run_id, status
+      - baseline_exp, variant_exp (references to matching experiment dicts)
+    """
+    pairs: list[dict] = []
+
+    for exp in experiments:
+        manifest_path = exp["path"] / "manifest.json"
+        if not manifest_path.exists():
+            continue
+        try:
+            with open(manifest_path) as f:
+                manifest = json.load(f)
+        except Exception:
+            continue
+
+        manifest_pairs = manifest.get("pairs", [])
+        manifest_runs = manifest.get("runs", [])
+        if not manifest_pairs or not manifest_runs:
+            continue
+
+        # Build run_id -> experiment lookup from manifest runs
+        run_id_to_mode: dict[str, str] = {}
+        for run_entry in manifest_runs:
+            run_id_to_mode[run_entry.get("run_id", "")] = run_entry.get(
+                "mcp_mode", ""
+            )
+
+        for pair_def in manifest_pairs:
+            baseline_run_id = pair_def.get("baseline_run_id", "")
+            variant_run_id = pair_def.get("mcp_run_id", "")
+
+            # Try to find matching experiments by name or subdirectory
+            baseline_exp = _find_experiment_for_run(
+                experiments, exp, baseline_run_id
+            )
+            variant_exp = _find_experiment_for_run(
+                experiments, exp, variant_run_id
+            )
+
+            pairs.append(
+                {
+                    "pair_id": pair_def.get("pair_id", ""),
+                    "baseline_run_id": baseline_run_id,
+                    "variant_run_id": variant_run_id,
+                    "status": pair_def.get("status", "unknown"),
+                    "source_experiment": exp["name"],
+                    "baseline_exp": baseline_exp,
+                    "variant_exp": variant_exp,
+                }
+            )
+
+    return pairs
+
+
+def _find_experiment_for_run(
+    experiments: list, source_exp: dict, run_id: str
+) -> dict | None:
+    """
+    Find the experiment dict matching a run_id.
+
+    For paired experiments (baseline/deepsearch subdirs), check modes.
+    For single experiments, match by name prefix.
+    """
+    if not run_id:
+        return None
+
+    # If source experiment is paired, check its modes
+    if source_exp.get("is_paired"):
+        for mode_name, mode_data in source_exp.get("modes", {}).items():
+            if run_id.endswith(f"_{mode_name}") or mode_name in run_id:
+                return {
+                    **source_exp,
+                    "_matched_mode": mode_name,
+                    "_matched_mode_data": mode_data,
+                }
+
+    # Search all experiments by name match
+    for exp in experiments:
+        if exp["name"] in run_id or run_id.startswith(exp["name"]):
+            return exp
+
+    return None
+
+
+def _get_experiment_task_ids(exp: dict) -> set[str]:
+    """
+    Extract task IDs from an experiment for pairing comparison.
+
+    Works for both paired (has modes) and single (has result.json) experiments.
+    """
+    task_ids: set[str] = set()
+    exp_path = exp["path"]
+
+    if exp.get("is_paired"):
+        # For paired experiments, collect task names from all modes
+        for mode_data in exp.get("modes", {}).values():
+            for task in mode_data.get("tasks", []):
+                task_ids.add(task.get("task_name", ""))
+    else:
+        # For single experiments, scan for task directories
+        for item in exp_path.iterdir():
+            if item.is_dir() and not item.name.startswith("."):
+                if (item / "agent").exists() or (item / "result.json").exists():
+                    task_ids.add(item.name)
+
+    task_ids.discard("")
+    return task_ids
+
+
+def _find_common_task_runs(
+    exp_a: dict, exp_b: dict
+) -> set[str]:
+    """Find task IDs that are common between two experiments."""
+    tasks_a = _get_experiment_task_ids(exp_a)
+    tasks_b = _get_experiment_task_ids(exp_b)
+    return tasks_a & tasks_b
+
+
+def _group_experiments_by_benchmark(experiments: list) -> dict:
+    """
+    Group experiments by their detected benchmark set.
+
+    Returns an ordered dict of benchmark_name -> list of experiments.
+    Groups with no experiments are excluded.
+    """
+    groups: dict[str, list] = {}
+    for exp in experiments:
+        benchmark_name = detect_benchmark_set(exp["path"])
+        if benchmark_name not in groups:
+            groups[benchmark_name] = []
+        groups[benchmark_name] = [*groups[benchmark_name], exp]
+    return groups
+
+
 def show_run_results():
     """Main run results page."""
     st.title("Run Results")
 
-    # Option to include archive
-    include_archive = st.checkbox("Include archived runs", value=False)
-
-    # Load experiments from external jobs directory
+    # Load experiments from external runs directory
     external_experiments = load_external_experiments()
 
-    # Optionally load from archive
-    if include_archive and EXTERNAL_ARCHIVE_DIR.exists():
-        archive_experiments = load_external_experiments_from_dir(EXTERNAL_ARCHIVE_DIR)
-        for exp in archive_experiments:
-            exp["name"] = f"[archive] {exp['name']}"
-        external_experiments.extend(archive_experiments)
-
     if not external_experiments:
-        st.info(f"No experiments found in {EXTERNAL_JOBS_DIR}")
+        st.info(f"No experiments found in {EXTERNAL_RUNS_DIR}")
         st.caption(
-            "Set CCB_EXTERNAL_JOBS_DIR environment variable to change the jobs directory."
+            "Set CCB_EXTERNAL_RUNS_DIR environment variable to change the runs directory."
         )
         return
 
-    sources = [str(EXTERNAL_JOBS_DIR)]
-    if include_archive:
-        sources.append(str(EXTERNAL_ARCHIVE_DIR))
-    st.caption(f"📁 Loading from: {', '.join(sources)}")
+    st.caption(f"Loading from: {EXTERNAL_RUNS_DIR}")
 
-    # Experiment selector with type indicator
+    # Group experiments by benchmark set
+    benchmark_groups = _group_experiments_by_benchmark(external_experiments)
+
+    # Benchmark set filter
+    group_options = [
+        f"{name} ({len(exps)})" for name, exps in benchmark_groups.items()
+    ]
+    all_option = f"All Benchmarks ({len(external_experiments)})"
+    filter_options = [all_option] + group_options
+
+    selected_filter = st.selectbox("Benchmark Set", filter_options)
+
+    # Determine which experiments to show based on filter
+    if selected_filter == all_option:
+        filtered_experiments = external_experiments
+    else:
+        # Extract benchmark name from "Name (count)" format
+        selected_benchmark = selected_filter.rsplit(" (", 1)[0]
+        filtered_experiments = benchmark_groups.get(selected_benchmark, [])
+
+    if not filtered_experiments:
+        st.info("No experiments in this benchmark set.")
+        return
+
+    # --- Mode toggle: Individual Review vs Paired Comparison ---
+    if "experiment_mode" not in st.session_state:
+        st.session_state["experiment_mode"] = "Individual Review"
+
+    experiment_mode = st.radio(
+        "Selection Mode",
+        ["Individual Review", "Paired Comparison"],
+        horizontal=True,
+        key="experiment_mode_radio",
+        index=0
+        if st.session_state["experiment_mode"] == "Individual Review"
+        else 1,
+    )
+    st.session_state["experiment_mode"] = experiment_mode
+
+    if experiment_mode == "Individual Review":
+        _show_individual_mode(filtered_experiments)
+    else:
+        _show_paired_mode(filtered_experiments, external_experiments)
+
+
+def _show_individual_mode(filtered_experiments: list) -> None:
+    """Standard single-run experiment selection (existing behavior)."""
+    # Experiment selector within the filtered group
     exp_options = []
-    for exp in external_experiments:
+    for exp in filtered_experiments:
         exp_type = "🔄 Paired" if exp.get("is_paired") else "📦 Single"
         exp_options.append(f"{exp_type} {exp['name']}")
 
@@ -319,7 +494,7 @@ def show_run_results():
     if selected_idx is None:
         return
 
-    selected_exp = external_experiments[selected_idx]
+    selected_exp = filtered_experiments[selected_idx]
 
     st.markdown("---")
 
@@ -332,6 +507,252 @@ def show_run_results():
         st.markdown("---")
         # Display task results
         show_external_task_results(selected_exp)
+
+
+def _show_paired_mode(
+    filtered_experiments: list, all_experiments: list
+) -> None:
+    """Paired comparison mode with baseline/variant dropdowns."""
+    # Auto-detect pairs from manifest.json
+    detected_pairs = _load_manifest_pairs(all_experiments)
+
+    # --- Pre-defined pairs section ---
+    if detected_pairs:
+        st.subheader("Detected Pairs")
+        pair_labels = []
+        for pair in detected_pairs:
+            label = (
+                f"{pair['source_experiment']}: "
+                f"{pair['baseline_run_id']} vs {pair['variant_run_id']}"
+            )
+            pair_labels.append(label)
+
+        auto_pair_option = "Manual pairing"
+        pair_select_options = [auto_pair_option] + pair_labels
+
+        selected_pair_label = st.selectbox(
+            "Select a detected pair or choose manual pairing",
+            pair_select_options,
+            key="paired_mode_pair_select",
+        )
+
+        if selected_pair_label != auto_pair_option:
+            pair_idx = pair_select_options.index(selected_pair_label) - 1
+            selected_pair = detected_pairs[pair_idx]
+
+            st.info(
+                f"Pair: **{selected_pair['pair_id']}** "
+                f"(status: {selected_pair['status']})"
+            )
+
+            baseline_exp = selected_pair.get("baseline_exp")
+            variant_exp = selected_pair.get("variant_exp")
+
+            if baseline_exp and variant_exp:
+                st.session_state["paired_baseline"] = baseline_exp
+                st.session_state["paired_variant"] = variant_exp
+                st.markdown("---")
+                _show_paired_comparison_view(baseline_exp, variant_exp)
+            else:
+                st.warning(
+                    "Could not resolve both experiments for this pair. "
+                    "Try manual pairing below."
+                )
+            return
+
+    # --- Manual pairing section ---
+    st.subheader("Manual Pairing")
+    st.caption(
+        "Select any two runs that share common tasks for comparison."
+    )
+
+    exp_names = [exp["name"] for exp in filtered_experiments]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        baseline_idx = st.selectbox(
+            "Baseline Run",
+            range(len(exp_names)),
+            format_func=lambda i: exp_names[i],
+            key="paired_baseline_select",
+        )
+
+    with col2:
+        # Default variant to second experiment if available
+        default_variant = min(1, len(exp_names) - 1)
+        variant_idx = st.selectbox(
+            "Variant Run",
+            range(len(exp_names)),
+            format_func=lambda i: exp_names[i],
+            key="paired_variant_select",
+            index=default_variant,
+        )
+
+    if baseline_idx is None or variant_idx is None:
+        return
+
+    baseline_exp = filtered_experiments[baseline_idx]
+    variant_exp = filtered_experiments[variant_idx]
+
+    # Store selections in session state
+    st.session_state["paired_baseline"] = baseline_exp
+    st.session_state["paired_variant"] = variant_exp
+
+    # Show common task count
+    if baseline_idx == variant_idx:
+        st.warning("Baseline and variant are the same experiment.")
+    else:
+        common_tasks = _find_common_task_runs(baseline_exp, variant_exp)
+        if common_tasks:
+            st.success(
+                f"Found {len(common_tasks)} common tasks between "
+                f"**{baseline_exp['name']}** and **{variant_exp['name']}**."
+            )
+        else:
+            st.warning(
+                "No common tasks found between the selected experiments. "
+                "Comparison may be limited."
+            )
+
+    st.markdown("---")
+    _show_paired_comparison_view(baseline_exp, variant_exp)
+
+
+def _show_paired_comparison_view(
+    baseline_exp: dict, variant_exp: dict
+) -> None:
+    """Display a side-by-side comparison of baseline and variant experiments."""
+    st.subheader(
+        f"Comparison: {baseline_exp['name']} vs {variant_exp['name']}"
+    )
+
+    # Summary metrics side by side
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**Baseline**")
+        _show_experiment_summary_card(baseline_exp)
+
+    with col2:
+        st.markdown("**Variant**")
+        _show_experiment_summary_card(variant_exp)
+
+    st.markdown("---")
+
+    # If both are paired experiments, show mode-level comparison
+    if baseline_exp.get("is_paired") and variant_exp.get("is_paired"):
+        _show_paired_experiment_comparison(baseline_exp, variant_exp)
+    else:
+        # Show individual experiment details in tabs
+        tab_baseline, tab_variant = st.tabs(
+            [f"Baseline: {baseline_exp['name']}", f"Variant: {variant_exp['name']}"]
+        )
+
+        with tab_baseline:
+            if baseline_exp.get("is_paired"):
+                show_paired_experiment(baseline_exp)
+            else:
+                show_external_run_overview(baseline_exp)
+                st.markdown("---")
+                show_external_task_results(baseline_exp)
+
+        with tab_variant:
+            if variant_exp.get("is_paired"):
+                show_paired_experiment(variant_exp)
+            else:
+                show_external_run_overview(variant_exp)
+                st.markdown("---")
+                show_external_task_results(variant_exp)
+
+
+def _show_experiment_summary_card(exp: dict) -> None:
+    """Display a compact summary card for an experiment."""
+    result = exp.get("result", {})
+    stats = result.get("stats", {})
+
+    n_trials = result.get("n_total_trials", 0)
+    n_errors = stats.get("n_errors", 0)
+    mean_reward = stats.get("mean_reward")
+
+    exp_type = "Paired" if exp.get("is_paired") else "Single"
+
+    st.markdown(f"- **Type:** {exp_type}")
+    st.markdown(f"- **Tasks:** {n_trials}")
+    st.markdown(f"- **Errors:** {n_errors}")
+    if mean_reward is not None:
+        st.markdown(f"- **Mean Reward:** {mean_reward:.4f}")
+    else:
+        # Try to extract from evals
+        evals = stats.get("evals", {})
+        if evals:
+            first_eval = next(iter(evals.values()))
+            metrics = first_eval.get("metrics", [{}])
+            mr = metrics[0].get("mean", "N/A") if metrics else "N/A"
+            st.markdown(f"- **Mean Reward:** {mr}")
+        else:
+            st.markdown("- **Mean Reward:** N/A")
+
+
+def _show_paired_experiment_comparison(
+    baseline_exp: dict, variant_exp: dict
+) -> None:
+    """Show comparison between two paired experiments at the mode level."""
+    baseline_modes = baseline_exp.get("modes", {})
+    variant_modes = variant_exp.get("modes", {})
+
+    all_modes = sorted(set(list(baseline_modes.keys()) + list(variant_modes.keys())))
+
+    if not all_modes:
+        st.info("No mode data available for comparison.")
+        return
+
+    comparison_rows = []
+    for mode_name in all_modes:
+        row: dict = {"Mode": mode_name}
+
+        for label, modes in [("Baseline", baseline_modes), ("Variant", variant_modes)]:
+            mode_data = modes.get(mode_name)
+            if mode_data:
+                tasks = mode_data.get("tasks", [])
+                rewards = [
+                    t.get("reward", 0)
+                    for t in tasks
+                    if t.get("reward") is not None
+                ]
+                row[f"{label} Tasks"] = len(tasks)
+                row[f"{label} Mean Reward"] = (
+                    f"{sum(rewards) / len(rewards):.4f}" if rewards else "N/A"
+                )
+            else:
+                row[f"{label} Tasks"] = 0
+                row[f"{label} Mean Reward"] = "N/A"
+
+        comparison_rows.append(row)
+
+    st.dataframe(comparison_rows, use_container_width=True, hide_index=True)
+
+    # Side-by-side task list for common mode
+    st.markdown("---")
+    st.subheader("Task Comparison")
+
+    mode_select_options = [m for m in all_modes if m in baseline_modes and m in variant_modes]
+    if mode_select_options:
+        selected_mode = st.selectbox(
+            "Compare tasks in mode",
+            mode_select_options,
+            key="paired_compare_mode_select",
+        )
+        if selected_mode:
+            b_tasks = baseline_modes[selected_mode].get("tasks", [])
+            v_tasks = variant_modes[selected_mode].get("tasks", [])
+            render_task_list(
+                b_tasks,
+                key_prefix=f"paired_compare_{selected_mode}",
+                paired_variant_tasks=v_tasks,
+            )
+    else:
+        st.info("No common modes between baseline and variant for task comparison.")
 
 
 def show_paired_experiment(exp_data):
@@ -403,37 +824,17 @@ def show_paired_mode_tasks(mode_data, mode_name):
         st.info("No tasks found for this mode.")
         return
 
-    # Create task table
-    task_table = []
-    for task in sorted(tasks, key=lambda t: t.get("reward") or 0, reverse=True):
-        reward = task.get("reward")
-        input_tok = task.get("input_tokens")
-        output_tok = task.get("output_tokens")
-        task_table.append(
-            {
-                "Task": task["task_name"][:50],
-                "Reward": f"{reward:.4f}" if reward is not None else "N/A",
-                "Status": task.get("status", "unknown"),
-                "Input Tokens": f"{input_tok:,}" if input_tok is not None else "N/A",
-                "Output Tokens": f"{output_tok:,}" if output_tok is not None else "N/A",
-            }
-        )
-
-    st.dataframe(task_table, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-
-    # Task detail selector
-    task_names = [t["task_name"] for t in tasks]
-    selected_task_name = st.selectbox(
-        "View Task Details", task_names, key=f"task_select_{mode_name}"
+    selected_task_id = render_task_list(
+        tasks,
+        key_prefix=f"paired_{mode_name}",
     )
 
-    if selected_task_name:
+    if selected_task_id:
         selected_task = next(
-            (t for t in tasks if t["task_name"] == selected_task_name), None
+            (t for t in tasks if t["task_name"] == selected_task_id), None
         )
         if selected_task:
+            st.markdown("---")
             show_paired_task_detail(selected_task)
 
 
@@ -478,145 +879,25 @@ def show_paired_task_detail(task):
                     except Exception:
                         pass
 
-    # Task Information Section
-    with st.expander("📋 Task Information", expanded=True):
-        # Extract repository name from task metadata or task_id
-        repo_name = "Unknown"
-        if task_metadata.get("task", {}).get("repo"):
-            repo_name = task_metadata["task"]["repo"]
-        elif "task_id" in result_data:
-            task_id_info = result_data.get("task_id", {})
-            if isinstance(task_id_info, dict):
-                task_path = task_id_info.get("path", "")
-                # Extract repo from path like "instance_ansible__ansible-xxx"
-                if "instance_" in task_path:
-                    parts = task_path.split("/")[-1].replace("instance_", "").split("-")
-                    if len(parts) >= 2:
-                        repo_name = parts[0].replace("__", "/").replace("_", "-")
+    # Render metadata panel with collapsible sections
+    # Determine experiment path from instance_dir (go up to experiment level)
+    experiment_path = None
+    if instance_dir:
+        # instance_dir is typically: experiment/mode/timestamp/task_id/
+        # Go up enough levels to find the experiment directory
+        candidate = instance_dir.parent
+        for _ in range(4):
+            if candidate and (candidate / "manifest.json").exists():
+                experiment_path = candidate
+                break
+            if candidate.parent != candidate:
+                candidate = candidate.parent
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"**Repository:** `{repo_name}`")
-            st.markdown(f"**Task ID:** `{task['task_name']}`")
-            if task_metadata.get("metadata", {}).get("difficulty"):
-                st.markdown(
-                    f"**Difficulty:** {task_metadata['metadata']['difficulty']}"
-                )
-            if task_metadata.get("metadata", {}).get("category"):
-                st.markdown(f"**Category:** {task_metadata['metadata']['category']}")
-
-        with col2:
-            # Agent/Model info
-            agent_info = result_data.get("agent_info", {})
-            if agent_info:
-                st.markdown(f"**Agent:** {agent_info.get('name', 'Unknown')}")
-                model_info = agent_info.get("model_info", {})
-                if model_info:
-                    st.markdown(f"**Model:** {model_info.get('name', 'Unknown')}")
-
-            # Config info
-            config = result_data.get("config", {})
-            if config.get("agent", {}).get("model_name"):
-                st.markdown(f"**Model:** {config['agent']['model_name']}")
-
-        # Instruction
-        if instruction_content:
-            st.markdown("---")
-            st.markdown("**Instruction:**")
-            # Show first 2000 chars with option to expand
-            if len(instruction_content) > 2000:
-                st.markdown(instruction_content[:2000] + "...")
-                with st.expander("Show full instruction"):
-                    st.markdown(instruction_content)
-            else:
-                st.markdown(instruction_content)
-
-    # Timing/Metrics Section
-    with st.expander("⏱️ Execution Metrics", expanded=True):
-        # Calculate timing metrics
-        timing = {}
-        if result_data:
-            for timing_key in [
-                "environment_setup",
-                "agent_setup",
-                "agent_execution",
-                "verifier",
-            ]:
-                timing_data = result_data.get(timing_key, {})
-                if (
-                    timing_data
-                    and timing_data.get("started_at")
-                    and timing_data.get("finished_at")
-                ):
-                    try:
-                        start = datetime.fromisoformat(
-                            timing_data["started_at"].replace("Z", "+00:00")
-                        )
-                        end = datetime.fromisoformat(
-                            timing_data["finished_at"].replace("Z", "+00:00")
-                        )
-                        timing[timing_key] = (end - start).total_seconds()
-                    except Exception:
-                        pass
-
-        # Overall timing
-        if result_data.get("started_at") and result_data.get("finished_at"):
-            try:
-                start = datetime.fromisoformat(
-                    result_data["started_at"].replace("Z", "+00:00")
-                )
-                end = datetime.fromisoformat(
-                    result_data["finished_at"].replace("Z", "+00:00")
-                )
-                timing["total"] = (end - start).total_seconds()
-            except Exception:
-                pass
-
-        col1, col2, col3, col4, col5 = st.columns(5)
-
-        with col1:
-            reward = task.get("reward") or 0
-            st.metric("Reward", f"{reward:.4f}")
-
-        with col2:
-            st.metric("Status", task.get("status") or "unknown")
-
-        with col3:
-            total_time = timing.get("total", 0)
-            st.metric("Total Time", f"{total_time:.1f}s" if total_time else "N/A")
-
-        with col4:
-            agent_time = timing.get("agent_execution", 0)
-            st.metric("Agent Time", f"{agent_time:.1f}s" if agent_time else "N/A")
-
-        with col5:
-            verifier_time = timing.get("verifier", 0)
-            st.metric(
-                "Verifier Time", f"{verifier_time:.1f}s" if verifier_time else "N/A"
-            )
-
-        # Token metrics row
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            input_tokens = task.get("input_tokens") or 0
-            st.metric("Input Tokens", f"{input_tokens:,}")
-
-        with col2:
-            output_tokens = task.get("output_tokens") or 0
-            st.metric("Output Tokens", f"{output_tokens:,}")
-
-        with col3:
-            env_setup_time = timing.get("environment_setup", 0)
-            st.metric(
-                "Env Setup", f"{env_setup_time:.1f}s" if env_setup_time else "N/A"
-            )
-
-        with col4:
-            agent_setup_time = timing.get("agent_setup", 0)
-            st.metric(
-                "Agent Setup", f"{agent_setup_time:.1f}s" if agent_setup_time else "N/A"
-            )
+    render_task_detail_panel(
+        task=task,
+        instance_dir=instance_dir,
+        experiment_path=experiment_path,
+    )
 
     st.markdown("---")
 
@@ -742,31 +1023,17 @@ def show_external_task_results(exp_data):
         st.info("No task instances found.")
         return
 
-    # Create summary table
-    task_data = []
-    for task in tasks:
-        task_data.append(
-            {
-                "Task": task["task_name"],
-                "Agent": task["agent_name"].split("__")[0]
-                if "__" in task["agent_name"]
-                else task["agent_name"],
-                "Status": task["status"],
-                "Reward": task.get("reward", "N/A"),
-            }
+    selected_task_id = render_task_list(
+        tasks,
+        key_prefix=f"ext_{exp_data['name']}",
+    )
+
+    if selected_task_id:
+        task_detail = next(
+            (t for t in tasks if t["task_name"] == selected_task_id), None
         )
-
-    st.dataframe(task_data, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-
-    # Task detail selector
-    task_names = [t["task_name"] for t in tasks]
-    selected_task = st.selectbox("View Task Details", task_names)
-
-    if selected_task:
-        task_detail = next((t for t in tasks if t["task_name"] == selected_task), None)
         if task_detail:
+            st.markdown("---")
             show_external_task_detail(exp_data, task_detail)
 
 
@@ -774,22 +1041,16 @@ def show_external_task_detail(exp_data, task):
     """Display detailed task results for external experiment."""
     st.subheader(f"Task: {task['task_name']}")
 
-    # Metrics
-    col1, col2, col3 = st.columns(3)
+    # Render metadata panel with collapsible sections
+    instance_dir = task.get("instance_dir")
+    if instance_dir is not None and not isinstance(instance_dir, Path):
+        instance_dir = Path(instance_dir)
 
-    with col1:
-        st.metric("Result", task.get("reward", "N/A"))
-
-    with col2:
-        st.metric("Status", task["status"])
-
-    with col3:
-        st.metric(
-            "Agent",
-            task["agent_name"].split("__")[0]
-            if "__" in task["agent_name"]
-            else task["agent_name"],
-        )
+    render_task_detail_panel(
+        task=task,
+        instance_dir=instance_dir,
+        experiment_path=exp_data.get("path"),
+    )
 
     st.markdown("---")
 
@@ -992,7 +1253,7 @@ def show_task_detail(run_data, task):
 
     # Fallback to constructed path if no stored paths
     if not result_files and not trajectory_files and not claude_files:
-        output_dir = Path(run_data.get("output_dir", f"jobs/{run_data['run_id']}"))
+        output_dir = Path(run_data.get("output_dir", f"runs/{run_data['run_id']}"))
         # Sanitize agent name same way as orchestrator (replace : with __, / with _)
         safe_agent_name = task["agent_name"].replace(":", "__").replace("/", "_")
         task_output_dir = output_dir / f"{task['task_name']}_{safe_agent_name}"
@@ -1109,6 +1370,79 @@ def show_agent_trace(claude_files, trajectory_files):
         import traceback
 
         st.code(traceback.format_exc())
+
+
+def _build_file_access_from_trace(
+    files_read: list[str],
+    edits_made: list[dict],
+) -> dict[str, dict[str, int]]:
+    """Build file access dict from inline-parsed trace data.
+
+    Converts the separate files_read and edits_made lists into the
+    {path: {read_count, write_count, edit_count}} format used by TraceSummary.
+    """
+    files: dict[str, dict[str, int]] = {}
+
+    for file_path in files_read:
+        if file_path not in files:
+            files[file_path] = {"read_count": 0, "write_count": 0, "edit_count": 0}
+        files[file_path] = {
+            **files[file_path],
+            "read_count": files[file_path]["read_count"] + 1,
+        }
+
+    for edit in edits_made:
+        file_path = edit.get("file", "")
+        if not file_path:
+            continue
+        if file_path not in files:
+            files[file_path] = {"read_count": 0, "write_count": 0, "edit_count": 0}
+        files[file_path] = {
+            **files[file_path],
+            "edit_count": files[file_path]["edit_count"] + 1,
+        }
+
+    return dict(
+        sorted(
+            files.items(),
+            key=lambda x: -(
+                x[1]["read_count"] + x[1]["write_count"] + x[1]["edit_count"]
+            ),
+        )
+    )
+
+
+def _extract_git_url_from_trace_context(claude_file: Path) -> str:
+    """Extract git_url from the task config.json adjacent to the trace file.
+
+    The claude-code.txt is typically at instance_dir/agent/claude-code.txt.
+    The config.json is at instance_dir/config.json and may contain
+    task.git_url for constructing GitHub links.
+
+    Args:
+        claude_file: Path to the claude-code.txt file
+
+    Returns:
+        Git URL string, or empty string if not found
+    """
+    try:
+        # claude-code.txt is at instance_dir/agent/claude-code.txt
+        instance_dir = claude_file.parent.parent
+        config_path = instance_dir / "config.json"
+
+        if not config_path.exists():
+            return ""
+
+        with open(config_path) as f:
+            config_data = json.load(f)
+
+        task_info = config_data.get("task", {})
+        if isinstance(task_info, dict):
+            return task_info.get("git_url", "")
+
+        return ""
+    except (json.JSONDecodeError, OSError, KeyError):
+        return ""
 
 
 def show_claude_code_trace(claude_file: Path):
@@ -1230,62 +1564,88 @@ def show_claude_code_trace(claude_file: Path):
                                     }
                                 )
 
-        # Display Summary
-        with st.expander("📊 Execution Summary", expanded=True):
-            col1, col2, col3 = st.columns(3)
+        # Trace Summary Panel (US-010) - uses US-009 parser for structured metrics
+        from dashboard.utils.trace_summary import render_trace_summary_panel
+        from src.ingest.trace_viewer_parser import TraceSummary
 
-            with col1:
-                st.markdown("**Token Usage**")
-                st.write(f"- Input: {total_input_tokens:,}")
-                st.write(f"- Output: {total_output_tokens:,}")
-                st.write(f"- Cache Read: {total_cache_read:,}")
-                st.write(f"- **Total: {total_input_tokens + total_output_tokens:,}**")
-
-            with col2:
-                st.markdown("**Tool Usage**")
-                for tool_name, count in sorted(tool_calls.items(), key=lambda x: -x[1])[
-                    :10
-                ]:
-                    st.write(f"- {tool_name}: {count}")
-
-            with col3:
-                st.markdown("**Activity**")
-                st.write(f"- Files Read: {len(files_read)}")
-                st.write(f"- Edits Made: {len(edits_made)}")
-                st.write(f"- Bash Commands: {len(bash_commands)}")
-                if model:
-                    st.write(f"- Model: {model}")
+        trace_summary = TraceSummary(
+            total_messages=len(messages),
+            total_tool_calls=sum(tool_calls.values()),
+            unique_tools=len(tool_calls),
+            total_tokens=total_input_tokens + total_output_tokens,
+            tools_by_name=dict(
+                sorted(tool_calls.items(), key=lambda x: -x[1])
+            ),
+            files_accessed=_build_file_access_from_trace(
+                files_read, edits_made
+            ),
+        )
+        render_trace_summary_panel(trace_summary)
 
         st.markdown("---")
 
-        # Tabs for different views
-        tabs = st.tabs(
-            [
-                "💬 Conversation",
-                "🔧 Tool Calls",
-                "📝 Code Changes",
-                "🖥️ Bash Commands",
-                "📄 Raw",
-            ]
-        )
+        # Parse structured trace messages for card rendering (US-011)
+        from src.ingest.trace_viewer_parser import parse_trace as parse_trace_messages
 
-        with tabs[0]:
-            show_claude_conversation(messages)
+        structured_messages = parse_trace_messages(claude_file)
 
-        with tabs[1]:
-            show_claude_tool_calls(messages, tool_calls)
+        # Extract file operations for diff viewer (US-016)
+        file_ops = extract_file_operations(structured_messages)
 
-        with tabs[2]:
-            show_claude_edits(edits_made)
+        # Extract git_url from task config for GitHub links (US-016)
+        git_url = _extract_git_url_from_trace_context(claude_file)
 
-        with tabs[3]:
-            show_claude_bash(bash_commands)
+        # Two-column layout: file tree sidebar (left) + trace tabs (right)
+        file_tree_col, trace_col = st.columns([1, 3])
 
-        with tabs[4]:
-            with st.expander("Raw JSONL (first 50 lines)", expanded=False):
-                with open(claude_file) as f:
-                    lines = f.readlines()[:50]
-                st.code("".join(lines), language="json")
+        with file_tree_col:
+            render_file_tree(structured_messages, session_key="trace_selected_file")
+
+        with trace_col:
+            # Tabs for different views
+            tabs = st.tabs(
+                [
+                    "💬 Full Trace",
+                    "📊 Timeline",
+                    "🔧 Tool Calls",
+                    "📝 Code Changes",
+                    "🖥️ Bash Commands",
+                    "📄 Raw",
+                ]
+            )
+
+            with tabs[0]:
+                filtered_messages = render_trace_filter_controls(
+                    structured_messages, session_key="trace_filter"
+                )
+                render_trace_cards(filtered_messages)
+
+            with tabs[1]:
+                render_tool_timeline(structured_messages)
+
+            with tabs[2]:
+                show_claude_tool_calls(messages, tool_calls)
+
+            with tabs[3]:
+                # US-016: File diff viewer panel
+                selected_file = st.session_state.get(
+                    "trace_selected_file", ""
+                )
+                render_file_diff_panel(
+                    selected_file=selected_file,
+                    file_operations=file_ops,
+                    git_url=git_url,
+                    session_key="trace_diff_viewer",
+                )
+
+            with tabs[4]:
+                show_claude_bash(bash_commands)
+
+            with tabs[5]:
+                with st.expander("Raw JSONL (first 50 lines)", expanded=False):
+                    with open(claude_file) as f:
+                        lines = f.readlines()[:50]
+                    st.code("".join(lines), language="json")
 
     except Exception as e:
         st.error(f"Failed to parse claude-code.txt: {e}")
