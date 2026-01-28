@@ -161,3 +161,23 @@ Started: Wed Jan 28 10:48:32 EST 2026
   - generate_all_tasks() helper supports repo_filter and limit for bulk generation
   - Dockerfile uses Python 3.10-slim with benchmarking tools (pytest-benchmark, pyperf)
 ---
+
+## 2026-01-28 21:30 - US-009
+- Completed TAC wrapper adapter in `benchmarks/tac_mcp_value/`
+- Files changed:
+  - `benchmarks/tac_mcp_value/__init__.py` (new)
+  - `benchmarks/tac_mcp_value/adapter.py` (new - TACTask, TACLoader, TACAdapter classes)
+  - `benchmarks/tac_mcp_value/run_adapter.py` (new)
+  - `benchmarks/tac_mcp_value/templates/task.toml.template` (modified - fixed sed escaping)
+  - `benchmarks/tac_mcp_value/tests/__init__.py` (new)
+  - `benchmarks/tac_mcp_value/tests/test_adapter.py` (new - 48 tests)
+- **Learnings for future iterations:**
+  - TAC (TheAgentCompany) uses pre-built Docker images from ghcr.io/theagentcompany/<task>-image:1.0.0
+  - Tasks have roles (SWE, PM, DS, HR, Finance, Admin) but current curated set is all SWE
+  - TAC evaluator is at /utils/eval.py with DECRYPTION_KEY (publicly documented value)
+  - MCP configuration is injected via setup scripts in task.toml [environment.setup_scripts]
+  - TOML multiline strings need careful escaping - use single quotes for sed patterns
+  - TAC tasks use checkpoint-based scoring where score > 0 indicates partial/full success
+  - filter_by_role() method supports case-insensitive filtering
+  - Curated list is embedded in TACLoader.CURATED_TASKS as fallback when no data_dir provided
+---
