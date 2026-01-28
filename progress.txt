@@ -181,3 +181,19 @@ Started: Wed Jan 28 10:48:32 EST 2026
   - filter_by_role() method supports case-insensitive filtering
   - Curated list is embedded in TACLoader.CURATED_TASKS as fallback when no data_dir provided
 ---
+
+## 2026-01-28 22:00 - US-010
+- Implemented standalone Agent-as-a-Judge evaluator in `src/evaluation/agent_judge.py`
+- Files changed:
+  - `src/evaluation/agent_judge.py` (new - AgentJudge, HarborResult, JudgmentResult, RequirementScore classes)
+  - `tests/test_agent_judge.py` (new - 37 tests)
+- **Learnings for future iterations:**
+  - AgentJudge supports both Anthropic and OpenAI backends via environment variable detection
+  - Backend auto-detection prefers ANTHROPIC_API_KEY over OPENAI_API_KEY when both are set
+  - RateLimiter class implements exponential backoff with configurable base_delay and max_delay
+  - JSON extraction handles markdown code blocks (```json and plain ```) and raw JSON
+  - evaluate_result() requires non-empty criteria list; evaluate_batch() supports progress callbacks
+  - JudgmentResult includes raw_response for debugging LLM output parsing issues
+  - Use RequirementScore dataclass for per-criterion evaluation (not TestScore to avoid pytest warnings)
+  - Mypy on files importing from src/evaluation/ may show unrelated errors from checklist.py
+---
