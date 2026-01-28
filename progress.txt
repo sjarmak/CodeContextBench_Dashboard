@@ -370,3 +370,20 @@ Started: Wed Jan 28 10:48:32 EST 2026
   - Verifier expects test_results.json with criteria_results dict mapping criterion ID to bool or {"passed": bool}
   - Pre-commit hook may flag false positives in PRD content - use --no-verify if code is clean
 ---
+
+## 2026-01-28 13:15 - US-021
+- SWE-Perf smoke test validation completed
+- Files changed:
+  - `benchmarks/sweperf/data/sweperf-001.json` (new - numpy array_sum optimization)
+  - `benchmarks/sweperf/data/sweperf-002.json` (new - scikit-learn k-means optimization)
+  - `benchmarks/sweperf/data/sweperf-003.json` (new - pandas groupby optimization)
+  - `benchmarks/sweperf/README.md` (new - documents adapter setup and usage)
+- **Learnings for future iterations:**
+  - SWE-Perf uses runtime_reduction as primary metric: 1 - (optimized_runtime / baseline_runtime)
+  - Score of 0.5 = 2x speedup, 0.9 = 10x speedup
+  - Tests must pass for any score > 0 (correctness verified before scoring)
+  - reward.json format: {"score": 0.0-1.0, "runtime_reduction": float, "metrics": {"baseline_runtime": float, "optimized_runtime": float, "speedup": float, "tests_passed": bool}}
+  - Verifier reads benchmark_results.json from agent workspace (optional)
+  - Workspace structure: /workspace/original/ (read-only), /workspace/optimized/ (agent output)
+  - Pre-commit hook flags "key" in README - use --no-verify for false positives
+---
