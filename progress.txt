@@ -1,0 +1,31 @@
+# Ralph Progress Log
+Started: Tue Jan 28 2026
+
+## Codebase Patterns
+- Harbor adapter pattern: loader → adapter → CLI (see benchmarks/locobench_agent/, benchmarks/swebench_pro/)
+- Adapter data models use frozen @dataclass for immutability
+- Task output structure: task.toml, instruction.md, environment/Dockerfile, tests/test.sh, solution/ (optional)
+- Verifier outputs: /logs/verifier/reward.json and /logs/verifier/reward.txt
+- Templates use {key} replacement pattern (simple string substitution)
+- Ingestion pipeline: src/ingest/ (harbor_parser.py, swebench_parser.py, database.py, orchestrator.py)
+- Config loader: src/config/loader.py with YAML/JSON support and config inheritance
+- Dashboard: Streamlit with Plotly charts, views in dashboard/views/, utils in dashboard/utils/
+- Python 3.12 with type annotations, ruff for linting, py_compile for basic typecheck
+- Tests go in tests/ or benchmark-specific tests/ directories
+- Use immutable patterns: {**dict, key: value} for dict updates, [*list, item] for list appends
+
+---
+
+## 2026-01-28 - US-012
+- What was implemented: Verified existing documentation meets all acceptance criteria
+- Files changed: prd.json (updated passes: true)
+- Documentation already complete:
+  - README.md: Overview, Quick Start, CLI Reference, Verification, Language Support
+  - DESIGN.md: Architecture diagram, key design decisions, data flow, extension points
+  - docs/TASK_SELECTION_CRITERIA.md: Scoring formula, weights, category bonuses
+  - SMOKE_TEST_RESULTS.md: Test results, infrastructure issues, recommendations
+- **Learnings for future iterations:**
+  - Documentation was already created in previous iterations (US-011 notes mention SMOKE_TEST_RESULTS.md)
+  - Always verify existing files before assuming they need creation
+  - The LoCoBench adapter is a complete reference implementation for future Harbor adapters
+---
