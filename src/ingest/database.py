@@ -52,6 +52,7 @@ class MetricsDatabase:
                     task_name TEXT,
                     task_category TEXT,
                     task_difficulty TEXT,
+                    task_language TEXT,
                     task_tags TEXT,
 
                     -- Agent info
@@ -90,6 +91,14 @@ class MetricsDatabase:
                 "CREATE INDEX IF NOT EXISTS idx_hr_model ON harbor_results(model_name)"
             )
 
+            # Migration: Add task_language column if it doesn't exist
+            cursor.execute("PRAGMA table_info(harbor_results)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "task_language" not in columns:
+                cursor.execute(
+                    "ALTER TABLE harbor_results ADD COLUMN task_language TEXT DEFAULT 'unknown'"
+                )
+
             # Tool usage table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tool_usage (
@@ -112,6 +121,12 @@ class MetricsDatabase:
                     total_input_tokens INTEGER,
                     total_output_tokens INTEGER,
                     avg_tokens_per_call REAL,
+
+                    -- Extended token tracking (from trajectory.json)
+                    cached_tokens INTEGER DEFAULT 0,
+                    cost_usd REAL,
+                    tokens_by_category TEXT,
+                    tokens_by_tool TEXT,
 
                     -- Success metrics
                     successful_calls INTEGER,
@@ -143,6 +158,26 @@ class MetricsDatabase:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_tu_mcp_calls ON tool_usage(mcp_calls)"
             )
+
+            # Migration: Add new token tracking columns if they don't exist
+            cursor.execute("PRAGMA table_info(tool_usage)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "cached_tokens" not in columns:
+                cursor.execute(
+                    "ALTER TABLE tool_usage ADD COLUMN cached_tokens INTEGER DEFAULT 0"
+                )
+            if "cost_usd" not in columns:
+                cursor.execute(
+                    "ALTER TABLE tool_usage ADD COLUMN cost_usd REAL"
+                )
+            if "tokens_by_category" not in columns:
+                cursor.execute(
+                    "ALTER TABLE tool_usage ADD COLUMN tokens_by_category TEXT"
+                )
+            if "tokens_by_tool" not in columns:
+                cursor.execute(
+                    "ALTER TABLE tool_usage ADD COLUMN tokens_by_tool TEXT"
+                )
 
             # Experiment summary table
             cursor.execute("""
@@ -282,10 +317,10 @@ class MetricsDatabase:
                 """
                 INSERT OR REPLACE INTO harbor_results
                 (task_id, experiment_id, job_id, task_name, task_category, task_difficulty,
-                 task_tags, agent_name, model_name, passed, exit_code,
+                 task_language, task_tags, agent_name, model_name, passed, exit_code,
                  agent_duration_seconds, verifier_duration_seconds, total_duration_seconds,
                  reward_metrics, reward_primary, evaluated_at, ingested_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     result.task_id,
@@ -294,6 +329,7 @@ class MetricsDatabase:
                     result.task_metadata.task_name,
                     result.task_metadata.category,
                     result.task_metadata.difficulty,
+                    result.task_metadata.language,
                     json.dumps(result.task_metadata.tags),
                     result.agent_name,
                     result.model_name,
@@ -333,10 +369,11 @@ class MetricsDatabase:
                 INSERT OR REPLACE INTO tool_usage
                 (task_id, experiment_id, job_id, total_calls, mcp_calls, deep_search_calls,
                  local_calls, other_calls, tool_calls_by_name, total_input_tokens,
-                 total_output_tokens, avg_tokens_per_call, successful_calls, failed_calls,
+                 total_output_tokens, avg_tokens_per_call, cached_tokens, cost_usd,
+                 tokens_by_category, tokens_by_tool, successful_calls, failed_calls,
                  success_rate, mcp_vs_local_ratio, unique_files_accessed, search_query_count,
                  transcript_length, ingested_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     task_id,
@@ -351,6 +388,10 @@ class MetricsDatabase:
                     metrics.total_input_tokens,
                     metrics.total_output_tokens,
                     metrics.avg_tokens_per_call,
+                    metrics.cached_tokens,
+                    metrics.cost_usd,
+                    json.dumps(metrics.tokens_by_category) if metrics.tokens_by_category else None,
+                    json.dumps(metrics.tokens_by_tool) if metrics.tokens_by_tool else None,
                     metrics.successful_calls,
                     metrics.failed_calls,
                     metrics.success_rate,
