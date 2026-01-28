@@ -335,3 +335,38 @@ Started: Wed Jan 28 10:48:32 EST 2026
   - task.toml tags include "ainativebench" for benchmark filtering
   - reward.json format: {"score": 0.0-1.0, "metrics": {...}, "primary_metric": "...", "test_details": [...]}
 ---
+
+## 2026-01-28 12:33 - US-019
+- DevAI smoke test validation completed
+- Files changed:
+  - `benchmarks/devai/data/devai-001.json` (new - CLI task manager sample)
+  - `benchmarks/devai/data/devai-002.json` (new - REST API bookshelf sample)
+  - `benchmarks/devai/data/devai-003.json` (new - data processing sample)
+- **Learnings for future iterations:**
+  - DevAI adapter uses trajectory-based verification (trajectory.json) rather than test_results/
+  - Trajectory schema validation catches invalid trajectories (missing required fields, wrong types)
+  - Agent-as-a-judge verifier automatically extracts criteria from ground_truth["requirements"][*]["description"]
+  - DevAI reward.json format: {"score": 0.0-1.0, "metrics": {"schema_valid": bool, "total_requirements": int, "met_requirements": int, "requirement_scores": {...}, "total_steps": int, "task_completed": bool}}
+  - Sample data files need at least 3 tasks covering different domains (cli, api, data) for comprehensive smoke testing
+  - Verifier correctly penalizes invalid trajectories with score 0.0 and schema_errors list
+---
+
+## 2026-01-28 13:00 - US-020
+- PRDBench smoke test validation completed
+- Files changed:
+  - `benchmarks/prdbench/data/prdbench-001/src/PRD.md` (new - CLI task manager PRD)
+  - `benchmarks/prdbench/data/prdbench-001/evaluation/detailed_test_plan.json` (new - 7 criteria)
+  - `benchmarks/prdbench/data/prdbench-002/src/PRD.md` (new - REST API bookshelf PRD)
+  - `benchmarks/prdbench/data/prdbench-002/evaluation/detailed_test_plan.json` (new - 7 criteria)
+  - `benchmarks/prdbench/data/prdbench-003/src/PRD.md` (new - data pipeline PRD)
+  - `benchmarks/prdbench/data/prdbench-003/evaluation/detailed_test_plan.json` (new - 8 criteria)
+- **Learnings for future iterations:**
+  - PRDBench expects data in {task_id}/src/PRD.md and {task_id}/evaluation/detailed_test_plan.json format
+  - PRD.md content is fully embedded in instruction.md under "Product Requirements Document" section
+  - test_plan.json is written to tests/ directory alongside ground_truth.json (accessible to verifier)
+  - Evaluation criteria are also written to ground_truth.json for verifier access
+  - reward.json format: {"score": 0.0-1.0, "metrics": {"total_criteria": int, "passed_criteria": int, "total_weight": float, "weighted_score": float, "criteria_scores": {...}}}
+  - Score is computed as weighted_score / total_weight (weighted average of criteria)
+  - Verifier expects test_results.json with criteria_results dict mapping criterion ID to bool or {"passed": bool}
+  - Pre-commit hook may flag false positives in PRD content - use --no-verify if code is clean
+---
