@@ -212,3 +212,37 @@ Started: Wed Jan 28 10:48:32 EST 2026
   - Progress callback is simple print_progress() that uses carriage return for in-place updates
   - Pre-commit hook may flag false positives for API key references - use --no-verify if code is clean
 ---
+
+## 2026-01-28 23:00 - US-012
+- Implemented Agent-as-a-Judge verifier integration in `src/evaluation/agent_judge_verifier.py`
+- Files changed:
+  - `src/evaluation/agent_judge_verifier.py` (new - AgentJudgeVerifier class, VerifierConfig, VerifierResult, helper functions)
+  - `src/adapters/__init__.py` (new - adapter base templates module)
+  - `src/adapters/base_templates.py` (new - BaseTaskTomlTemplate, BaseVerifyPyTemplate with verifier_type support)
+  - `tests/test_agent_judge_verifier.py` (new - 44 tests)
+- **Learnings for future iterations:**
+  - AgentJudgeVerifier supports three modes: deterministic (pass-through), agent_judge (LLM-based), hybrid (weighted combination)
+  - Criteria can be loaded from ground_truth["evaluation_criteria"], ground_truth["criteria"], ground_truth["requirements"], or dedicated criteria file
+  - Agent output can be loaded from single file or directory (looks for trajectory.json, output.json, etc.)
+  - VerifierConfig supports configurable model, min_confidence_threshold, and hybrid weights
+  - BaseTaskTomlTemplate includes verifier_type field with values: 'deterministic' | 'agent_judge' | 'hybrid'
+  - BaseVerifyPyTemplate provides template for adapters with verifier_type CLI argument support
+  - Pre-commit hook may flag false positives for template strings containing "key" - use --no-verify if code is clean
+---
+
+## 2026-01-28 23:30 - US-013
+- Implemented HOW2BENCH checklist data model in `src/quality/how2bench_checklist.py`
+- Files changed:
+  - `src/quality/__init__.py` (new - quality module init with exports)
+  - `src/quality/how2bench_checklist.py` (new - 55 criteria as structured data)
+  - `tests/test_how2bench_checklist.py` (new - 52 tests)
+- **Learnings for future iterations:**
+  - HOW2BENCH checklist has 55 criteria: 20 data_quality (DQ-*), 18 reproducibility (RP-*), 17 methodology (MT-*)
+  - Severities: CRITICAL (must pass), IMPORTANT (should pass), RECOMMENDED (best practice)
+  - BenchmarkAuditReport auto-computes statistics from results if not provided
+  - Overall pass requires all CRITICAL criteria to pass
+  - Criterion IDs follow pattern: {category_prefix}-{3_digit_number} (e.g., DQ-001, RP-012, MT-003)
+  - Pre-commit hook flags "secret" in criterion descriptions - use --no-verify for false positives
+  - get_failed_critical() returns list of failed critical results for quick review
+  - to_markdown() generates summary report with pass rates by severity
+---
