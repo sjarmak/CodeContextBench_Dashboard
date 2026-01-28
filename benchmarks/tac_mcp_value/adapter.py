@@ -793,21 +793,16 @@ A score > 0 indicates partial or full success.
         return f'''version = "1.0"
 
 [metadata]
-name = "{task.id}"
-description = "{task.description}"
-license = "MIT"
-author_name = "TheAgentCompany"
+author_name = "TheAgentCompany Adapter"
 author_email = "theagentcompany@cmu.edu"
-
-[task]
-id = "{task.id}"
+task_id = "{task.id}"
 category = "tac_mcp_value"
 language = "{task.language or "mixed"}"
 difficulty = "{task.difficulty}"
-time_limit_sec = 2400  # 40 minutes - TAC tasks are complex
+tags = ["theagentcompany", "mcp-value"]
 
-[verification]
-type = "test"
+[verifier]
+timeout_sec = 2400.0
 command = "bash /workspace/tests/test.sh"
 
 [agent]
