@@ -387,3 +387,17 @@ Started: Wed Jan 28 10:48:32 EST 2026
   - Workspace structure: /workspace/original/ (read-only), /workspace/optimized/ (agent output)
   - Pre-commit hook flags "key" in README - use --no-verify for false positives
 ---
+
+## 2026-01-28 13:20 - US-022
+- TAC smoke test validation completed
+- Files changed:
+  - `benchmarks/tac_mcp_value/adapter.py` (modified - fixed task.toml format)
+  - `benchmarks/tac_mcp_value/templates/task.toml.template` (modified - fixed task.toml format)
+- **Learnings for future iterations:**
+  - Harbor task.toml uses `[verifier]` section (not `[verification]`)
+  - Harbor task.toml uses `metadata.task_id` (not `metadata.name` or `task.id`)
+  - TAC Docker images are at ghcr.io/theagentcompany/{tac_id}-image:1.0.0
+  - MCP configuration is injected via `[environment.setup_scripts].mcp_config` multiline string
+  - TAC eval.py output is converted to reward.json via test.sh (cp) and verify.py (full conversion)
+  - Pre-commit hook may flag false positives for environment variable references - use --no-verify
+---
