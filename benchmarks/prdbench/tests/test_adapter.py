@@ -1,5 +1,5 @@
 """
-Tests for PRDBench data model and loader.
+Tests for PRDBench data model, loader, and adapter.
 """
 
 import json
@@ -14,6 +14,7 @@ from benchmarks.prdbench.adapter import (
     PRDBenchLoader,
     PRDBenchTask,
     EvaluationPlan,
+    PRDBenchAdapter,
 )
 
 
@@ -796,3 +797,359 @@ Build an e-commerce platform with cart and checkout.
         assert task.difficulty == "hard"
         assert task.metadata["author"] == "test"
         assert task.metadata["tags"] == ["api", "backend"]
+
+
+class TestPRDBenchAdapter:
+    """Tests for the PRDBenchAdapter class."""
+
+    @pytest.fixture
+    def temp_dirs(self) -> Generator[tuple[Path, Path], None, None]:
+        """Create temporary directories for data and output."""
+        with tempfile.TemporaryDirectory() as data_tmpdir:
+            with tempfile.TemporaryDirectory() as output_tmpdir:
+                yield Path(data_tmpdir), Path(output_tmpdir)
+
+    def _create_test_task(self, data_dir: Path, task_id: str = "test-task") -> None:
+        """Helper to create a test task directory."""
+        task_dir = data_dir / task_id
+        (task_dir / "src").mkdir(parents=True)
+        (task_dir / "evaluation").mkdir(parents=True)
+
+        # Write PRD
+        prd_content = """# Test Application
+
+## Overview
+
+Build a simple web application with user authentication.
+
+## Requirements
+
+1. User registration
+2. User login/logout
+3. Password reset
+
+## Technical Stack
+
+- Python 3.11+
+- Flask or FastAPI
+- SQLite database
+"""
+        (task_dir / "src" / "PRD.md").write_text(prd_content)
+
+        # Write test plan
+        test_plan = {
+            "version": "1.0",
+            "criteria": [
+                {
+                    "id": "C1",
+                    "name": "User Registration",
+                    "description": "Users can register with email and password",
+                    "weight": 0.4,
+                    "category": "functional",
+                    "automated": True,
+                },
+                {
+                    "id": "C2",
+                    "name": "User Login",
+                    "description": "Users can login with credentials",
+                    "weight": 0.4,
+                    "category": "functional",
+                    "automated": True,
+                },
+                {
+                    "id": "C3",
+                    "name": "UI Responsiveness",
+                    "description": "UI works on mobile and desktop",
+                    "weight": 0.2,
+                    "category": "ui",
+                    "automated": False,
+                },
+            ],
+            "scoring": {"pass_threshold": 0.7},
+        }
+        (task_dir / "evaluation" / "detailed_test_plan.json").write_text(
+            json.dumps(test_plan)
+        )
+
+    def test_adapter_initialization(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test adapter initializes correctly."""
+        data_dir, output_dir = temp_dirs
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+
+        assert adapter.task_dir == output_dir
+        assert adapter.loader.data_dir == data_dir
+
+    def test_adapter_generate_task_creates_directory_structure(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that generate_task creates proper directory structure."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        # Check directory structure
+        assert result_path.exists()
+        assert (result_path / "instruction.md").exists()
+        assert (result_path / "task.toml").exists()
+        assert (result_path / "environment").is_dir()
+        assert (result_path / "environment" / "Dockerfile").exists()
+        assert (result_path / "tests").is_dir()
+        assert (result_path / "tests" / "test.sh").exists()
+        assert (result_path / "tests" / "verify.py").exists()
+        assert (result_path / "tests" / "ground_truth.json").exists()
+
+    def test_adapter_generate_task_instruction_contains_prd(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that generated instruction.md contains the PRD content."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        instruction_content = (result_path / "instruction.md").read_text()
+
+        # PRD content should be embedded
+        assert "Test Application" in instruction_content
+        assert "User registration" in instruction_content
+        assert "Python 3.11+" in instruction_content
+        assert "Flask or FastAPI" in instruction_content
+
+    def test_adapter_generate_task_instruction_contains_criteria(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that generated instruction.md contains evaluation criteria."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        instruction_content = (result_path / "instruction.md").read_text()
+
+        # Criteria should be listed
+        assert "User Registration" in instruction_content
+        assert "User Login" in instruction_content
+        assert "UI Responsiveness" in instruction_content
+
+    def test_adapter_generate_task_toml_has_metadata(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that generated task.toml has proper metadata."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        task_toml_content = (result_path / "task.toml").read_text()
+
+        # Check metadata fields
+        assert 'task_id = "test-task"' in task_toml_content
+        assert "prdbench" in task_toml_content
+        assert "criteria_count" in task_toml_content
+
+    def test_adapter_generate_task_dockerfile_has_conda(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that Dockerfile uses conda environment."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        dockerfile_content = (result_path / "environment" / "Dockerfile").read_text()
+
+        # Check for conda setup
+        assert "miniconda" in dockerfile_content.lower() or "conda" in dockerfile_content.lower()
+        assert "EXPOSE" in dockerfile_content
+
+    def test_adapter_generate_task_dockerfile_has_multi_port(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that Dockerfile exposes multiple ports."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        dockerfile_content = (result_path / "environment" / "Dockerfile").read_text()
+
+        # Check for multi-port configuration
+        assert "EXPOSE" in dockerfile_content
+        # Check for common ports
+        assert "3000" in dockerfile_content or "5000" in dockerfile_content or "8000" in dockerfile_content
+
+    def test_adapter_generate_task_ground_truth_has_criteria(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that ground_truth.json contains evaluation criteria."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        ground_truth_path = result_path / "tests" / "ground_truth.json"
+        with open(ground_truth_path) as f:
+            ground_truth = json.load(f)
+
+        assert ground_truth["task_id"] == "test-task"
+        assert "evaluation_criteria" in ground_truth
+        assert len(ground_truth["evaluation_criteria"]) == 3
+        assert ground_truth["evaluation_criteria"][0]["id"] == "C1"
+
+    def test_adapter_generate_task_test_plan_copied(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that test_plan.json is created when test plan exists."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        test_plan_path = result_path / "tests" / "test_plan.json"
+        assert test_plan_path.exists()
+
+        with open(test_plan_path) as f:
+            test_plan = json.load(f)
+
+        assert test_plan["version"] == "1.0"
+        assert len(test_plan["criteria"]) == 3
+
+    def test_adapter_generate_task_test_sh_executable(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that test.sh is executable."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        test_sh_path = result_path / "tests" / "test.sh"
+        # Check file has execute permission
+        import os
+        import stat
+        mode = os.stat(test_sh_path).st_mode
+        assert mode & stat.S_IXUSR  # User execute permission
+
+    def test_adapter_generate_task_verify_py_executable(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that verify.py is executable."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        verify_py_path = result_path / "tests" / "verify.py"
+        import os
+        import stat
+        mode = os.stat(verify_py_path).st_mode
+        assert mode & stat.S_IXUSR  # User execute permission
+
+    def test_adapter_generate_task_with_local_task_id(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test generating a task with a custom local task ID."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task", local_task_id="custom-id")
+
+        assert result_path.name == "custom-id"
+        assert result_path.exists()
+        assert (result_path / "instruction.md").exists()
+
+    def test_adapter_generate_task_not_found_raises(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that generate_task raises ValueError for non-existent task."""
+        data_dir, output_dir = temp_dirs
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+
+        with pytest.raises(ValueError, match="Task not found"):
+            adapter.generate_task("non-existent-task")
+
+    def test_adapter_template_rendering(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that template rendering replaces placeholders correctly."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        # Check task.toml placeholders replaced
+        task_toml = (result_path / "task.toml").read_text()
+        assert "{task_id}" not in task_toml
+        assert "{title}" not in task_toml
+        assert "{difficulty}" not in task_toml
+
+        # Check instruction.md placeholders replaced
+        instruction = (result_path / "instruction.md").read_text()
+        assert "{id}" not in instruction
+        assert "{prd_content}" not in instruction
+        assert "{criteria}" not in instruction
+
+    def test_adapter_instruction_contains_task_id(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that instruction.md contains the task ID."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        instruction = (result_path / "instruction.md").read_text()
+        assert "test-task" in instruction
+
+    def test_adapter_formats_criteria_by_category(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test that criteria are grouped by category in instruction."""
+        data_dir, output_dir = temp_dirs
+        self._create_test_task(data_dir)
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        result_path = adapter.generate_task("test-task")
+
+        instruction = (result_path / "instruction.md").read_text()
+
+        # Check category headers are present
+        assert "Functional" in instruction
+        assert "Ui" in instruction  # Title case
+
+    def test_adapter_multiple_tasks(
+        self, temp_dirs: tuple[Path, Path]
+    ) -> None:
+        """Test generating multiple tasks."""
+        data_dir, output_dir = temp_dirs
+
+        # Create two test tasks
+        self._create_test_task(data_dir, "task-001")
+        self._create_test_task(data_dir, "task-002")
+
+        adapter = PRDBenchAdapter(task_dir=output_dir, data_dir=data_dir)
+        path1 = adapter.generate_task("task-001")
+        path2 = adapter.generate_task("task-002")
+
+        assert path1.exists()
+        assert path2.exists()
+        assert path1 != path2
+        assert (path1 / "instruction.md").exists()
+        assert (path2 / "instruction.md").exists()

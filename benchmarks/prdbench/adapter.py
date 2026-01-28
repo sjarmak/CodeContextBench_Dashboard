@@ -590,3 +590,589 @@ class PRDBenchLoader:
         if not self._loaded:
             self.load()
         return sum(task.get_criterion_count() for task in self._tasks)
+
+
+# Template directory for Harbor task generation
+TEMPLATE_DIR = Path(__file__).parent / "templates"
+
+
+class PRDBenchAdapter:
+    """
+    Adapter that converts PRDBench tasks into Harbor task directories.
+
+    Generates Harbor-compatible task structure with:
+    - task.toml: Task configuration and metadata
+    - instruction.md: Task instructions with embedded PRD content
+    - environment/Dockerfile: Conda environment with multi-port support
+    - tests/test.sh: Verification script
+    - tests/verify.py: Validates test results against evaluation criteria
+    - tests/ground_truth.json: Evaluation criteria and test plan
+
+    PRDBench tasks use PRD.md documents as the primary instruction source,
+    with structured test plans for evaluation.
+    """
+
+    NAME = "prdbench"
+
+    def __init__(
+        self,
+        task_dir: str | Path,
+        data_dir: str | Path | None = None,
+    ) -> None:
+        """
+        Initialize the PRDBench adapter.
+
+        Args:
+            task_dir: Output directory for generated Harbor tasks.
+            data_dir: Path to PRDBench data directory (optional).
+        """
+        self.task_dir = Path(task_dir)
+        self.loader = PRDBenchLoader(data_dir)
+        self.templates_dir = TEMPLATE_DIR
+
+    def _render_template(self, template_path: Path, context: dict[str, Any]) -> str:
+        """
+        Simple template rendering by replacing {key} placeholders.
+
+        Args:
+            template_path: Path to the template file.
+            context: Dictionary of placeholder values.
+
+        Returns:
+            Rendered template string.
+        """
+        content = template_path.read_text()
+        for template_key, value in context.items():
+            content = content.replace(f"{{{template_key}}}", str(value))
+        return content
+
+    def _generate_dockerfile(self) -> str:
+        """
+        Generate Dockerfile for PRDBench tasks.
+
+        Uses conda environment with multi-port configuration as specified.
+        PRDBench tasks may require complex environments with multiple services.
+
+        Returns:
+            Dockerfile content as string.
+        """
+        return """FROM continuumio/miniconda3:latest
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \\
+    build-essential \\
+    curl \\
+    git \\
+    jq \\
+    nginx \\
+    supervisor \\
+    nodejs \\
+    npm \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Create conda environment with common dependencies
+RUN conda create -n prdbench python=3.11 -y && \\
+    conda clean -afy
+
+# Activate conda environment by default
+SHELL ["/bin/bash", "-c"]
+ENV PATH /opt/conda/envs/prdbench/bin:$PATH
+
+# Install common Python packages in conda environment
+RUN /opt/conda/envs/prdbench/bin/pip install --no-cache-dir \\
+    flask \\
+    fastapi \\
+    uvicorn \\
+    django \\
+    pytest \\
+    requests \\
+    sqlalchemy \\
+    redis \\
+    celery \\
+    pydantic
+
+# Create working directories
+RUN mkdir -p /app /logs /workspace /tests /config
+
+# Multi-port configuration for services
+# Default ports: 3000 (frontend), 5000 (backend API), 8000 (main app), 6379 (redis)
+EXPOSE 3000 5000 8000 6379
+
+# Supervisor configuration for multi-service management
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf 2>/dev/null || true
+
+# Set up workspace
+WORKDIR /workspace
+
+# Copy project files
+COPY project /workspace/project 2>/dev/null || true
+
+# Entry point that activates conda environment
+RUN echo '#!/bin/bash' > /entrypoint.sh && \\
+    echo 'source /opt/conda/etc/profile.d/conda.sh' >> /entrypoint.sh && \\
+    echo 'conda activate prdbench' >> /entrypoint.sh && \\
+    echo 'exec "$@"' >> /entrypoint.sh && \\
+    chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/bin/bash"]
+"""
+
+    def _format_criteria_markdown(
+        self, criteria: list[EvaluationCriterion]
+    ) -> str:
+        """
+        Format evaluation criteria as markdown list.
+
+        Args:
+            criteria: List of EvaluationCriterion objects.
+
+        Returns:
+            Formatted markdown string.
+        """
+        if not criteria:
+            return ""
+
+        lines = ["### Evaluation Criteria\n"]
+
+        # Group by category
+        categories: dict[str, list[EvaluationCriterion]] = {}
+        for crit in criteria:
+            cat = crit.category
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(crit)
+
+        for category, cat_criteria in categories.items():
+            lines.append(f"\n#### {category.title()}\n")
+            for crit in cat_criteria:
+                # Weight indicator
+                weight_str = f"(weight: {crit.weight:.1f})" if crit.weight != 1.0 else ""
+
+                # Automated indicator
+                auto_str = " ✓ Automated" if crit.automated else ""
+
+                line = f"- **{crit.id}**: {crit.name} {weight_str}{auto_str}"
+                if crit.description:
+                    line += f"\n  - {crit.description}"
+                lines.append(line)
+
+        return "\n".join(lines)
+
+    def _create_instruction(self, task: PRDBenchTask) -> str:
+        """
+        Create instruction.md content with embedded PRD.
+
+        Args:
+            task: The PRDBenchTask instance.
+
+        Returns:
+            Rendered instruction content.
+        """
+        template_path = self.templates_dir / "instruction.md"
+
+        # Format criteria as markdown
+        criteria_text = self._format_criteria_markdown(task.evaluation_criteria)
+
+        # Extract title from PRD if not set
+        title = task.title or task.extract_title_from_prd() or task.id
+
+        context = {
+            "id": task.id,
+            "title": title,
+            "difficulty": task.difficulty,
+            "prd_content": task.prd_content,
+            "criteria": criteria_text,
+            "criteria_count": task.get_criterion_count(),
+        }
+
+        return self._render_template(template_path, context)
+
+    def _create_task_toml(self, task: PRDBenchTask) -> str:
+        """
+        Create task.toml content for the task.
+
+        Args:
+            task: The PRDBenchTask instance.
+
+        Returns:
+            Task configuration as TOML string.
+        """
+        template_path = self.templates_dir / "task.toml"
+
+        # Format tags
+        tags = [
+            "prdbench",
+            task.difficulty,
+        ]
+        # Add criteria categories as tags
+        if task.evaluation_criteria:
+            categories = set(c.category for c in task.evaluation_criteria)
+            tags.extend(categories)
+        tags_str = ", ".join(f'"{t}"' for t in tags)
+
+        # Extract title
+        title = task.title or task.extract_title_from_prd() or task.id
+
+        context = {
+            "task_id": task.id,
+            "title": title,
+            "difficulty": task.difficulty,
+            "criteria_count": task.get_criterion_count(),
+            "tags": tags_str,
+        }
+
+        return self._render_template(template_path, context)
+
+    def _create_ground_truth(self, task: PRDBenchTask) -> dict[str, Any]:
+        """
+        Create ground truth JSON for verification.
+
+        Args:
+            task: The PRDBenchTask instance.
+
+        Returns:
+            Ground truth dictionary.
+        """
+        return {
+            "task_id": task.id,
+            "title": task.title or task.extract_title_from_prd(),
+            "difficulty": task.difficulty,
+            "evaluation_criteria": [c.to_dict() for c in task.evaluation_criteria],
+            "test_plan": task.test_plan.to_dict() if task.test_plan else None,
+            "prd_sections": task.get_prd_sections(),
+            "metadata": task.metadata,
+        }
+
+    def generate_task(self, task_id: str, local_task_id: str | None = None) -> Path:
+        """
+        Generate a Harbor task directory for a PRDBench task.
+
+        Args:
+            task_id: PRDBench task ID.
+            local_task_id: Optional local directory name for the task.
+                          Defaults to task_id if not provided.
+
+        Returns:
+            Path to the generated task directory.
+
+        Raises:
+            ValueError: If task not found.
+        """
+        # Load the task
+        self.loader.load()
+        task = self.loader.get_task(task_id)
+        if task is None:
+            raise ValueError(f"Task not found: {task_id}")
+
+        # Determine output directory
+        out_dir_name = local_task_id if local_task_id else task_id
+        out_dir = self.task_dir / out_dir_name
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create directory structure
+        environment_dir = out_dir / "environment"
+        tests_dir = out_dir / "tests"
+        environment_dir.mkdir(parents=True, exist_ok=True)
+        tests_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Generate instruction.md
+        instruction_content = self._create_instruction(task)
+        (out_dir / "instruction.md").write_text(instruction_content)
+
+        # 2. Generate task.toml
+        task_toml_content = self._create_task_toml(task)
+        (out_dir / "task.toml").write_text(task_toml_content)
+
+        # 3. Generate Dockerfile
+        dockerfile_content = self._generate_dockerfile()
+        (environment_dir / "Dockerfile").write_text(dockerfile_content)
+
+        # 4. Create empty project directory
+        project_dir = environment_dir / "project"
+        project_dir.mkdir(parents=True, exist_ok=True)
+
+        # 5. Copy/generate test.sh template
+        test_sh_template = self.templates_dir / "test.sh"
+        if test_sh_template.exists():
+            test_sh_content = self._render_template(
+                test_sh_template,
+                {"id": task.id, "title": task.title or task.id},
+            )
+        else:
+            test_sh_content = self._generate_test_sh(task)
+        test_sh_path = tests_dir / "test.sh"
+        test_sh_path.write_text(test_sh_content)
+        test_sh_path.chmod(0o755)
+
+        # 6. Copy/generate verify.py template
+        verify_py_template = self.templates_dir / "verify.py"
+        if verify_py_template.exists():
+            verify_py_content = verify_py_template.read_text()
+        else:
+            verify_py_content = self._generate_verify_py()
+        verify_py_path = tests_dir / "verify.py"
+        verify_py_path.write_text(verify_py_content)
+        verify_py_path.chmod(0o755)
+
+        # 7. Write ground truth with evaluation criteria
+        ground_truth = self._create_ground_truth(task)
+        ground_truth_path = tests_dir / "ground_truth.json"
+        with open(ground_truth_path, "w", encoding="utf-8") as f:
+            json.dump(ground_truth, f, indent=2)
+
+        # 8. Write test plan if available
+        if task.test_plan:
+            test_plan_path = tests_dir / "test_plan.json"
+            with open(test_plan_path, "w", encoding="utf-8") as f:
+                json.dump(task.test_plan.to_dict(), f, indent=2)
+
+        return out_dir
+
+    def _generate_test_sh(self, task: PRDBenchTask) -> str:
+        """
+        Generate test.sh content for verification.
+
+        Args:
+            task: The PRDBenchTask instance.
+
+        Returns:
+            Shell script content.
+        """
+        title = task.title or task.extract_title_from_prd() or task.id
+        return f"""#!/bin/bash
+# PRDBench Verification Script
+# Task: {task.id}
+# Title: {title}
+
+set -uo pipefail
+
+echo "=== PRDBench Verifier ==="
+echo "Task ID: {task.id}"
+echo "Difficulty: {task.difficulty}"
+echo "Evaluation Criteria: {task.get_criterion_count()}"
+
+# Create output directories
+mkdir -p /logs/verifier
+
+# Activate conda environment if available
+if [ -f /opt/conda/etc/profile.d/conda.sh ]; then
+    source /opt/conda/etc/profile.d/conda.sh
+    conda activate prdbench 2>/dev/null || true
+fi
+
+# Check for ground truth
+if [ ! -f /tests/ground_truth.json ]; then
+    echo "ERROR: ground_truth.json not found"
+    echo '{{"score": 0.0, "error": "Missing ground truth"}}' > /logs/verifier/reward.json
+    echo "0.0" > /logs/verifier/reward.txt
+    exit 0
+fi
+
+# Look for test results in common locations
+TEST_RESULTS=""
+for path in /workspace/test_results.json /workspace/project/test_results.json /logs/test_results.json /app/test_results.json; do
+    if [ -f "$path" ]; then
+        TEST_RESULTS="$path"
+        break
+    fi
+done
+
+echo "Test results file: $TEST_RESULTS"
+
+# Run Python verifier to evaluate against criteria
+python3 /tests/verify.py \\
+    --test-results "$TEST_RESULTS" \\
+    --ground-truth /tests/ground_truth.json \\
+    --output /logs/verifier/reward.json \\
+    2>&1 | tee /logs/verifier/verifier.log
+
+# Extract score and write to reward.txt
+if [ -f /logs/verifier/reward.json ]; then
+    SCORE=$(python3 -c "import json; print(json.load(open('/logs/verifier/reward.json')).get('score', 0.0))" 2>/dev/null || echo "0.0")
+    echo "$SCORE" > /logs/verifier/reward.txt
+    echo "Verification complete. Score: $SCORE"
+else
+    echo "0.0" > /logs/verifier/reward.txt
+    echo "Verification failed - no reward.json generated"
+fi
+
+# Always exit 0 for Harbor compatibility
+exit 0
+"""
+
+    def _generate_verify_py(self) -> str:
+        """
+        Generate verify.py content for evaluating against criteria.
+
+        Returns:
+            Python script content.
+        """
+        return '''#!/usr/bin/env python3
+"""
+PRDBench Verifier
+
+Evaluates agent output against evaluation criteria from the test plan.
+"""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+
+def evaluate_criteria(
+    test_results: dict[str, Any] | None,
+    ground_truth: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Evaluate test results against evaluation criteria.
+
+    Args:
+        test_results: Test results from the agent (may be None if no results).
+        ground_truth: Ground truth with evaluation criteria.
+
+    Returns:
+        Evaluation result dictionary.
+    """
+    criteria = ground_truth.get("evaluation_criteria", [])
+    total_criteria = len(criteria)
+
+    if total_criteria == 0:
+        return {
+            "score": 0.0,
+            "metrics": {
+                "total_criteria": 0,
+                "passed_criteria": 0,
+            },
+            "note": "No evaluation criteria defined",
+        }
+
+    if test_results is None:
+        return {
+            "score": 0.0,
+            "metrics": {
+                "total_criteria": total_criteria,
+                "passed_criteria": 0,
+                "criteria_results": {},
+            },
+            "note": "No test results provided",
+        }
+
+    # Extract criterion results from test results
+    criterion_results = test_results.get("criteria_results", {})
+
+    # Alternative: check for test pass/fail counts
+    tests_passed = test_results.get("tests_passed", 0)
+    tests_total = test_results.get("tests_total", 0)
+
+    # Calculate score based on criteria
+    passed_count = 0
+    total_weight = 0.0
+    weighted_score = 0.0
+    criteria_scores: dict[str, dict[str, Any]] = {}
+
+    for crit in criteria:
+        crit_id = crit.get("id", "")
+        crit_weight = crit.get("weight", 1.0)
+        total_weight += crit_weight
+
+        # Check if criterion passed
+        passed = False
+        if crit_id in criterion_results:
+            result = criterion_results[crit_id]
+            if isinstance(result, bool):
+                passed = result
+            elif isinstance(result, dict):
+                passed = result.get("passed", False)
+
+        if passed:
+            passed_count += 1
+            weighted_score += crit_weight
+
+        criteria_scores[crit_id] = {
+            "name": crit.get("name", ""),
+            "passed": passed,
+            "weight": crit_weight,
+        }
+
+    # Compute final score
+    if total_weight > 0:
+        score = weighted_score / total_weight
+    elif total_criteria > 0:
+        score = passed_count / total_criteria
+    else:
+        score = 0.0
+
+    return {
+        "score": round(score, 4),
+        "metrics": {
+            "total_criteria": total_criteria,
+            "passed_criteria": passed_count,
+            "total_weight": total_weight,
+            "weighted_score": weighted_score,
+            "criteria_scores": criteria_scores,
+            "tests_passed": tests_passed,
+            "tests_total": tests_total,
+        },
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="PRDBench Verifier")
+    parser.add_argument(
+        "--test-results",
+        help="Path to test results JSON file (optional)",
+    )
+    parser.add_argument(
+        "--ground-truth",
+        required=True,
+        help="Path to ground truth JSON",
+    )
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="Path to output reward JSON",
+    )
+    args = parser.parse_args()
+
+    ground_truth_path = Path(args.ground_truth)
+    output_path = Path(args.output)
+
+    # Read ground truth
+    if not ground_truth_path.exists():
+        result = {"score": 0.0, "error": f"Ground truth not found: {ground_truth_path}"}
+        output_path.write_text(json.dumps(result, indent=2))
+        print(f"Error: {result['error']}")
+        return
+
+    with open(ground_truth_path, "r", encoding="utf-8") as f:
+        ground_truth = json.load(f)
+
+    # Read test results if provided
+    test_results = None
+    if args.test_results and args.test_results != "":
+        test_results_path = Path(args.test_results)
+        if test_results_path.exists():
+            try:
+                with open(test_results_path, "r", encoding="utf-8") as f:
+                    test_results = json.load(f)
+            except json.JSONDecodeError as e:
+                print(f"Warning: Failed to parse test results: {e}")
+
+    # Evaluate
+    result = evaluate_criteria(test_results, ground_truth)
+
+    # Write output
+    output_path.write_text(json.dumps(result, indent=2))
+
+    print(f"Evaluation complete:")
+    print(f"  Score: {result.get('score', 0.0)}")
+    metrics = result.get("metrics", {})
+    print(f"  Criteria: {metrics.get('passed_criteria', 0)}/{metrics.get('total_criteria', 0)}")
+
+
+if __name__ == "__main__":
+    main()
+'''
