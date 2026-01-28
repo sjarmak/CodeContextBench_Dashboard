@@ -151,10 +151,10 @@ def calculate_cost(
 
     Args:
         model_name: Model identifier
-        input_tokens: Number of input tokens
+        input_tokens: Number of total input/prompt tokens (includes cached)
         output_tokens: Number of output tokens
         cache_creation_tokens: Number of cache write tokens
-        cache_read_tokens: Number of cache read tokens
+        cache_read_tokens: Number of cache read tokens (subset of input_tokens)
 
     Returns:
         Dictionary with cost breakdown
@@ -171,8 +171,12 @@ def calculate_cost(
             "error": f"Pricing not found for model: {model_name}",
         }
 
+    # Calculate non-cached input tokens
+    # cache_read_tokens are already included in input_tokens, so subtract them
+    non_cached_input = max(0, input_tokens - cache_read_tokens)
+
     # Calculate costs (convert tokens to millions)
-    input_cost = (input_tokens / 1_000_000) * pricing.input_per_mtok
+    input_cost = (non_cached_input / 1_000_000) * pricing.input_per_mtok
     output_cost = (output_tokens / 1_000_000) * pricing.output_per_mtok
     cache_write_cost = (cache_creation_tokens / 1_000_000) * pricing.cache_write_per_mtok
     cache_read_cost = (cache_read_tokens / 1_000_000) * pricing.cache_read_per_mtok
@@ -185,7 +189,8 @@ def calculate_cost(
         "output_cost": round(output_cost, 6),
         "cache_write_cost": round(cache_write_cost, 6),
         "cache_read_cost": round(cache_read_cost, 6),
-        "total_tokens": input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens,
+        "non_cached_input_tokens": non_cached_input,
+        "total_tokens": input_tokens + output_tokens + cache_creation_tokens,
     }
 
 
