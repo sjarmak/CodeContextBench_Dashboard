@@ -11,6 +11,7 @@ import pytest
 
 from benchmarks.devai.adapter import (
     DEVAI_DOMAINS,
+    DevAIAdapter,
     DevAILoader,
     DevAITask,
     Preference,
@@ -608,3 +609,402 @@ class TestDevAIDomains:
         """Test that all domains are lowercase."""
         for domain in DEVAI_DOMAINS:
             assert domain == domain.lower()
+
+
+class TestDevAIAdapter:
+    """Tests for DevAIAdapter class."""
+
+    @pytest.fixture
+    def temp_output_dir(self) -> Generator[Path, None, None]:
+        """Create a temporary output directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    @pytest.fixture
+    def temp_data_dir(self) -> Generator[Path, None, None]:
+        """Create a temporary data directory with test tasks."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir)
+
+            # Create sample task
+            task_data = {
+                "id": "devai-web-001",
+                "user_query": "Build a REST API for a todo application",
+                "domain": "web",
+                "description": "Create a simple CRUD API for managing todos",
+                "requirements": [
+                    {"id": "R1", "description": "Create GET /todos endpoint", "priority": 1},
+                    {"id": "R2", "description": "Create POST /todos endpoint", "priority": 1, "dependencies": ["R1"]},
+                    {"id": "R3", "description": "Create DELETE /todos endpoint", "priority": 2, "dependencies": ["R1"]},
+                ],
+                "preferences": [
+                    {"name": "framework", "value": "FastAPI", "rationale": "Modern async framework"},
+                ],
+                "metadata": {"difficulty": "easy"},
+            }
+            (data_dir / "tasks.json").write_text(json.dumps([task_data]))
+
+            yield data_dir
+
+    def test_adapter_initialization(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test adapter initializes correctly."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        assert adapter.task_dir == temp_output_dir
+        assert adapter.loader is not None
+        assert adapter.templates_dir.exists()
+
+    def test_generate_task_creates_directory_structure(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generate_task creates correct directory structure."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        # Check directory structure
+        assert out_dir.exists()
+        assert (out_dir / "instruction.md").exists()
+        assert (out_dir / "task.toml").exists()
+        assert (out_dir / "environment").is_dir()
+        assert (out_dir / "environment" / "Dockerfile").exists()
+        assert (out_dir / "environment" / "project").is_dir()
+        assert (out_dir / "tests").is_dir()
+        assert (out_dir / "tests" / "test.sh").exists()
+        assert (out_dir / "tests" / "verify.py").exists()
+        assert (out_dir / "tests" / "ground_truth.json").exists()
+        assert (out_dir / "tests" / "trajectory-schema.json").exists()
+
+    def test_generate_task_with_local_task_id(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generate_task uses local_task_id for directory name."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001", "my-custom-name")
+
+        assert out_dir.name == "my-custom-name"
+        assert out_dir.exists()
+
+    def test_generate_task_instruction_md_content(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated instruction.md contains task information."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        instruction_content = (out_dir / "instruction.md").read_text()
+
+        # Check content contains expected information
+        assert "devai-web-001" in instruction_content
+        assert "web" in instruction_content
+        assert "REST API" in instruction_content
+        assert "todo" in instruction_content.lower()
+        # Check requirements are included
+        assert "R1" in instruction_content
+        assert "GET /todos" in instruction_content
+        # Check preferences are included
+        assert "FastAPI" in instruction_content
+
+    def test_generate_task_task_toml_content(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated task.toml contains correct metadata."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        task_toml_content = (out_dir / "task.toml").read_text()
+
+        # Check content contains expected information
+        assert "devai-web-001" in task_toml_content
+        assert "devai" in task_toml_content
+        assert "web" in task_toml_content
+        assert "requirement_count = 3" in task_toml_content
+
+    def test_generate_task_dockerfile_uses_python_and_uv(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test Dockerfile uses Python 3.10+ and uv package manager."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        dockerfile_content = (out_dir / "environment" / "Dockerfile").read_text()
+
+        # Check Dockerfile content
+        assert "python:3.10" in dockerfile_content
+        assert "uv" in dockerfile_content
+        assert "astral.sh/uv" in dockerfile_content
+        assert "/trajectory" in dockerfile_content
+        assert "/workspace" in dockerfile_content
+
+    def test_generate_task_ground_truth_json(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated ground_truth.json contains task data."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        ground_truth_path = out_dir / "tests" / "ground_truth.json"
+        with open(ground_truth_path) as f:
+            ground_truth = json.load(f)
+
+        assert ground_truth["task_id"] == "devai-web-001"
+        assert ground_truth["domain"] == "web"
+        assert "REST API" in ground_truth["user_query"]
+        assert len(ground_truth["requirements"]) == 3
+        assert len(ground_truth["preferences"]) == 1
+        # Check requirements have correct structure
+        req_ids = [r["id"] for r in ground_truth["requirements"]]
+        assert "R1" in req_ids
+        assert "R2" in req_ids
+        assert "R3" in req_ids
+
+    def test_generate_task_trajectory_schema_json(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated trajectory-schema.json is valid."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        schema_path = out_dir / "tests" / "trajectory-schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+
+        # Check schema has required fields
+        assert "$schema" in schema
+        assert "properties" in schema
+        assert "required" in schema
+        assert "task_id" in schema["required"]
+        assert "steps" in schema["required"]
+        assert "final_state" in schema["required"]
+
+    def test_generate_task_test_sh_is_executable(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated test.sh has executable permissions."""
+        import os
+
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        test_sh_path = out_dir / "tests" / "test.sh"
+        assert os.access(test_sh_path, os.X_OK)
+
+    def test_generate_task_verify_py_is_executable(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated verify.py has executable permissions."""
+        import os
+
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        verify_py_path = out_dir / "tests" / "verify.py"
+        assert os.access(verify_py_path, os.X_OK)
+
+    def test_generate_task_nonexistent_raises_error(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generate_task raises error for nonexistent task."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        with pytest.raises(ValueError, match="Task not found"):
+            adapter.generate_task("nonexistent-task-id")
+
+    def test_render_template_replaces_placeholders(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test _render_template correctly replaces placeholders."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        # Create a simple template file
+        template_dir = temp_output_dir / "templates"
+        template_dir.mkdir()
+        template_file = template_dir / "test.txt"
+        template_file.write_text("Task: {id}, Domain: {domain}")
+
+        result = adapter._render_template(
+            template_file,
+            {"id": "test-001", "domain": "web"},
+        )
+
+        assert result == "Task: test-001, Domain: web"
+
+    def test_generate_dockerfile_content(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test _generate_dockerfile returns valid Dockerfile content."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        dockerfile = adapter._generate_dockerfile()
+
+        # Check essential components
+        assert "FROM python:3.10" in dockerfile
+        assert "apt-get" in dockerfile
+        assert "uv" in dockerfile
+        assert "/workspace" in dockerfile
+        assert "/trajectory" in dockerfile
+        assert "CMD" in dockerfile
+
+    def test_format_requirements_markdown(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test _format_requirements_markdown generates proper markdown."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        requirements = [
+            Requirement(id="R1", description="First req", priority=1),
+            Requirement(id="R2", description="Second req", priority=2, dependencies=["R1"]),
+        ]
+
+        result = adapter._format_requirements_markdown(requirements)
+
+        assert "### Requirements" in result
+        assert "R1" in result
+        assert "R2" in result
+        assert "First req" in result
+        assert "Depends on" in result  # Dependency indicator
+
+    def test_format_requirements_markdown_empty(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test _format_requirements_markdown returns empty for empty list."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        result = adapter._format_requirements_markdown([])
+        assert result == ""
+
+    def test_format_preferences_markdown(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test _format_preferences_markdown generates proper markdown."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        preferences = [
+            Preference(name="framework", value="FastAPI", rationale="Fast and modern"),
+            Preference(name="db", value="PostgreSQL"),
+        ]
+
+        result = adapter._format_preferences_markdown(preferences)
+
+        assert "### Preferences" in result
+        assert "framework" in result
+        assert "FastAPI" in result
+        assert "Rationale" in result
+        assert "db" in result
+        assert "PostgreSQL" in result
+
+    def test_format_preferences_markdown_empty(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test _format_preferences_markdown returns empty for empty list."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        result = adapter._format_preferences_markdown([])
+        assert result == ""
+
+    def test_create_trajectory_schema(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test _create_trajectory_schema returns valid schema."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        schema = adapter._create_trajectory_schema()
+
+        # Check schema structure
+        assert schema["$schema"] == "http://json-schema.org/draft-07/schema#"
+        assert schema["type"] == "object"
+        assert "task_id" in schema["required"]
+        assert "steps" in schema["required"]
+        assert "final_state" in schema["required"]
+        # Check steps structure
+        assert "steps" in schema["properties"]
+        assert "items" in schema["properties"]["steps"]
+
+    def test_test_sh_contains_trajectory_validation(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated test.sh validates trajectory file."""
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        test_sh_content = (out_dir / "tests" / "test.sh").read_text()
+
+        # Check for trajectory validation logic
+        assert "trajectory" in test_sh_content.lower()
+        assert "verify.py" in test_sh_content
+        assert "ground_truth.json" in test_sh_content
+        assert "trajectory-schema.json" in test_sh_content
+
+    def test_verify_py_can_be_imported(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test that verify.py is syntactically valid Python."""
+        import ast
+
+        adapter = DevAIAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("devai-web-001")
+
+        verify_py_content = (out_dir / "tests" / "verify.py").read_text()
+
+        # Try to parse the Python code - will raise SyntaxError if invalid
+        ast.parse(verify_py_content)
