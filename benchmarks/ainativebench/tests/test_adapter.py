@@ -581,3 +581,274 @@ class TestEdgeCases:
         task = AINativeBenchTask.from_dict(data)
         assert task.test_cases[0].name == "test_0"
         assert task.test_cases[1].name == "test_1"
+
+
+class TestAINativeBenchAdapter:
+    """Tests for AINativeBenchAdapter class."""
+
+    @pytest.fixture
+    def temp_output_dir(self) -> Generator[Path, None, None]:
+        """Create a temporary output directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    @pytest.fixture
+    def temp_data_dir(self) -> Generator[Path, None, None]:
+        """Create a temporary data directory with test tasks."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir)
+
+            # Create hierarchical structure with sample tasks
+            variant_dir = data_dir / "repobench" / "easy"
+            variant_dir.mkdir(parents=True)
+
+            task_data = {
+                "id": "repobench-easy-001",
+                "benchmark_name": "repobench",
+                "variant": "easy",
+                "description": "Complete the code snippet",
+                "test_cases": [
+                    {"name": "test_basic", "input_data": {"code": "def foo():"}, "timeout_sec": 30},
+                    {"name": "test_edge", "input_data": {"code": "def bar():"}, "timeout_sec": 60},
+                ],
+                "scoring_metrics": {
+                    "primary_metric": "exact_match",
+                    "secondary_metrics": ["bleu"],
+                    "thresholds": {"exact_match": 0.9},
+                },
+                "language": "python",
+                "context_files": ["src/utils.py"],
+                "ground_truth": {"solution": "def foo(): return 42"},
+            }
+            task_file = variant_dir / "task_001.json"
+            with open(task_file, "w") as f:
+                json.dump(task_data, f)
+
+            yield data_dir
+
+    def test_adapter_initialization(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test adapter initializes correctly."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        assert adapter.task_dir == temp_output_dir
+        assert adapter.loader is not None
+        assert adapter.templates_dir.exists()
+
+    def test_generate_task_creates_directory_structure(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generate_task creates correct directory structure."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("repobench-easy-001")
+
+        # Check directory structure
+        assert out_dir.exists()
+        assert (out_dir / "instruction.md").exists()
+        assert (out_dir / "task.toml").exists()
+        assert (out_dir / "environment").is_dir()
+        assert (out_dir / "environment" / "Dockerfile").exists()
+        assert (out_dir / "environment" / "project").is_dir()
+        assert (out_dir / "tests").is_dir()
+        assert (out_dir / "tests" / "test.sh").exists()
+        assert (out_dir / "tests" / "verify.py").exists()
+        assert (out_dir / "tests" / "ground_truth.json").exists()
+
+    def test_generate_task_with_local_task_id(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generate_task uses local_task_id for directory name."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("repobench-easy-001", "my-custom-name")
+
+        assert out_dir.name == "my-custom-name"
+        assert out_dir.exists()
+
+    def test_generate_task_instruction_md_content(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated instruction.md contains task information."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("repobench-easy-001")
+
+        instruction_content = (out_dir / "instruction.md").read_text()
+
+        # Check content contains expected information
+        assert "repobench-easy-001" in instruction_content
+        assert "repobench" in instruction_content
+        assert "easy" in instruction_content
+        assert "python" in instruction_content
+        assert "Complete the code snippet" in instruction_content
+
+    def test_generate_task_task_toml_content(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated task.toml contains correct metadata."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("repobench-easy-001")
+
+        task_toml_content = (out_dir / "task.toml").read_text()
+
+        # Check content contains expected information
+        assert "repobench-easy-001" in task_toml_content
+        assert "repobench" in task_toml_content
+        assert "easy" in task_toml_content
+        assert "python" in task_toml_content
+        assert "ainativebench" in task_toml_content
+
+    def test_generate_task_dockerfile_uses_python_and_uv(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test Dockerfile uses Python 3.10+ and uv package manager."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("repobench-easy-001")
+
+        dockerfile_content = (out_dir / "environment" / "Dockerfile").read_text()
+
+        # Check Dockerfile content
+        assert "python:3.10" in dockerfile_content
+        assert "uv" in dockerfile_content
+        assert "astral.sh/uv" in dockerfile_content
+
+    def test_generate_task_ground_truth_json(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated ground_truth.json contains task data."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("repobench-easy-001")
+
+        ground_truth_path = out_dir / "tests" / "ground_truth.json"
+        with open(ground_truth_path) as f:
+            ground_truth = json.load(f)
+
+        assert ground_truth["task_id"] == "repobench-easy-001"
+        assert ground_truth["benchmark_name"] == "repobench"
+        assert ground_truth["variant"] == "easy"
+        assert len(ground_truth["test_cases"]) == 2
+        assert ground_truth["scoring_metrics"]["primary_metric"] == "exact_match"
+
+    def test_generate_task_test_sh_is_executable(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated test.sh has executable permissions."""
+        import os
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("repobench-easy-001")
+
+        test_sh_path = out_dir / "tests" / "test.sh"
+        assert os.access(test_sh_path, os.X_OK)
+
+    def test_generate_task_verify_py_is_executable(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generated verify.py has executable permissions."""
+        import os
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+        out_dir = adapter.generate_task("repobench-easy-001")
+
+        verify_py_path = out_dir / "tests" / "verify.py"
+        assert os.access(verify_py_path, os.X_OK)
+
+    def test_generate_task_nonexistent_raises_error(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test generate_task raises error for nonexistent task."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        with pytest.raises(ValueError, match="Task not found"):
+            adapter.generate_task("nonexistent-task-id")
+
+    def test_render_template_replaces_placeholders(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test _render_template correctly replaces placeholders."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        # Create a simple template file
+        template_dir = temp_output_dir / "templates"
+        template_dir.mkdir()
+        template_file = template_dir / "test.txt"
+        template_file.write_text("Task: {id}, Benchmark: {benchmark_name}")
+
+        result = adapter._render_template(
+            template_file,
+            {"id": "test-001", "benchmark_name": "test-bench"},
+        )
+
+        assert result == "Task: test-001, Benchmark: test-bench"
+
+    def test_generate_dockerfile_content(
+        self, temp_output_dir: Path, temp_data_dir: Path
+    ) -> None:
+        """Test _generate_dockerfile returns valid Dockerfile content."""
+        from benchmarks.ainativebench.adapter import AINativeBenchAdapter
+
+        adapter = AINativeBenchAdapter(
+            task_dir=temp_output_dir,
+            data_dir=temp_data_dir,
+        )
+
+        dockerfile = adapter._generate_dockerfile()
+
+        # Check essential components
+        assert "FROM python:3.10" in dockerfile
+        assert "apt-get" in dockerfile
+        assert "uv" in dockerfile
+        assert "/app" in dockerfile
+        assert "/test_results" in dockerfile
+        assert "CMD" in dockerfile
