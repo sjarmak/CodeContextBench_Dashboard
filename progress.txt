@@ -317,3 +317,21 @@ Started: Wed Jan 28 10:48:32 EST 2026
   - Reports can be output as JSON, markdown, or summary (default)
   - Pre-commit hook may flag code as containing secrets (false positive for detection patterns) - use --no-verify
 ---
+
+## 2026-01-28 - US-018
+- AINativeBench smoke test validation completed
+- Files changed:
+  - `scripts/smoke_test_adapter.py` (modified - fixed path resolution bug when cwd is set)
+  - `benchmarks/ainativebench/README.md` (new - documents adapter setup requirements)
+  - `benchmarks/ainativebench/data/repobench/easy/task_001.json` (new - sample task)
+  - `benchmarks/ainativebench/data/repobench/easy/task_002.json` (new - sample task)
+  - `benchmarks/ainativebench/data/repobench/easy/task_003.json` (new - sample task)
+- **Learnings for future iterations:**
+  - smoke_test_adapter.py had a bug: when adapter_dir is relative and cwd is set, subprocess resolves relative script paths against new cwd
+  - Fix: use just script name "run_adapter.py" (not full path) since cwd is already set to adapter_dir
+  - Also resolve output_dir to absolute before subprocess call since cwd will change
+  - AINativeBench adapter requires sample data in data/ directory (loader returns empty list without it)
+  - README.md should document data directory structure and expected JSON schema
+  - task.toml tags include "ainativebench" for benchmark filtering
+  - reward.json format: {"score": 0.0-1.0, "metrics": {...}, "primary_metric": "...", "test_details": [...]}
+---
