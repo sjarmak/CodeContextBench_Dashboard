@@ -13,12 +13,26 @@ from src.quality.how2bench_checklist import (
     CriterionSeverity,
     HOW2BenchChecklist,
 )
+from src.quality.preflight_validator import (
+    CheckSeverity,
+    CheckStatus,
+    PreflightValidator,
+    ValidationCheck,
+    ValidationReport,
+)
 
 __all__ = [
+    # HOW2BENCH checklist
     "BenchmarkAuditReport",
     "ChecklistCriterion",
     "ChecklistResult",
     "CriterionCategory",
     "CriterionSeverity",
     "HOW2BenchChecklist",
+    # Pre-flight validator
+    "CheckSeverity",
+    "CheckStatus",
+    "PreflightValidator",
+    "ValidationCheck",
+    "ValidationReport",
 ]
