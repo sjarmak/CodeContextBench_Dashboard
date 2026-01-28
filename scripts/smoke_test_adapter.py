@@ -401,14 +401,15 @@ class SmokeTestRunner:
         output_dir = self._temp_dir / "tasks"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        run_adapter_py = self.adapter_dir / "run_adapter.py"
+        # Use just the script name since we're setting cwd to adapter_dir
+        run_adapter_script = "run_adapter.py"
 
-        # Build command
+        # Build command - resolve output_dir to absolute path since cwd will change
         cmd = [
             sys.executable,
-            str(run_adapter_py),
+            run_adapter_script,
             "--output_dir",
-            str(output_dir),
+            str(output_dir.resolve()),
             "--limit",
             str(self.num_tasks),
         ]
@@ -419,7 +420,7 @@ class SmokeTestRunner:
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
-                cwd=str(self.adapter_dir),
+                cwd=str(self.adapter_dir.resolve()),
             )
 
             if result.returncode != 0:
