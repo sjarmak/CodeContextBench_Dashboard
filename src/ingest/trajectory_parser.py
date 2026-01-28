@@ -166,6 +166,31 @@ class TrajectoryParser:
             # Attribute tokens to tools/categories
             self._attribute_tokens(step, metrics)
 
+        # Use final_metrics as fallback if step-level totals are too low
+        # This handles trajectory formats where per-step metrics are incomplete
+        final_metrics = data.get("final_metrics", {})
+        if final_metrics:
+            final_prompt = final_metrics.get("total_prompt_tokens", 0)
+            final_completion = final_metrics.get("total_completion_tokens", 0)
+            final_cached = final_metrics.get("total_cached_tokens", 0)
+
+            # Use final_metrics if they're significantly higher than step totals
+            # (indicating incomplete step-level data)
+            if final_prompt > metrics.total_prompt_tokens * 1.1:  # 10% tolerance
+                metrics.total_prompt_tokens = final_prompt
+            if final_completion > metrics.total_completion_tokens * 1.1:
+                metrics.total_completion_tokens = final_completion
+            if final_cached > metrics.total_cached_tokens * 1.1:
+                metrics.total_cached_tokens = final_cached
+
+            # Extract extra cache metrics from final_metrics
+            extra = final_metrics.get("extra", {})
+            if extra:
+                if extra.get("total_cache_creation_input_tokens", 0) > metrics.total_cache_creation_tokens:
+                    metrics.total_cache_creation_tokens = extra.get("total_cache_creation_input_tokens", 0)
+                if extra.get("total_cache_read_input_tokens", 0) > metrics.total_cache_read_tokens:
+                    metrics.total_cache_read_tokens = extra.get("total_cache_read_input_tokens", 0)
+
         # Calculate cost if requested
         if self.calculate_cost and metrics.model_name:
             self._calculate_cost(metrics)

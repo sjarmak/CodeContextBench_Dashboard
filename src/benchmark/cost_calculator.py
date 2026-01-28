@@ -23,6 +23,34 @@ class ModelPricing:
 
 # Anthropic Claude pricing (as of pricing page)
 ANTHROPIC_PRICING = {
+    # Claude 4.5 Opus (latest)
+    "anthropic/claude-opus-4-5-20251101": ModelPricing(
+        input_per_mtok=15.00,
+        output_per_mtok=75.00,
+        cache_write_per_mtok=18.75,
+        cache_read_per_mtok=1.50,
+    ),
+    "claude-opus-4-5-20251101": ModelPricing(
+        input_per_mtok=15.00,
+        output_per_mtok=75.00,
+        cache_write_per_mtok=18.75,
+        cache_read_per_mtok=1.50,
+    ),
+
+    # Claude 4.5 Sonnet
+    "anthropic/claude-sonnet-4-5-20251101": ModelPricing(
+        input_per_mtok=3.00,
+        output_per_mtok=15.00,
+        cache_write_per_mtok=3.75,
+        cache_read_per_mtok=0.30,
+    ),
+    "claude-sonnet-4-5-20251101": ModelPricing(
+        input_per_mtok=3.00,
+        output_per_mtok=15.00,
+        cache_write_per_mtok=3.75,
+        cache_read_per_mtok=0.30,
+    ),
+
     # Claude 3.5 Sonnet
     "anthropic/claude-sonnet-3-5-20241022": ModelPricing(
         input_per_mtok=3.00,
@@ -78,7 +106,8 @@ ANTHROPIC_PRICING = {
 
 # Aliases for common model names
 MODEL_ALIASES = {
-    "claude-sonnet-4-5": "anthropic/claude-sonnet-3-5-20250929",
+    "claude-opus-4-5": "anthropic/claude-opus-4-5-20251101",
+    "claude-sonnet-4-5": "anthropic/claude-sonnet-4-5-20251101",
     "claude-haiku-4-5": "anthropic/claude-haiku-4-5-20251001",
     "claude-opus-3": "anthropic/claude-opus-3-20240229",
 }
