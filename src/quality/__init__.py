@@ -28,6 +28,13 @@ from src.quality.preflight_validator import (
     ValidationCheck,
     ValidationReport,
 )
+from src.quality.task_quality_scorer import (
+    CriterionScore,
+    QualityCriterion,
+    TaskQualityReport,
+    TaskQualityResult,
+    TaskQualityScorer,
+)
 
 __all__ = [
     # Compliance auditor
@@ -50,4 +57,10 @@ __all__ = [
     "PreflightValidator",
     "ValidationCheck",
     "ValidationReport",
+    # Task quality scorer
+    "CriterionScore",
+    "QualityCriterion",
+    "TaskQualityReport",
+    "TaskQualityResult",
+    "TaskQualityScorer",
 ]
