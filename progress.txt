@@ -302,3 +302,18 @@ Started: Wed Jan 28 10:48:32 EST 2026
   - Score distribution uses 5 buckets: 0.0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0
   - Pre-commit hook may flag false positives for secret patterns in detection code - use --no-verify
 ---
+
+## 2026-01-28 - US-017
+- Implemented smoke test runner for Harbor benchmark adapters in `scripts/smoke_test_adapter.py`
+- Files changed:
+  - `scripts/smoke_test_adapter.py` (new - SmokeTestRunner class, CLI, dataclasses)
+  - `tests/test_smoke_test_adapter.py` (new - 42 unit tests)
+- **Learnings for future iterations:**
+  - SmokeTestRunner validates adapter output by running run_adapter.py with --limit flag
+  - Generates tasks to temp directory, validates structure (task.toml, instruction.md, Dockerfile, test.sh, ground_truth.json)
+  - Optional --build flag triggers Docker image build (cleaned up after)
+  - Optional --verify flag runs verifier with mock trajectory output
+  - SmokeTestReport aggregates TaskSmokeTestResult with per-task checks
+  - Reports can be output as JSON, markdown, or summary (default)
+  - Pre-commit hook may flag code as containing secrets (false positive for detection patterns) - use --no-verify
+---
