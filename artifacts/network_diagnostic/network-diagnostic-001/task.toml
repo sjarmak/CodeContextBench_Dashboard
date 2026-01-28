@@ -1,0 +1,21 @@
+version = "1.0"
+
+[metadata]
+name = "network-diagnostic-001"
+description = "Network connectivity diagnostic for Sourcegraph MCP"
+license = "MIT"
+
+[task]
+id = "network-diagnostic-001"
+repo = "diagnostic"
+category = "network_test"
+language = "bash"
+difficulty = "easy"
+time_limit_sec = 300
+
+[verification]
+type = "test"
+command = "python tests/test_diagnostic.py"
+
+[environment]
+build_timeout_sec = 120.0

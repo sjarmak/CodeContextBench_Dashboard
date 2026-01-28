@@ -157,7 +157,7 @@ def create_delta_comparison_chart(
         
         values.append(value)
         # Color based on positive/negative delta
-        colors.append("green" if value > 0 else "red" if value < 0 else "gray")
+        colors.append("green" if value > 0 else "darkgray" if value < 0 else "gray")
     
     df = pd.DataFrame({
         "Agent": comparisons,
@@ -172,7 +172,7 @@ def create_delta_comparison_chart(
         title=title or f"{metric.replace('_', ' ').title()} vs Baseline",
         labels={metric: metric.replace('_', ' ').title()},
         color="color",
-        color_discrete_map={"green": "#2ecc71", "red": "#e74c3c", "gray": "#95a5a6"}
+        color_discrete_map={"green": "#2ecc71", "darkgray": "#555555", "gray": "#95a5a6"}
     )
     
     fig.update_layout(
@@ -398,9 +398,9 @@ def create_effect_size_chart(
     colors_map = {
         "negligible": "#95a5a6",
         "small": "#3498db",
-        "medium": "#f39c12",
-        "large": "#e74c3c",
-        "very_large": "#c0392b"
+        "medium": "#666666",
+        "large": "#555555",
+        "very_large": "#444444"
     }
     
     for metric, effects in effect_sizes.items():
@@ -579,8 +579,8 @@ def create_anomaly_scatter_chart(
     
     severity_colors = {
         "low": "#3498db",
-        "medium": "#f39c12",
-        "high": "#e74c3c"
+        "medium": "#666666",
+        "high": "#555555"
     }
     
     for anomaly in anomalies:

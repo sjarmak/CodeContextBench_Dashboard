@@ -47,33 +47,76 @@ class TranscriptMetrics:
     deep_search_calls: int = 0
     local_calls: int = 0
     other_calls: int = 0
-    
+
     # Tool usage breakdown
     tool_calls_by_name: dict[str, int] = field(default_factory=dict)
-    
+
     # Token usage
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     avg_tokens_per_call: float = 0.0
-    
+
+    # Extended token tracking (populated from trajectory.json)
+    cached_tokens: int = 0
+    cost_usd: Optional[float] = None
+    tokens_by_category: dict = field(default_factory=dict)  # {ToolCategory: {prompt: X, ...}}
+    tokens_by_tool: dict = field(default_factory=dict)  # {tool_name: {prompt: X, ...}}
+
     # Success metrics
     successful_calls: int = 0
     failed_calls: int = 0
     success_rate: float = 0.0
-    
+
     # Tool efficiency
     mcp_vs_local_ratio: float = 0.0
-    
+
     # File access patterns
     files_accessed: set[str] = field(default_factory=set)
     unique_file_count: int = 0
-    
+
     # Search/retrieval patterns
     search_queries: list[str] = field(default_factory=list)
-    
+
     # Metadata
     transcript_length: int = 0
     has_errors: bool = False
+
+    def merge_trajectory_metrics(self, trajectory_metrics) -> None:
+        """
+        Merge token metrics from a TrajectoryMetrics object.
+
+        This populates the extended token tracking fields with accurate
+        data from trajectory.json files (ATIF format).
+
+        Args:
+            trajectory_metrics: TrajectoryMetrics object with token data
+        """
+        if trajectory_metrics is None:
+            return
+
+        # Update token totals (trajectory.json has more accurate data)
+        self.total_input_tokens = trajectory_metrics.total_prompt_tokens
+        self.total_output_tokens = trajectory_metrics.total_completion_tokens
+        self.cached_tokens = trajectory_metrics.total_cached_tokens
+
+        # Set cost
+        self.cost_usd = trajectory_metrics.cost_usd
+
+        # Copy per-category token breakdown
+        # Convert ToolCategory keys to strings for JSON serialization
+        self.tokens_by_category = {
+            cat.value if hasattr(cat, 'value') else str(cat): tokens
+            for cat, tokens in trajectory_metrics.tokens_by_category.items()
+        }
+
+        # Copy per-tool token breakdown
+        self.tokens_by_tool = dict(trajectory_metrics.tokens_by_tool)
+
+        # Recalculate avg_tokens_per_call with new token data
+        if self.total_tool_calls > 0:
+            self.avg_tokens_per_call = (
+                self.total_input_tokens + self.total_output_tokens
+            ) / self.total_tool_calls
 
 
 class TranscriptParser:

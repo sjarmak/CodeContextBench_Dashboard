@@ -37,30 +37,37 @@ class AgentCostMetrics:
     """Cost metrics for a single agent."""
     agent_name: str
     model_name: Optional[str]
-    
+
     # Task statistics
     total_tasks: int = 0
     passed_tasks: int = 0
     pass_rate: float = 0.0
-    
+
     # Token costs
     total_input_tokens: float = 0.0
     total_output_tokens: float = 0.0
+    total_cached_tokens: float = 0.0
     avg_input_tokens: float = 0.0
     avg_output_tokens: float = 0.0
-    
+
     # Cost metrics
     total_cost_usd: float = 0.0
     avg_cost_per_task: float = 0.0
     cost_per_success: float = 0.0  # Cost per passed task
-    
+
     # Efficiency ranking
     efficiency_rank: Optional[int] = None
     cost_rank: Optional[int] = None
-    
+
     # Cost breakdown
     input_cost_usd: float = 0.0
     output_cost_usd: float = 0.0
+
+    # Token breakdown by category (MCP, LOCAL, OTHER, DEEP_SEARCH)
+    tokens_by_category: Dict[str, Dict[str, int]] = field(default_factory=dict)
+
+    # Token breakdown by tool
+    tokens_by_tool: Dict[str, Dict[str, int]] = field(default_factory=dict)
     
     def to_dict(self) -> dict:
         """Convert to dictionary."""
@@ -75,6 +82,7 @@ class AgentCostMetrics:
             "tokens": {
                 "total_input": self.total_input_tokens,
                 "total_output": self.total_output_tokens,
+                "total_cached": self.total_cached_tokens,
                 "avg_input": self.avg_input_tokens,
                 "avg_output": self.avg_output_tokens,
             },
@@ -89,6 +97,8 @@ class AgentCostMetrics:
                 "efficiency_rank": self.efficiency_rank,
                 "cost_rank": self.cost_rank,
             },
+            "tokens_by_category": self.tokens_by_category,
+            "tokens_by_tool": self.tokens_by_tool,
         }
 
 
@@ -120,19 +130,24 @@ class CostAnalysisResult:
     experiment_id: str
     baseline_agent: str
     variant_agents: list[str] = field(default_factory=list)
-    
+
     # Agent cost metrics
     agent_metrics: dict[str, AgentCostMetrics] = field(default_factory=dict)
-    
+
     # Cost regressions detected
     regressions: list[CostRegression] = field(default_factory=list)
-    
+
     # Summary
     total_experiment_cost: float = 0.0
+    total_tokens: int = 0
+    total_cached_tokens: int = 0
     cheapest_agent: str = ""
     most_efficient_agent: str = ""  # Best pass rate per dollar
     most_expensive_agent: str = ""
-    
+
+    # Aggregate token breakdown by category across all agents
+    tokens_by_category: Dict[str, Dict[str, int]] = field(default_factory=dict)
+
     # Metadata
     model_pricing: Dict[str, Any] = field(default_factory=dict)
     computed_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
@@ -150,10 +165,13 @@ class CostAnalysisResult:
             "regressions": [r.to_dict() for r in self.regressions],
             "summary": {
                 "total_experiment_cost": self.total_experiment_cost,
+                "total_tokens": self.total_tokens,
+                "total_cached_tokens": self.total_cached_tokens,
                 "cheapest_agent": self.cheapest_agent,
                 "most_efficient_agent": self.most_efficient_agent,
                 "most_expensive_agent": self.most_expensive_agent,
             },
+            "tokens_by_category": self.tokens_by_category,
             "computed_at": self.computed_at,
         }
 
@@ -243,7 +261,23 @@ class CostAnalyzer:
         analysis_result.total_experiment_cost = sum(
             m.total_cost_usd for m in agent_costs.values()
         )
-        
+        analysis_result.total_tokens = sum(
+            int(m.total_input_tokens + m.total_output_tokens) for m in agent_costs.values()
+        )
+        analysis_result.total_cached_tokens = sum(
+            int(m.total_cached_tokens) for m in agent_costs.values()
+        )
+
+        # Aggregate tokens by category across all agents
+        aggregated_categories = {}
+        for metrics in agent_costs.values():
+            for cat, tokens in metrics.tokens_by_category.items():
+                if cat not in aggregated_categories:
+                    aggregated_categories[cat] = {"prompt": 0, "completion": 0, "cached": 0}
+                for key in ["prompt", "completion", "cached"]:
+                    aggregated_categories[cat][key] += tokens.get(key, 0)
+        analysis_result.tokens_by_category = aggregated_categories
+
         return analysis_result
     
     def _compute_agent_costs(
@@ -253,81 +287,126 @@ class CostAnalyzer:
         model_pricing: Dict[str, Any],
     ) -> AgentCostMetrics:
         """Compute cost metrics for an agent."""
+        import json
+
         metrics = AgentCostMetrics(
             agent_name=agent_name,
             model_name=results[0].get("model_name") if results else None,
             total_tasks=len(results),
         )
-        
+
         # Count passes
         passed = sum(1 for r in results if r["passed"])
         metrics.passed_tasks = passed
         metrics.pass_rate = passed / len(results) if results else 0
-        
-        # Get token usage from tool_usage table
+
+        # Get token usage from tool_usage table (including new columns)
         input_tokens_list = []
         output_tokens_list = []
-        
+        cached_tokens_list = []
+        precomputed_costs = []
+        aggregated_by_category = {}  # {category: {prompt: X, completion: Y, cached: Z}}
+        aggregated_by_tool = {}  # {tool: {prompt: X, completion: Y, cached: Z}}
+
         for result in results:
             job_id = result.get("job_id")
             exp_id = result.get("experiment_id")
             task_id = result.get("task_id")
-            
+
             if job_id and exp_id and task_id:
                 with self.db._connect() as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
-                        SELECT total_input_tokens, total_output_tokens
+                        SELECT total_input_tokens, total_output_tokens, cached_tokens,
+                               cost_usd, tokens_by_category, tokens_by_tool
                         FROM tool_usage
                         WHERE task_id = ? AND experiment_id = ? AND job_id = ?
                     """, (task_id, exp_id, job_id))
-                    
+
                     row = cursor.fetchone()
                     if row:
                         input_tokens = row["total_input_tokens"] or 0
                         output_tokens = row["total_output_tokens"] or 0
+                        cached_tokens = row["cached_tokens"] or 0
+                        cost_usd = row["cost_usd"]
+
                         input_tokens_list.append(input_tokens)
                         output_tokens_list.append(output_tokens)
-        
+                        cached_tokens_list.append(cached_tokens)
+
+                        if cost_usd is not None:
+                            precomputed_costs.append(cost_usd)
+
+                        # Aggregate tokens by category
+                        if row["tokens_by_category"]:
+                            try:
+                                by_category = json.loads(row["tokens_by_category"])
+                                for cat, tokens in by_category.items():
+                                    if cat not in aggregated_by_category:
+                                        aggregated_by_category[cat] = {"prompt": 0, "completion": 0, "cached": 0}
+                                    for key in ["prompt", "completion", "cached"]:
+                                        aggregated_by_category[cat][key] += tokens.get(key, 0)
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+
+                        # Aggregate tokens by tool
+                        if row["tokens_by_tool"]:
+                            try:
+                                by_tool = json.loads(row["tokens_by_tool"])
+                                for tool, tokens in by_tool.items():
+                                    if tool not in aggregated_by_tool:
+                                        aggregated_by_tool[tool] = {"prompt": 0, "completion": 0, "cached": 0}
+                                    for key in ["prompt", "completion", "cached"]:
+                                        aggregated_by_tool[tool][key] += tokens.get(key, 0)
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+
         # Calculate token totals and averages
         metrics.total_input_tokens = sum(input_tokens_list)
         metrics.total_output_tokens = sum(output_tokens_list)
-        
+        metrics.total_cached_tokens = sum(cached_tokens_list)
+        metrics.tokens_by_category = aggregated_by_category
+        metrics.tokens_by_tool = aggregated_by_tool
+
         if results:
             metrics.avg_input_tokens = metrics.total_input_tokens / len(results)
             metrics.avg_output_tokens = metrics.total_output_tokens / len(results)
-        
-        # Calculate costs
-        model_name = metrics.model_name or "claude-3-5-haiku"
-        
-        # Normalize model name to match pricing keys
-        model_key = None
-        for key in model_pricing.keys():
-            if key.replace("-", "").lower() in model_name.replace("-", "").lower():
-                model_key = key
-                break
-        
-        if not model_key:
-            model_key = "claude-3-5-haiku"  # Default fallback
-        
-        pricing = model_pricing.get(model_key, model_pricing["claude-3-5-haiku"])
-        
-        # Calculate costs in USD
-        input_cost_rate = pricing["input_tokens_per_million"] / 1_000_000
-        output_cost_rate = pricing["output_tokens_per_million"] / 1_000_000
-        
-        metrics.input_cost_usd = metrics.total_input_tokens * input_cost_rate
-        metrics.output_cost_usd = metrics.total_output_tokens * output_cost_rate
-        metrics.total_cost_usd = metrics.input_cost_usd + metrics.output_cost_usd
-        
+
+        # Use precomputed costs if available, otherwise calculate
+        if precomputed_costs:
+            metrics.total_cost_usd = sum(precomputed_costs)
+        else:
+            # Calculate costs from token counts
+            model_name = metrics.model_name or "claude-3-5-haiku"
+
+            # Normalize model name to match pricing keys
+            model_key = None
+            for key in model_pricing.keys():
+                if key.replace("-", "").lower() in model_name.replace("-", "").lower():
+                    model_key = key
+                    break
+
+            if not model_key:
+                model_key = "claude-3-5-haiku"  # Default fallback
+
+            pricing = model_pricing.get(model_key, model_pricing["claude-3-5-haiku"])
+
+            # Calculate costs in USD
+            input_cost_rate = pricing["input_tokens_per_million"] / 1_000_000
+            output_cost_rate = pricing["output_tokens_per_million"] / 1_000_000
+
+            metrics.input_cost_usd = metrics.total_input_tokens * input_cost_rate
+            metrics.output_cost_usd = metrics.total_output_tokens * output_cost_rate
+            metrics.total_cost_usd = metrics.input_cost_usd + metrics.output_cost_usd
+
         # Cost per task
         if len(results) > 0:
             metrics.avg_cost_per_task = metrics.total_cost_usd / len(results)
-        
+
         # Cost per success
         if metrics.passed_tasks > 0:
             metrics.cost_per_success = metrics.total_cost_usd / metrics.passed_tasks
-        
+
         return metrics
     
     def _rank_agents(

@@ -1,0 +1,264 @@
+{
+  "baseline": {
+    "summary": {
+      "run_id": "swebenchpro_run_baseline_opus_nodebb_seed0_b3515e_baseline",
+      "benchmark": "swebench_pro",
+      "mcp_mode": "baseline",
+      "model": "claude-opus-4-5",
+      "total_tasks": 31,
+      "mean_reward": 0.5806451612903226,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0
+    },
+    "tasks": [
+      {
+        "task_name": "instance_gravitational__teleport-288c5519ce0dec9622361a5e5d6cd36aa2d9e348",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1343.399211,
+        "agent_execution_seconds": 937.140879
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-967855b429f749c28c112b8cb1b15bc79157f973",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 906.508767,
+        "agent_execution_seconds": 654.603506
+      },
+      {
+        "task_name": "instance_future-architect__vuls-e1fab805afcfc92a2a615371d0ec1e667503c254-v264a82e2f4818e30f5a25e4da53b27ba119f62b5",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 162.858464,
+        "agent_execution_seconds": 0.183393
+      },
+      {
+        "task_name": "instance_future-architect__vuls-139f3a81b66c47e6d8f70ce6c4afe7a9196a6ea8",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 459.351537,
+        "agent_execution_seconds": 318.038718
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-9d25c18b79bc7829a6fb08ec9e8793d5d17e2868",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1889.998217,
+        "agent_execution_seconds": 1226.942487
+      },
+      {
+        "task_name": "instance_future-architect__vuls-e049df50fa1eecdccc5348e27845b5c783ed7c76-v73dc95f6b90883d8a87e01e5e9bb6d3cc32add6d",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 531.447364,
+        "agent_execution_seconds": 0.168555
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-86906cbfc3a5d3629a583f98e6301142f5f14bdb-v6bea0cc3a6fc532d7da914314f2944fc1cd04dee",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 317.008502,
+        "agent_execution_seconds": 0.176448
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-b433bd05ce405837804693bebd5f4b88d87133c8",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 558.215863,
+        "agent_execution_seconds": 512.135508
+      },
+      {
+        "task_name": "instance_ansible__ansible-e40889e7112ae00a21a2c74312b330e67a766cc0-v1055803c3a812189a1133297f7f5468579283f86",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 564.526259,
+        "agent_execution_seconds": 533.555048
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-cf06f4ebfab7fa21eed3e5838592e8e44566957f",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 440.27918,
+        "agent_execution_seconds": 241.974071
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-e91615cf07966da41756017a7d571f9fc0fdbe80",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 610.42359,
+        "agent_execution_seconds": 420.639734
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-f1bc91a1b999656dbdb2495ccb57bf2105b84920",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 572.927433,
+        "agent_execution_seconds": 418.510587
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-aebaecd026f752b187f11328b0d464761b15d2ab",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1393.864752,
+        "agent_execution_seconds": 605.648108
+      },
+      {
+        "task_name": "instance_gravitational__teleport-3587cca7840f636489449113969a5066025dd5bf",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 752.805118,
+        "agent_execution_seconds": 539.641175
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-c8d71ad7ea98d97546f01cce4ccb451dbcf37d3b",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1013.146816,
+        "agent_execution_seconds": 642.566496
+      },
+      {
+        "task_name": "instance_ansible__ansible-bec27fb4c0a40c5f8bbcf26a475704227d65ee73-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 945.133099,
+        "agent_execution_seconds": 909.854051
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-dbe263961b187e1c5d7fe34c65b000985a2da5a0",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 918.45615,
+        "agent_execution_seconds": 471.20207
+      },
+      {
+        "task_name": "instance_gravitational__teleport-d873ea4fa67d3132eccba39213c1ca2f52064dcc-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 578.908538,
+        "agent_execution_seconds": 0.180448
+      },
+      {
+        "task_name": "instance_future-architect__vuls-ad2edbb8448e2c41a097f1c0b52696c0f6c5924d",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1232.209658,
+        "agent_execution_seconds": 614.142967
+      },
+      {
+        "task_name": "instance_future-architect__vuls-4a72295de7b91faa59d90a5bee91535bbe76755d",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 649.288434,
+        "agent_execution_seconds": 405.92883
+      },
+      {
+        "task_name": "instance_ansible__ansible-811093f0225caa4dd33890933150a81c6a6d5226-v1055803c3a812189a1133297f7f5468579283f86",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1300.141155,
+        "agent_execution_seconds": 1265.302067
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-c1fd7a81ef9f23e742501bfb26d914eb683262aa",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 781.52637,
+        "agent_execution_seconds": 304.258146
+      },
+      {
+        "task_name": "instance_ansible__ansible-4c5ce5a1a9e79a845aff4978cfeb72a0d4ecf7d6-v1055803c3a812189a1133297f7f5468579283f86",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 557.272365,
+        "agent_execution_seconds": 523.401428
+      },
+      {
+        "task_name": "instance_ansible__ansible-b8025ac160146319d2b875be3366b60c852dd35d-v0f01c69f1e2528b935359cfe578530722bca2c59",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 488.931272,
+        "agent_execution_seconds": 453.408868
+      },
+      {
+        "task_name": "instance_ansible__ansible-c616e54a6e23fa5616a1d56d243f69576164ef9b-v1055803c3a812189a1133297f7f5468579283f86",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 689.63398,
+        "agent_execution_seconds": 657.698213
+      },
+      {
+        "task_name": "instance_flipt-io__flipt-b3cd920bbb25e01fdb2dab66a5a913363bc62f6c",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1569.489498,
+        "agent_execution_seconds": 877.271149
+      },
+      {
+        "task_name": "instance_gravitational__teleport-3fa6904377c006497169945428e8197158667910-v626ec2a48416b10a88641359a169d99e935ff037",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 982.025149,
+        "agent_execution_seconds": 720.408301
+      },
+      {
+        "task_name": "instance_element-hq__element-web-f14374a51c153f64f313243f2df6ea4971db4e15",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 515.096378,
+        "agent_execution_seconds": 462.296396
+      },
+      {
+        "task_name": "instance_gravitational__teleport-6eaaf3a27e64f4ef4ef855bd35d7ec338cf17460-v626ec2a48416b10a88641359a169d99e935ff037",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 426.109371,
+        "agent_execution_seconds": 187.569084
+      },
+      {
+        "task_name": "instance_gravitational__teleport-d6ffe82aaf2af1057b69c61bf9df777f5ab5635a-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1121.709124,
+        "agent_execution_seconds": 0.306733
+      },
+      {
+        "task_name": "instance_element-hq__element-web-33e8edb3d508d6eefb354819ca693b7accc695e7",
+        "reward": 1.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 346.384947,
+        "agent_execution_seconds": 303.553968
+      }
+    ]
+  }
+}

@@ -15,6 +15,7 @@ from datetime import datetime
 
 from .harbor_parser import HarborResultParser
 from .transcript_parser import TranscriptParser
+from .trajectory_parser import TrajectoryParser
 from .database import MetricsDatabase
 
 
@@ -43,6 +44,7 @@ class IngestionOrchestrator:
         self.transcripts_dir = transcripts_dir
         self.parser = HarborResultParser()
         self.transcript_parser = TranscriptParser()
+        self.trajectory_parser = TrajectoryParser()
     
     def ingest_experiment(
         self,
@@ -101,6 +103,18 @@ class IngestionOrchestrator:
                 if transcript_file.exists():
                     try:
                         metrics = self.transcript_parser.parse_file(transcript_file)
+
+                        # Look for trajectory.json for detailed token metrics
+                        trajectory_file = result_file.parent / "agent" / "trajectory.json"
+                        if trajectory_file.exists():
+                            try:
+                                trajectory_metrics = self.trajectory_parser.parse_file(trajectory_file)
+                                if trajectory_metrics:
+                                    metrics.merge_trajectory_metrics(trajectory_metrics)
+                                    logger.debug(f"Merged trajectory metrics for {result.task_id}")
+                            except Exception as e:
+                                logger.warning(f"Error parsing trajectory {trajectory_file}: {e}")
+
                         self.db.store_tool_usage(
                             task_id=result.task_id,
                             metrics=metrics,

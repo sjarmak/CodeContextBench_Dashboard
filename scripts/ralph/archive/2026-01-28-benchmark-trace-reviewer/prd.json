@@ -1,0 +1,390 @@
+{
+  "project": "CodeContextBench",
+  "branchName": "ralph/harbor-benchmark-adapters",
+  "description": "Harbor Benchmark Adapters & Quality Framework - Create adapters for 5 benchmarks (AINativeBench, DevAI, PRDBench, SWE-Perf, TAC), agent-as-a-judge infrastructure, HOW2BENCH quality framework, and smoke test validation",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create MCP-Value Scorer framework",
+      "description": "As a benchmark operator, I need a reusable scoring framework to select high-MCP-value tasks from any benchmark.",
+      "acceptanceCriteria": [
+        "Create src/task_selection/mcp_value_scorer.py with MCPValueScorer class",
+        "Implement score_task(task: dict) -> float method returning 0.0-1.0",
+        "Scoring dimensions: context_complexity (0.3), cross_file_deps (0.3), semantic_search_potential (0.2), task_category_weight (0.2)",
+        "Implement select_top_tasks(tasks: list, n: int) -> list method",
+        "Add unit tests in tests/test_mcp_value_scorer.py",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create AINativeBench data model and loader",
+      "description": "As a benchmark operator, I need a data model and loader for AINativeBench tasks.",
+      "acceptanceCriteria": [
+        "Create benchmarks/ainativebench/ directory structure",
+        "Create adapter.py with AINativeBenchTask dataclass: id, benchmark_name, variant, test_cases, scoring_metrics",
+        "Implement AINativeBenchLoader with load(), all_ids(), filter_by_benchmark(), filter_by_variant() methods",
+        "Loader reads from AINativeBench dataset structure (8 benchmarks, 4 variants each)",
+        "Add unit tests in benchmarks/ainativebench/tests/test_adapter.py",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create AINativeBench adapter and templates",
+      "description": "As a benchmark operator, I need an adapter that generates Harbor-compatible tasks from AINativeBench.",
+      "acceptanceCriteria": [
+        "Implement AINativeBenchAdapter class with generate_task() method",
+        "Create templates/ directory with task.toml, instruction.md, Dockerfile, test.sh templates",
+        "Dockerfile uses Python 3.10+ with uv package manager",
+        "Verifier parses AINativeBench's native test_results/ JSON output to reward.json",
+        "Create run_adapter.py CLI with --benchmark, --variant, --limit, --output_dir flags",
+        "Add unit tests for adapter template rendering",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create DevAI data model and loader",
+      "description": "As a benchmark operator, I need a data model and loader for DevAI benchmark tasks.",
+      "acceptanceCriteria": [
+        "Create benchmarks/devai/ directory structure",
+        "Create adapter.py with DevAITask dataclass: id, user_query, requirements (list with dependencies), preferences, domain",
+        "Implement DevAILoader with load(), all_ids(), filter_by_domain() methods",
+        "Loader parses DevAI's 55 tasks and 365 hierarchical requirements",
+        "Add unit tests in benchmarks/devai/tests/test_adapter.py",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create DevAI adapter and templates",
+      "description": "As a benchmark operator, I need an adapter that generates Harbor-compatible tasks from DevAI.",
+      "acceptanceCriteria": [
+        "Implement DevAIAdapter class with generate_task() method",
+        "Create templates/ directory with task.toml, instruction.md, Dockerfile, test.sh templates",
+        "Workspace generation matches DevAI's expected benchmark/workspaces/{AGENT_NAME}/{task_name}/ structure",
+        "Verifier validates trajectory format against trajectory-schema.json",
+        "Create run_adapter.py CLI with --domain, --limit, --output_dir flags",
+        "Add unit tests for adapter template rendering",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create PRDBench data model and loader",
+      "description": "As a benchmark operator, I need a data model and loader for PRDBench tasks.",
+      "acceptanceCriteria": [
+        "Create benchmarks/prdbench/ directory structure",
+        "Create adapter.py with PRDBenchTask dataclass: id, prd_content, test_plan, evaluation_criteria",
+        "Implement PRDBenchLoader with load(), all_ids() methods",
+        "Loader reads {task_id}/src/PRD.md and {task_id}/evaluation/detailed_test_plan.json",
+        "Add unit tests in benchmarks/prdbench/tests/test_adapter.py",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Create PRDBench adapter and templates",
+      "description": "As a benchmark operator, I need an adapter that generates Harbor-compatible tasks from PRDBench.",
+      "acceptanceCriteria": [
+        "Implement PRDBenchAdapter class with generate_task() method",
+        "Create templates/ directory with task.toml, instruction.md, Dockerfile, test.sh templates",
+        "Dockerfile supports conda environment with multi-port configuration",
+        "PRD.md content correctly embedded in instruction.md",
+        "Create run_adapter.py CLI with --task_ids, --limit, --output_dir flags",
+        "Add unit tests for adapter template rendering",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create SWE-Perf wrapper adapter",
+      "description": "As a benchmark operator, I need a thin wrapper adapter for SWE-Perf that delegates to existing infrastructure.",
+      "acceptanceCriteria": [
+        "Create benchmarks/sweperf/ directory structure",
+        "Create adapter.py with SWEPerfTask dataclass: id, repo_name, target_function, human_solution_reference, baseline_runtime",
+        "Implement SWEPerfLoader loading 140 instances",
+        "Implement thin SWEPerfAdapter generating Harbor metadata (task.toml, instruction.md) wrapping SWE-Perf evaluation",
+        "Verifier wraps SWE-Perf's runtime measurement, outputs runtime_reduction as primary metric in reward.json",
+        "Create run_adapter.py CLI with --repo, --limit, --output_dir flags",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Complete TAC wrapper adapter",
+      "description": "As a benchmark operator, I need to complete the TheAgentCompany wrapper adapter started in tac_mcp_value/.",
+      "acceptanceCriteria": [
+        "Review existing benchmarks/tac_mcp_value/ implementation",
+        "Complete TACTask dataclass if missing fields (id, role, task_md_path, docker_image)",
+        "Complete TACLoader with filter_by_role() method (SWE, PM, DS, HR, Finance, Admin)",
+        "Ensure adapter wraps TAC Docker images and /utils/eval.py evaluator",
+        "Verify MCP configuration injection via environment variables",
+        "Create/update run_adapter.py CLI with --role, --limit, --output_dir flags",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Create standalone Agent-as-a-Judge evaluator",
+      "description": "As a benchmark operator, I need a standalone agent-as-a-judge tool to evaluate Harbor results using LLM judgment.",
+      "acceptanceCriteria": [
+        "Create src/evaluation/agent_judge.py with AgentJudge class",
+        "Implement evaluate_result(task: HarborResult, criteria: list[str]) -> JudgmentResult method",
+        "Support configurable LLM backend via ANTHROPIC_API_KEY or OPENAI_API_KEY environment variables",
+        "Create JudgmentResult dataclass: overall_score, requirement_scores (dict), reasoning, confidence",
+        "Implement structured output parsing for requirement satisfaction scores",
+        "Add rate limiting and retry logic for API calls",
+        "Add unit tests in tests/test_agent_judge.py",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create Agent-as-a-Judge CLI",
+      "description": "As a benchmark operator, I need a CLI to batch-evaluate Harbor results using agent-as-a-judge.",
+      "acceptanceCriteria": [
+        "Create scripts/run_agent_judge.py CLI",
+        "Support --results_dir pointing to Harbor results directory",
+        "Support --criteria_file for custom evaluation criteria (JSON/YAML)",
+        "Support --output_dir for judgment results",
+        "Support --model flag (default: claude-sonnet-4-20250514)",
+        "Output judgments to {task_id}_judgment.json files",
+        "Generate summary report with aggregate statistics",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create Agent-as-a-Judge verifier integration",
+      "description": "As a benchmark operator, I need to use agent-as-a-judge as a verifier option in adapters.",
+      "acceptanceCriteria": [
+        "Create src/evaluation/agent_judge_verifier.py implementing Harbor verifier interface",
+        "Verifier reads task criteria from ground_truth.json or dedicated criteria file",
+        "Verifier outputs standard reward.json with judgment score as primary metric",
+        "Add verifier_type option to task.toml template: 'deterministic' | 'agent_judge' | 'hybrid'",
+        "Update adapter base template to support verifier type selection",
+        "Add unit tests in tests/test_agent_judge_verifier.py",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Create HOW2BENCH checklist data model",
+      "description": "As a quality engineer, I need the 55-criteria HOW2BENCH checklist as structured data.",
+      "acceptanceCriteria": [
+        "Create src/quality/how2bench_checklist.py with all 55 criteria as structured data",
+        "Organize criteria into categories: data_quality, reproducibility, methodology",
+        "Each criterion has: id, category, description, severity (critical/important/recommended), automated (bool)",
+        "Create ChecklistResult dataclass: criterion_id, passed, evidence, notes",
+        "Create BenchmarkAuditReport dataclass aggregating all results",
+        "Add unit tests in tests/test_how2bench_checklist.py",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Create pre-flight validation checks",
+      "description": "As a benchmark operator, I need automated pre-flight checks before deploying adapters.",
+      "acceptanceCriteria": [
+        "Create src/quality/preflight_validator.py with PreflightValidator class",
+        "Implement checks: task.toml schema validity, Dockerfile presence, test.sh executability",
+        "Implement checks: ground_truth.json presence, instruction.md completeness",
+        "Implement checks: no hardcoded secrets, valid timeout values, resource limits set",
+        "Return structured validation report with pass/fail per check",
+        "Create scripts/validate_adapter.py CLI that runs preflight on adapter directory",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Create documentation compliance auditor",
+      "description": "As a quality engineer, I need to generate compliance reports for each benchmark.",
+      "acceptanceCriteria": [
+        "Create src/quality/compliance_auditor.py with ComplianceAuditor class",
+        "Implement audit_benchmark(benchmark_dir: Path) -> BenchmarkAuditReport method",
+        "Check README.md presence and required sections",
+        "Check DESIGN.md with task selection rationale",
+        "Check LICENSE compatibility and data source attribution",
+        "Generate markdown compliance report",
+        "Create scripts/audit_benchmark.py CLI",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Create task quality scorer",
+      "description": "As a quality engineer, I need to score individual tasks against HOW2BENCH criteria.",
+      "acceptanceCriteria": [
+        "Create src/quality/task_quality_scorer.py with TaskQualityScorer class",
+        "Implement scoring against: instruction clarity, ground truth validity, evaluation determinism",
+        "Score each task 0.0-1.0 with breakdown by criterion",
+        "Flag tasks below threshold (default 0.7) for review",
+        "Create scripts/score_task_quality.py CLI",
+        "Output quality scores to task_quality_report.json",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Create smoke test runner",
+      "description": "As a benchmark operator, I need a smoke test runner to validate adapters before VM deployment.",
+      "acceptanceCriteria": [
+        "Create scripts/smoke_test_adapter.py CLI",
+        "Support --adapter_dir pointing to benchmark adapter",
+        "Support --num_tasks (default: 3) for number of tasks to test",
+        "Generate tasks using adapter's run_adapter.py",
+        "Validate generated task structure (task.toml, instruction.md, Dockerfile, test.sh present)",
+        "Support --build flag to optionally build Docker image",
+        "Support --verify flag to run verifier with mock agent output",
+        "Output smoke test report with pass/fail per task",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "AINativeBench smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the AINativeBench adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 AINativeBench tasks using smoke_test_adapter.py",
+        "Verify task.toml has correct metadata (category: ainativebench)",
+        "Verify instruction.md contains benchmark-specific instructions",
+        "Verify reward.json output format matches Harbor spec",
+        "Document any adapter-specific setup requirements in README.md",
+        "Smoke test passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "DevAI smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the DevAI adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 DevAI tasks using smoke_test_adapter.py",
+        "Verify trajectory schema validation works",
+        "Verify agent-as-a-judge integration produces valid judgment (if criteria provided)",
+        "Verify reward.json output format matches Harbor spec",
+        "Smoke test passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "PRDBench smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the PRDBench adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 PRDBench tasks using smoke_test_adapter.py",
+        "Verify PRD.md content is correctly embedded in instruction.md",
+        "Verify test_plan.json is accessible to verifier",
+        "Verify reward.json output format matches Harbor spec",
+        "Smoke test passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "SWE-Perf smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the SWE-Perf adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 SWE-Perf tasks using smoke_test_adapter.py",
+        "Verify wrapper correctly references SWE-Perf evaluation",
+        "Verify runtime_reduction metric is defined in reward.json schema",
+        "Verify reward.json output format matches Harbor spec",
+        "Smoke test passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "TAC smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the TAC adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 TAC tasks using smoke_test_adapter.py",
+        "Verify TAC Docker image wrapper references are valid",
+        "Verify MCP configuration injection structure is correct",
+        "Verify TAC's eval.py output conversion to reward.json is defined",
+        "Smoke test passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Add task selection scripts per benchmark",
+      "description": "As a benchmark operator, I need task selection scripts using MCPValueScorer for each benchmark.",
+      "acceptanceCriteria": [
+        "Create benchmarks/ainativebench/select_tasks.py using MCPValueScorer",
+        "Create benchmarks/devai/select_tasks.py using MCPValueScorer",
+        "Create benchmarks/prdbench/select_tasks.py using MCPValueScorer",
+        "Create benchmarks/sweperf/select_tasks.py using MCPValueScorer",
+        "Update benchmarks/tac_mcp_value/select_tasks.py to use MCPValueScorer",
+        "Each script outputs ranked task list with scores to selected_tasks.json",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

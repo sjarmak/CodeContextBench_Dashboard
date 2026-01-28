@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0.0",
+  "experiment_id": "exp_locobench_50_tasks_2_2026-01-25",
+  "created_at": "2026-01-25T01:05:05.819218",
+  "finished_at": "2026-01-25T13:36:36.210559",
+  "status": "completed",
+  "config": {
+    "source_dir": "/Users/sjarmak/evals/custom_agents/agents/claudecode/jobs/locobench_50_tasks_20260124_225159",
+    "experiment_name": "locobench_50_tasks_20260124_225159",
+    "description": "Retroactive analysis of locobench_50_tasks_20260124_225159",
+    "benchmarks": [
+      "locobench_agent"
+    ],
+    "models": [
+      "unknown"
+    ],
+    "mcp_modes": [
+      "deepsearch_hybrid",
+      "baseline"
+    ],
+    "seeds": [
+      0
+    ],
+    "tags": [
+      "retroactive-analysis",
+      "locobench_agent"
+    ]
+  },
+  "matrix_summary": {
+    "total_runs": 2,
+    "total_pairs": 1,
+    "dimensions": {
+      "benchmarks": 1,
+      "models": 1,
+      "mcp_modes": 2,
+      "seeds": 1,
+      "tasks": 51
+    }
+  },
+  "runs": [
+    {
+      "run_id": "locobench_50_tasks_20260124_225159_deepsearch_hybrid",
+      "status": "completed",
+      "mcp_mode": "deepsearch_hybrid",
+      "total_tasks": 51,
+      "mean_reward": 0.443121568627451
+    },
+    {
+      "run_id": "locobench_50_tasks_20260124_225159_baseline",
+      "status": "completed",
+      "mcp_mode": "baseline",
+      "total_tasks": 51,
+      "mean_reward": 0.43904117647058827
+    }
+  ],
+  "pairs": [
+    {
+      "pair_id": "pair_deepsearch_hybrid",
+      "baseline_run_id": "locobench_50_tasks_20260124_225159_baseline",
+      "mcp_run_id": "locobench_50_tasks_20260124_225159_deepsearch_hybrid",
+      "status": "completed"
+    }
+  ]
+}

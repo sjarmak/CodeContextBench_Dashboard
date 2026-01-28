@@ -1,0 +1,176 @@
+{
+  "deepsearch_hybrid": {
+    "summary": {
+      "run_id": "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid",
+      "benchmark": "swebench_pro",
+      "mcp_mode": "deepsearch_hybrid",
+      "model": "claude-opus-4-5",
+      "total_tasks": 20,
+      "mean_reward": 0.0,
+      "total_input_tokens": 75641355,
+      "total_output_tokens": 11041
+    },
+    "tasks": [
+      {
+        "task_name": "instance_protonmail__webclients-caf10ba9ab2677761c88522d1ba8ad025779c492",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 387.94509,
+        "agent_execution_seconds": 0.790273
+      },
+      {
+        "task_name": "instance_protonmail__webclients-c6f65d205c401350a226bb005f42fac1754b0b5b",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 332.130493,
+        "agent_execution_seconds": 0.849904
+      },
+      {
+        "task_name": "instance_navidrome__navidrome-bf2bcb12799b21069f137749e0c331f761d1f693",
+        "reward": 0.0,
+        "input_tokens": 10492656,
+        "output_tokens": 1892,
+        "duration_seconds": 1022.90844,
+        "agent_execution_seconds": 882.366925
+      },
+      {
+        "task_name": "instance_gravitational__teleport-fb0ab2b9b771377a689fd0d0374777c251e58bbf",
+        "reward": 0.0,
+        "input_tokens": 5318998,
+        "output_tokens": 812,
+        "duration_seconds": 744.142618,
+        "agent_execution_seconds": 432.521258
+      },
+      {
+        "task_name": "instance_protonmail__webclients-2dce79ea4451ad88d6bfe94da22e7f2f988efa60",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 127.716331,
+        "agent_execution_seconds": 0.937032
+      },
+      {
+        "task_name": "instance_protonmail__webclients-0d0267c4438cf378bda90bc85eed3a3615871ac4",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 38.004116,
+        "agent_execution_seconds": 0.870605
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-d109cc7e6e161170391f98f9a6fa1d02534c18e4-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+        "reward": 0.0,
+        "input_tokens": 11365150,
+        "output_tokens": 1747,
+        "duration_seconds": 695.922618,
+        "agent_execution_seconds": 661.668009
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 31.032019,
+        "agent_execution_seconds": 0.592435
+      },
+      {
+        "task_name": "instance_protonmail__webclients-6e1873b06df6529a469599aa1d69d3b18f7d9d37",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 171.566267,
+        "agent_execution_seconds": 0.777078
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-7f6b722a10f822171501d027cad60afe53337732-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+        "reward": 0.0,
+        "input_tokens": 14390252,
+        "output_tokens": 1593,
+        "duration_seconds": 865.809959,
+        "agent_execution_seconds": 833.015913
+      },
+      {
+        "task_name": "instance_gravitational__teleport-d873ea4fa67d3132eccba39213c1ca2f52064dcc-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 0.064057,
+        "agent_execution_seconds": 0.0
+      },
+      {
+        "task_name": "instance_gravitational__teleport-7744f72c6eb631791434b648ba41083b5f6d2278-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+        "reward": 0.0,
+        "input_tokens": 5443725,
+        "output_tokens": 853,
+        "duration_seconds": 3448.837261,
+        "agent_execution_seconds": 509.194335
+      },
+      {
+        "task_name": "instance_tutao__tutanota-befce4b146002b9abc86aa95f4d57581771815ce-vee878bb72091875e912c52fc32bc60ec3760227b",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 356.881043,
+        "agent_execution_seconds": 0.8853
+      },
+      {
+        "task_name": "instance_gravitational__teleport-d873ea4fa67d3132eccba39213c1ca2f52064dcc-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+        "reward": 0.0,
+        "input_tokens": 4670494,
+        "output_tokens": 632,
+        "duration_seconds": 1097.023538,
+        "agent_execution_seconds": 516.213506
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-bb152d23c004f3d68986877143bb0f83531fe401-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+        "reward": 0.0,
+        "input_tokens": 2822844,
+        "output_tokens": 547,
+        "duration_seconds": 793.664639,
+        "agent_execution_seconds": 761.553072
+      },
+      {
+        "task_name": "instance_protonmail__webclients-369fd37de29c14c690cb3b1c09a949189734026f",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 167.089542,
+        "agent_execution_seconds": 0.783405
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-b67138b316b1e9c11df8a4a8391fe5cc8e75ff9f-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+        "reward": 0.0,
+        "input_tokens": 7562496,
+        "output_tokens": 886,
+        "duration_seconds": 899.130754,
+        "agent_execution_seconds": 867.291638
+      },
+      {
+        "task_name": "instance_gravitational__teleport-db89206db6c2969266e664c7c0fb51b70e958b64",
+        "reward": 0.0,
+        "input_tokens": 2632728,
+        "output_tokens": 174,
+        "duration_seconds": 406.133491,
+        "agent_execution_seconds": 166.915628
+      },
+      {
+        "task_name": "instance_gravitational__teleport-d6ffe82aaf2af1057b69c61bf9df777f5ab5635a-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+        "reward": 0.0,
+        "input_tokens": 10942012,
+        "output_tokens": 1905,
+        "duration_seconds": 3318.844815,
+        "agent_execution_seconds": 1873.411922
+      },
+      {
+        "task_name": "instance_protonmail__webclients-8be4f6cb9380fcd2e67bcb18cef931ae0d4b869c",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 148.739888,
+        "agent_execution_seconds": 0.859161
+      }
+    ]
+  }
+}

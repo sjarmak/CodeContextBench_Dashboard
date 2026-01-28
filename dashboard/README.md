@@ -4,24 +4,24 @@ Interactive Streamlit dashboard for CodeContextBench evaluation pipeline.
 
 ## Features
 
-### 🏠 Home
+### Home
 - Quick stats (benchmarks, experiments, agents, manifests)
 - Recent activity feed
 
-### 📋 Benchmark Manifests
+### Benchmark Manifests
 - Browse MANIFEST.json files
 - View dataset information and hashes
 - Inspect validation logs
 - Environment fingerprints
 
-### 📊 Experiment Results
+### Experiment Results
 - Browse evaluation_report.json data
 - View individual agent runs
 - LLM judge assessments
 - Tool usage breakdowns
 - REPORT.md rendering
 
-### 🔍 Agent Comparison
+### Agent Comparison
 - Side-by-side agent performance
 - Success rate charts
 - Token usage comparison
@@ -29,13 +29,13 @@ Interactive Streamlit dashboard for CodeContextBench evaluation pipeline.
 - Tool usage heatmaps
 - Cost analysis
 
-### 🔎 Deep Search Analytics
+### Deep Search Analytics
 - MCP Deep Search usage patterns
 - Tool distribution (deep_search vs keyword vs NLS vs local)
 - Query analysis and export
 - Per-agent breakdowns
 
-### ▶️ Run Benchmarks
+### Run Benchmarks
 - Trigger benchmark lifecycle pipeline
 - Launch profile runs
 - Run post-process evaluation

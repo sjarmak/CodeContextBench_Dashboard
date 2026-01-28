@@ -1,0 +1,55 @@
+# Ralph Progress Log
+# Project: LoCoBench-Agent Harbor Adapter
+# Branch: ralph/locobench-agent-adapter
+# Started: 2026-01-23
+
+## US-001: Download LoCoBench-Agent dataset
+Status: PASSED (manual)
+Notes: Data manually downloaded and extracted by user due to gdown stalling.
+
+## US-002: Explore and document dataset structure
+Status: PASSED
+Notes: Created DATA_EXPLORATION.md documenting dataset structure, scenarios format, 8 task categories, 10 languages.
+
+## US-003: Define task selection criteria
+Status: PASSED
+Notes: Created docs/TASK_SELECTION_CRITERIA.md with scoring formula, weights, category bonuses.
+
+## US-004: Create dataset extraction script
+Status: PASSED
+Notes: Created extract_dataset.py that reads all 8000 scenarios, outputs locobench_dataset.jsonl.
+
+## US-005: Implement task scoring and selection script
+Status: PASSED
+Notes: Created select_tasks.py. Selected top 50 tasks: 34 architectural, 13 cross_file, 3 bug. Avg context: 968K tokens.
+
+## US-006: Create Harbor task templates
+Status: PASSED
+Notes: Created templates/: task.toml, instruction.md, Dockerfile, test.sh, verify.py.
+
+## US-007: Create LoCoBenchTask dataclass and loader
+Status: PASSED
+Notes: Created adapter.py with LoCoBenchTask dataclass and LoCoBenchLoader.
+
+## US-008: Implement LoCoBenchAdapter class
+Status: PASSED
+Notes: Implemented LoCoBenchAdapter with template rendering, task generation, project file mapping.
+
+## US-009: Create run_adapter.py CLI
+Status: PASSED
+Notes: Created CLI with --dataset_path, --output_dir, --task_ids, --limit, --selected_tasks options.
+
+## US-010: Generate 50 selected tasks
+Status: PASSED
+Notes: Generated all 50 tasks to benchmarks/locobench_agent/tasks/. No errors.
+
+## US-011: Smoke test with baseline agent
+Status: PASSED
+Notes: Tested 2 tasks (architectural + bug). Adapter works correctly. Identified Docker timeout and podman issues (infra, not adapter).
+
+## US-012: Create benchmark documentation
+Status: PASSED (manual)
+Notes: Created README.md and DESIGN.md. Updated adapter to use language-specific Dockerfiles for faster builds.
+
+---
+ALL 12 STORIES COMPLETE

@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0.0",
+  "experiment_id": "exp_swebenchpro_run_base_2026-01-25",
+  "created_at": "2026-01-24T15:31:29.629190",
+  "finished_at": "2026-01-24T17:59:49.108929",
+  "status": "completed",
+  "config": {
+    "source_dir": "/Users/sjarmak/evals/custom_agents/agents/claudecode/jobs/swebenchpro_run_baseline_opus_nodebb_seed0_ce2dc3",
+    "experiment_name": "swebenchpro_run_baseline_opus_nodebb_seed0_ce2dc3",
+    "description": "Retroactive analysis of swebenchpro_run_baseline_opus_nodebb_seed0_ce2dc3",
+    "benchmarks": [
+      "swebench_pro"
+    ],
+    "models": [
+      "claude-opus-4-5"
+    ],
+    "mcp_modes": [
+      "baseline"
+    ],
+    "seeds": [
+      0
+    ],
+    "tags": [
+      "retroactive-analysis",
+      "swebench_pro"
+    ]
+  },
+  "matrix_summary": {
+    "total_runs": 1,
+    "total_pairs": 0,
+    "dimensions": {
+      "benchmarks": 1,
+      "models": 1,
+      "mcp_modes": 1,
+      "seeds": 1,
+      "tasks": 20
+    }
+  },
+  "runs": [
+    {
+      "run_id": "swebenchpro_run_baseline_opus_nodebb_seed0_ce2dc3_baseline",
+      "status": "completed",
+      "mcp_mode": "baseline",
+      "total_tasks": 20,
+      "mean_reward": 0.0
+    }
+  ],
+  "pairs": []
+}
