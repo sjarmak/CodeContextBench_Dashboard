@@ -44,84 +44,89 @@ def show_timeseries_analysis():
     st.title("Time-Series Analysis")
     st.markdown("**Track metric changes across experiments**")
     st.markdown("---")
-    
+
     # Initialize loader from session state
     loader = st.session_state.get("analysis_loader")
     if loader is None:
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
+        st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
-    
-    # Sidebar configuration
-    with st.sidebar:
-        st.subheader("Configuration")
-        
-        # Experiment selector - allow multiple
-        try:
-            all_experiments = loader.list_experiments()
-            if not all_experiments:
-                st.error("No experiments available")
-                return
-            
-            selected_experiments = st.multiselect(
-                "Select Experiments (in order)",
-                all_experiments,
-                help="Choose 2+ experiments to analyze trends",
-                default=all_experiments[-3:] if len(all_experiments) >= 3 else all_experiments
-            )
-            
-            if not selected_experiments or len(selected_experiments) < 2:
-                st.warning("Select at least 2 experiments to view trends")
-                return
-            
-            # Sort by experiment ID (assumes chronological naming)
-            experiment_ids = sorted(selected_experiments)
-        except Exception as e:
-            st.error(f"Failed to load experiments: {e}")
+
+    # Configuration in main area
+    st.subheader("Configuration")
+
+    # Experiment selector - allow multiple
+    try:
+        all_experiments = loader.list_experiments()
+        if not all_experiments:
+            st.error("No experiments available")
             return
-        
+
+        selected_experiments = st.multiselect(
+            "Select Experiments (in chronological order)",
+            all_experiments,
+            help="Choose 2+ experiments to analyze trends",
+            default=all_experiments[-3:] if len(all_experiments) >= 3 else all_experiments,
+            key="timeseries_experiments"
+        )
+
+        if not selected_experiments or len(selected_experiments) < 2:
+            st.warning("Select at least 2 experiments to view trends")
+            return
+
+        # Sort by experiment ID (assumes chronological naming)
+        experiment_ids = sorted(selected_experiments)
+    except Exception as e:
+        st.error(f"Failed to load experiments: {e}")
+        return
+
+    col1, col2 = st.columns(2)
+
+    with col1:
         # Agent filter
         try:
             all_agents = set()
             for exp_id in experiment_ids:
                 agents = loader.list_agents(exp_id)
                 all_agents.update(agents)
-            
+
             all_agents = sorted(list(all_agents))
-            
+
             selected_agents = st.multiselect(
                 "Filter Agents (optional)",
                 all_agents,
                 help="Leave empty to show all agents",
-                default=all_agents
+                default=all_agents,
+                key="timeseries_agents"
             )
-            
+
             agent_names = selected_agents if selected_agents else None
         except Exception as e:
             st.error(f"Failed to load agents: {e}")
             agent_names = None
-        
+
+    with col2:
         # Metric selector
         available_metrics = ["pass_rate", "duration", "mcp_calls", "cost_per_success"]
         selected_metrics = st.multiselect(
             "Select Metrics",
             available_metrics,
             default=["pass_rate", "duration"],
-            help="Metrics to display in trends"
+            help="Metrics to display in trends",
+            key="timeseries_metrics"
         )
-        
+
         if not selected_metrics:
             st.warning("Select at least one metric")
             return
-        
-        # Update navigation context (with first experiment for reference)
-        if experiment_ids:
-            nav_context.navigate_to("analysis_timeseries", experiment=experiment_ids[0], agents=selected_agents)
-        
-        st.markdown("---")
-        
-        # Advanced filtering section
-        st.subheader("Advanced Filters")
-        filter_config = render_filter_panel("timeseries", loader, experiment_ids[0] if experiment_ids else None)
+
+    # Update navigation context (with first experiment for reference)
+    if experiment_ids:
+        nav_context.set_experiment(experiment_ids[0])
+
+    # Advanced filtering in expander
+    with st.expander("Advanced Filters"):
+        filter_config = render_filter_panel("timeseries", loader, experiment_ids[0] if experiment_ids else None, key_suffix="ts")
     
     # Load time-series analysis
     try:
@@ -140,14 +145,14 @@ def show_timeseries_analysis():
     # Apply filters if any are active
     filter_engine = FilterEngine()
     if filter_config.has_filters():
-        st.info(f"📈 Filters applied: {filter_engine.get_filter_summary(filter_config)}")
+        st.info(f"Filters applied: {filter_engine.get_filter_summary(filter_config)}")
         # Note: Filter application would go here when metrics are extracted
     
     # Summary statistics
     st.subheader("Trend Summary")
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         display_summary_card(
             "Experiments",
@@ -155,7 +160,7 @@ def show_timeseries_analysis():
             "chronological order",
             color="blue"
         )
-    
+
     with col2:
         display_summary_card(
             "Agents Tracked",
@@ -163,63 +168,68 @@ def show_timeseries_analysis():
             f"{len(all_agents) if not selected_agents else len(selected_agents)} total",
             color="blue"
         )
-    
+
     with col3:
+        # Count improving/degrading trends from the nested structure
         improving = 0
         degrading = 0
         if timeseries_result.trends:
-            for trend in timeseries_result.trends.values():
-                if trend.get("direction") == "IMPROVING":
-                    improving += 1
-                elif trend.get("direction") == "DEGRADING":
-                    degrading += 1
-        
+            for metric_name, agent_trends in timeseries_result.trends.items():
+                for agent_name, trend in agent_trends.items():
+                    if hasattr(trend, 'direction'):
+                        if trend.direction.value == "improving":
+                            improving += 1
+                        elif trend.direction.value == "degrading":
+                            degrading += 1
+
         display_summary_card(
             "Improving Metrics",
             str(improving),
             f"{degrading} degrading",
-            color="green" if improving > degrading else "red"
+            color="green" if improving > degrading else "gray"
         )
-    
+
     with col4:
-        anomaly_count = 0
-        if timeseries_result.anomalies:
-            anomaly_count = len(timeseries_result.anomalies)
-        
+        # Use total_anomalies from result
+        anomaly_count = timeseries_result.total_anomalies if hasattr(timeseries_result, 'total_anomalies') else 0
+
         display_summary_card(
             "Anomalies Detected",
             str(anomaly_count),
             "unusual patterns",
-            color="orange" if anomaly_count > 0 else "gray"
+            color="gray"
         )
     
     st.markdown("---")
     
     # Trend data by metric
     st.subheader("Metric Trends")
-    
+
     try:
         if timeseries_result.trends:
             trends_data = []
-            
-            for metric, trend_info in timeseries_result.trends.items():
-                if metric not in selected_metrics:
+
+            # Iterate through metric -> agent -> trend structure
+            for metric_name, agent_trends in timeseries_result.trends.items():
+                if metric_name not in selected_metrics:
                     continue
-                
-                direction = trend_info.get("direction", "STABLE")
-                percent_change = trend_info.get("percent_change", 0)
-                slope = trend_info.get("slope", 0)
-                confidence = trend_info.get("confidence", 0)
-                
-                trends_row = {
-                    "Metric": metric,
-                    "Direction": direction,
-                    "Change": f"{percent_change:+.1f}%",
-                    "Slope": f"{slope:+.4f}",
-                    "Confidence": f"{confidence:.2f}",
-                }
-                trends_data.append(trends_row)
-            
+
+                for agent_name, trend in agent_trends.items():
+                    direction = trend.direction.value.upper() if hasattr(trend.direction, 'value') else str(trend.direction)
+                    percent_change = trend.percent_change if hasattr(trend, 'percent_change') else 0
+                    slope = trend.slope if hasattr(trend, 'slope') else 0
+                    confidence = trend.confidence if hasattr(trend, 'confidence') else 0
+
+                    trends_row = {
+                        "Metric": metric_name,
+                        "Agent": agent_name,
+                        "Direction": direction,
+                        "Change": f"{percent_change:+.1f}%",
+                        "Slope": f"{slope:+.4f}",
+                        "Confidence": f"{confidence:.2f}",
+                    }
+                    trends_data.append(trends_row)
+
             if trends_data:
                 trends_df = pd.DataFrame(trends_data)
                 st.dataframe(trends_df, use_container_width=True, hide_index=True)
@@ -227,7 +237,7 @@ def show_timeseries_analysis():
                 display_no_data_message("No trend data for selected metrics")
         else:
             display_no_data_message("No trend analysis available")
-    
+
     except Exception as e:
         display_error_message(f"Failed to display trends: {e}")
     
@@ -235,25 +245,26 @@ def show_timeseries_analysis():
     
     # Agent trends
     st.subheader("Agent Performance Trends")
-    
+
     try:
-        if timeseries_result.agent_trends:
+        if timeseries_result.trends:
             agent_trends_data = []
-            
-            for agent, agent_metrics in timeseries_result.agent_trends.items():
-                for metric, metric_trend in agent_metrics.items():
-                    if metric not in selected_metrics:
-                        continue
-                    
+
+            # Reorganize: metric -> agent -> trend into agent -> metric view
+            for metric_name, agent_trends in timeseries_result.trends.items():
+                if metric_name not in selected_metrics:
+                    continue
+
+                for agent_name, trend in agent_trends.items():
                     agent_row = {
-                        "Agent": agent,
-                        "Metric": metric,
-                        "Start": f"{metric_trend.get('start_value', 0):.2f}",
-                        "End": f"{metric_trend.get('end_value', 0):.2f}",
-                        "Change": f"{metric_trend.get('change_percent', 0):+.1f}%",
+                        "Agent": agent_name,
+                        "Metric": metric_name,
+                        "Start": f"{trend.first_value:.2f}" if hasattr(trend, 'first_value') else "N/A",
+                        "End": f"{trend.last_value:.2f}" if hasattr(trend, 'last_value') else "N/A",
+                        "Change": f"{trend.percent_change:+.1f}%" if hasattr(trend, 'percent_change') else "N/A",
                     }
                     agent_trends_data.append(agent_row)
-            
+
             if agent_trends_data:
                 agent_trends_df = pd.DataFrame(agent_trends_data)
                 st.dataframe(agent_trends_df, use_container_width=True, hide_index=True)
@@ -261,7 +272,7 @@ def show_timeseries_analysis():
                 display_no_data_message("No agent trend data available")
         else:
             display_no_data_message("No agent trends available")
-    
+
     except Exception as e:
         display_error_message(f"Failed to display agent trends: {e}")
     
@@ -269,34 +280,38 @@ def show_timeseries_analysis():
     
     # Best and worst improving
     st.subheader("Best & Worst Improving Metrics")
-    
+
     col1, col2 = st.columns(2)
-    
+
     try:
-        if timeseries_result.best_improving:
-            with col1:
-                st.markdown("**Best Improving**")
-                best_data = []
-                for metric, change in timeseries_result.best_improving.items():
-                    best_data.append({
-                        "Metric": metric,
-                        "Improvement": f"{change:+.1f}%",
-                    })
-                if best_data:
-                    st.dataframe(pd.DataFrame(best_data), use_container_width=True, hide_index=True)
-        
-        if timeseries_result.worst_improving:
-            with col2:
-                st.markdown("**Most Degrading**")
-                worst_data = []
-                for metric, change in timeseries_result.worst_improving.items():
-                    worst_data.append({
-                        "Metric": metric,
-                        "Degradation": f"{change:+.1f}%",
-                    })
-                if worst_data:
-                    st.dataframe(pd.DataFrame(worst_data), use_container_width=True, hide_index=True)
-    
+        with col1:
+            st.markdown("**Best Improving**")
+            if timeseries_result.best_improving_metric:
+                trend = timeseries_result.best_improving_metric
+                best_data = [{
+                    "Metric": trend.metric_name,
+                    "Agent": trend.agent_name,
+                    "Improvement": f"{trend.percent_change:+.1f}%",
+                    "Confidence": f"{trend.confidence:.2f}",
+                }]
+                st.dataframe(pd.DataFrame(best_data), use_container_width=True, hide_index=True)
+            else:
+                st.info("No improving metrics found")
+
+        with col2:
+            st.markdown("**Most Degrading**")
+            if timeseries_result.worst_degrading_metric:
+                trend = timeseries_result.worst_degrading_metric
+                worst_data = [{
+                    "Metric": trend.metric_name,
+                    "Agent": trend.agent_name,
+                    "Degradation": f"{trend.percent_change:+.1f}%",
+                    "Confidence": f"{trend.confidence:.2f}",
+                }]
+                st.dataframe(pd.DataFrame(worst_data), use_container_width=True, hide_index=True)
+            else:
+                st.info("No degrading metrics found")
+
     except Exception as e:
         display_error_message(f"Failed to display best/worst metrics: {e}")
     
@@ -304,29 +319,28 @@ def show_timeseries_analysis():
     
     # Anomalies
     st.subheader("Detected Anomalies")
-    
+
     try:
-        if timeseries_result.anomalies:
-            anomaly_data = []
-            
-            for anomaly in timeseries_result.anomalies:
-                anomaly_row = {
-                    "Experiment": anomaly.get("experiment_id", "N/A"),
-                    "Agent": anomaly.get("agent_name", "N/A"),
-                    "Metric": anomaly.get("metric", "N/A"),
-                    "Severity": anomaly.get("severity", "normal").upper(),
-                    "Description": anomaly.get("description", ""),
-                }
-                anomaly_data.append(anomaly_row)
-            
-            if anomaly_data:
-                anomaly_df = pd.DataFrame(anomaly_data)
-                st.dataframe(anomaly_df, use_container_width=True, hide_index=True)
-            else:
-                display_no_data_message("No anomalies detected")
+        # Collect anomalies from trend objects
+        anomaly_data = []
+
+        if timeseries_result.trends:
+            for metric_name, agent_trends in timeseries_result.trends.items():
+                for agent_name, trend in agent_trends.items():
+                    if hasattr(trend, 'has_anomalies') and trend.has_anomalies:
+                        for i, desc in enumerate(trend.anomaly_descriptions):
+                            anomaly_data.append({
+                                "Agent": agent_name,
+                                "Metric": metric_name,
+                                "Description": desc,
+                            })
+
+        if anomaly_data:
+            anomaly_df = pd.DataFrame(anomaly_data)
+            st.dataframe(anomaly_df, use_container_width=True, hide_index=True)
         else:
-            st.info("ℹ️ No anomalies detected in trends")
-    
+            st.info("No anomalies detected in trends")
+
     except Exception as e:
         display_error_message(f"Failed to display anomalies: {e}")
     
@@ -334,19 +348,24 @@ def show_timeseries_analysis():
     
     # Export functionality
     st.subheader("Export Results")
-    
+
     try:
         export_data = {
             "experiment_ids": experiment_ids,
             "selected_agents": selected_agents,
             "selected_metrics": selected_metrics,
-            "trends": timeseries_result.trends or {},
-            "agent_trends": timeseries_result.agent_trends or {},
-            "anomalies": timeseries_result.anomalies or [],
-            "best_improving": timeseries_result.best_improving or {},
-            "worst_improving": timeseries_result.worst_improving or {},
+            "summary": {
+                "total_anomalies": timeseries_result.total_anomalies,
+                "agents_with_anomalies": timeseries_result.agents_with_anomalies,
+            },
+            "best_improving": timeseries_result.best_improving_metric.to_dict() if timeseries_result.best_improving_metric else None,
+            "worst_degrading": timeseries_result.worst_degrading_metric.to_dict() if timeseries_result.worst_degrading_metric else None,
         }
-        
+
+        # Add trends data
+        if timeseries_result.trends:
+            export_data["trends"] = timeseries_result.to_dict().get("trends", {})
+
         export_json_button(export_data, f"timeseries_{'_'.join(experiment_ids)}")
     
     except Exception as e:

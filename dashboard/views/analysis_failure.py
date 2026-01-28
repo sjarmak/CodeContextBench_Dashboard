@@ -44,47 +44,57 @@ def show_failure_analysis():
     st.title("Failure Analysis")
     st.markdown("**Understand failure modes and improvement opportunities**")
     st.markdown("---")
-    
+
     # Initialize loader from session state
     loader = st.session_state.get("analysis_loader")
     if loader is None:
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
+        st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
-    
-    # Sidebar configuration
-    with st.sidebar:
-        st.subheader("Configuration")
-        
-        # Experiment selector
-        experiment_id = experiment_selector()
-        if experiment_id is None:
+
+    # Configuration in main area
+    st.subheader("Configuration")
+
+    col_exp, col_agent = st.columns(2)
+
+    with col_exp:
+        try:
+            experiments = loader.list_experiments()
+            if not experiments:
+                st.error("No experiments found in database.")
+                return
+
+            experiment_id = st.selectbox(
+                "Select Experiment",
+                experiments,
+                key="failure_experiment",
+                help="Choose an experiment to analyze"
+            )
+        except Exception as e:
+            st.error(f"Failed to load experiments: {e}")
             return
-        
-        # Update navigation context
-        nav_context.navigate_to("analysis_failure", experiment=experiment_id)
-        
-        # Agent filter (optional)
+
+    # Update navigation context
+    nav_context.navigate_to("analysis_failure", experiment=experiment_id)
+
+    with col_agent:
         agents = loader.list_agents(experiment_id)
         if not agents:
-            st.error(f"No agents found for experiment {experiment_id}")
-            return
-        
+            st.warning(f"No agents found for experiment {experiment_id}")
+            agents = []
+
         selected_agent = st.selectbox(
             "Focus Agent (optional)",
             ["All Agents"] + agents,
+            key="failure_agent",
             help="Leave as 'All Agents' to see overall patterns"
         )
-        
+
         agent_name = None if selected_agent == "All Agents" else selected_agent
-        
-        if agent_name:
-            nav_context.navigate_to("analysis_failure", experiment=experiment_id, agents=[agent_name])
-        
-        st.markdown("---")
-        
-        # Advanced filtering section
-        st.subheader("Advanced Filters")
-        filter_config = render_filter_panel("failure", loader, experiment_id)
+
+    # Advanced filtering in expander
+    with st.expander("Advanced Filters"):
+        filter_config = render_filter_panel("failure", loader, experiment_id, key_suffix="fail")
     
     # Load failure analysis
     try:
@@ -103,7 +113,7 @@ def show_failure_analysis():
     # Apply filters if any are active
     filter_engine = FilterEngine()
     if filter_config.has_filters():
-        st.info(f"📊 Filters applied: {filter_engine.get_filter_summary(filter_config)}")
+        st.info(f"Filters applied: {filter_engine.get_filter_summary(filter_config)}")
         # Note: Filter application would go here when metrics are extracted
     
     # Summary statistics
@@ -122,15 +132,15 @@ def show_failure_analysis():
                 "Total Failures",
                 str(total_failures),
                 f"out of {total_tasks} tasks",
-                color="red"
+                color="gray"
             )
-        
+
         with col2:
             display_summary_card(
                 "Failure Rate",
                 f"{failure_rate:.1f}%",
                 f"{total_failures}/{total_tasks}",
-                color="red" if failure_rate > 50 else "orange" if failure_rate > 25 else "blue"
+                color="gray"
             )
         
         with col3:
@@ -154,7 +164,7 @@ def show_failure_analysis():
                 "Most Common",
                 most_common if most_common else "N/A",
                 "failure category",
-                color="orange"
+                color="gray"
             )
     
     except Exception as e:
@@ -337,9 +347,9 @@ def show_failure_analysis():
                 They have consistently failed across multiple agents.
                 """)
             else:
-                st.success("✓ No high-risk tasks identified")
+                st.success("Yes No high-risk tasks identified")
         else:
-            st.success("✓ No high-risk tasks identified")
+            st.success("Yes No high-risk tasks identified")
     
     except Exception as e:
         display_error_message(f"Failed to display high-risk tasks: {e}")

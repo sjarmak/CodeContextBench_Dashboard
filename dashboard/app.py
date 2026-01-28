@@ -152,9 +152,9 @@ def main():
     # Show credential status
     api_key_loaded = bool(os.environ.get("ANTHROPIC_API_KEY"))
     if api_key_loaded:
-        st.sidebar.success("✓ API Key Loaded")
+        st.sidebar.success("Yes API Key Loaded")
     else:
-        st.sidebar.error("✗ API Key Missing")
+        st.sidebar.error("No API Key Missing")
         st.sidebar.caption("Add ANTHROPIC_API_KEY to .env.local")
 
     # Get selected page
@@ -211,7 +211,6 @@ def show_home():
                 "Name": bm["name"],
                 "Tasks": bm["task_count"],
                 "Type": bm["adapter_type"],
-                "Validation": bm.get("validation_status", "Not run"),
             })
         st.dataframe(benchmark_data, use_container_width=True, hide_index=True)
     else:
@@ -231,7 +230,7 @@ def show_home():
     with col2:
         st.markdown("**Evaluation Results**")
         st.markdown("- Use **Run Results** to view evaluation outputs from the VM")
-        st.markdown("- Results are loaded from `~/evals/custom_agents/agents/claudecode/jobs`")
+        st.markdown("- Results are loaded from `~/evals/custom_agents/agents/claudecode/runs`")
 
 
 def show_benchmark_manager():

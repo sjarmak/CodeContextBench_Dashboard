@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0.0",
+  "experiment_id": "exp_swebenchpro_run_deep_2026-01-25",
+  "generated_at": "2026-01-25T16:37:37.058802Z",
+  "runs_by_mcp_mode": {
+    "deepsearch_hybrid": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ]
+  },
+  "runs_by_model": {
+    "claude-opus-4-5": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ]
+  },
+  "runs_by_task": {
+    "instance_protonmail__webclients-caf10ba9ab2677761c88522d1ba8ad025779c492": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_protonmail__webclients-c6f65d205c401350a226bb005f42fac1754b0b5b": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_navidrome__navidrome-bf2bcb12799b21069f137749e0c331f761d1f693": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_gravitational__teleport-fb0ab2b9b771377a689fd0d0374777c251e58bbf": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_protonmail__webclients-2dce79ea4451ad88d6bfe94da22e7f2f988efa60": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_protonmail__webclients-0d0267c4438cf378bda90bc85eed3a3615871ac4": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_internetarchive__openlibrary-d109cc7e6e161170391f98f9a6fa1d02534c18e4-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_protonmail__webclients-6e1873b06df6529a469599aa1d69d3b18f7d9d37": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_internetarchive__openlibrary-7f6b722a10f822171501d027cad60afe53337732-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_gravitational__teleport-d873ea4fa67d3132eccba39213c1ca2f52064dcc-vce94f93ad1030e3136852817f2423c1b3ac37bc4": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid",
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_gravitational__teleport-7744f72c6eb631791434b648ba41083b5f6d2278-vce94f93ad1030e3136852817f2423c1b3ac37bc4": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_tutao__tutanota-befce4b146002b9abc86aa95f4d57581771815ce-vee878bb72091875e912c52fc32bc60ec3760227b": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_internetarchive__openlibrary-bb152d23c004f3d68986877143bb0f83531fe401-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_protonmail__webclients-369fd37de29c14c690cb3b1c09a949189734026f": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_internetarchive__openlibrary-b67138b316b1e9c11df8a4a8391fe5cc8e75ff9f-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_gravitational__teleport-db89206db6c2969266e664c7c0fb51b70e958b64": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_gravitational__teleport-d6ffe82aaf2af1057b69c61bf9df777f5ab5635a-vee9b09fb20c43af7e520f57e9239bbcf46b7113d": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ],
+    "instance_protonmail__webclients-8be4f6cb9380fcd2e67bcb18cef931ae0d4b869c": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ]
+  },
+  "pairs_by_task": {},
+  "aggregate_stats": {
+    "baseline": {
+      "total_runs": 0,
+      "mean_reward": 0.0,
+      "total_tasks": 0
+    },
+    "mcp": {
+      "total_runs": 1,
+      "mean_reward": 0.0,
+      "total_tasks": 20
+    },
+    "improvement_pct": 0.0
+  }
+}

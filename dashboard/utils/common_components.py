@@ -61,8 +61,9 @@ def display_summary_card(title: str, value: str, metric: str = None,
     color_map = {
         "blue": "#1f77b4",
         "green": "#2ca02c",
-        "red": "#d62728",
-        "orange": "#ff7f0e",
+        "red": "#555555",
+        "orange": "#666666",
+        "gray": "#888888",
     }
     
     color_hex = color_map.get(color, "#1f77b4")
@@ -96,13 +97,13 @@ def display_significance_badge(p_value: float, alpha: float = 0.05) -> str:
         HTML badge string
     """
     if p_value < 0.001:
-        return '<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">✓ p<0.001</span>'
+        return '<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">Yes p<0.001</span>'
     elif p_value < 0.01:
-        return '<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">✓ p<0.01</span>'
+        return '<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">Yes p<0.01</span>'
     elif p_value < alpha:
-        return '<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">✓ p<0.05</span>'
+        return '<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">Yes p<0.05</span>'
     else:
-        return '<span style="background: #888; color: white; padding: 2px 6px; border-radius: 3px;">✗ ns (p={:.3f})</span>'.format(p_value)
+        return '<span style="background: #888; color: white; padding: 2px 6px; border-radius: 3px;">No ns (p={:.3f})</span>'.format(p_value)
 
 
 def display_effect_size_bar(effect_size: float, effect_name: str = "Cohen's d") -> None:
@@ -121,13 +122,13 @@ def display_effect_size_bar(effect_size: float, effect_name: str = "Cohen's d") 
         color = "#999"
     elif abs_size < 0.5:
         magnitude = "small"
-        color = "#ffb81c"
+        color = "#777"
     elif abs_size < 0.8:
         magnitude = "medium"
-        color = "#ff6b6b"
+        color = "#555"
     else:
         magnitude = "large"
-        color = "#d62728"
+        color = "#333"
     
     # Create bar visualization
     bar_width = min(abs_size * 100, 100)  # Cap at 100%
@@ -258,7 +259,7 @@ def export_json_button(data: Dict[str, Any], filename: str) -> None:
     json_data = json.dumps(data, indent=2, default=str)
     
     st.download_button(
-        label="📥 Export as JSON",
+        label="Export as JSON",
         data=json_data,
         file_name=f"{filename}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
         mime="application/json"
@@ -268,11 +269,11 @@ def export_json_button(data: Dict[str, Any], filename: str) -> None:
 def display_no_data_message(message: str = "No data available") -> None:
     """
     Display an informational message for no data.
-    
+
     Args:
         message: Message to display
     """
-    st.info(f"ℹ️ {message}")
+    st.info(message)
 
 
 def display_error_message(error: str) -> None:
@@ -282,7 +283,7 @@ def display_error_message(error: str) -> None:
     Args:
         error: Error message to display
     """
-    st.error(f"❌ {error}")
+    st.error(f"{error}")
 
 
 def display_warning_message(message: str) -> None:
@@ -292,7 +293,7 @@ def display_warning_message(message: str) -> None:
     Args:
         message: Warning message to display
     """
-    st.warning(f"⚠️ {message}")
+    st.warning(f"{message}")
 
 
 def display_success_message(message: str) -> None:
@@ -302,7 +303,7 @@ def display_success_message(message: str) -> None:
     Args:
         message: Success message to display
     """
-    st.success(f"✓ {message}")
+    st.success(f"Yes {message}")
 
 
 def display_metric_table(data: List[Dict[str, Any]], title: str = None) -> None:
@@ -357,7 +358,7 @@ def display_trend_indicator(trend_direction: str, percent_change: float) -> str:
     if trend_direction == "IMPROVING":
         return f'<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">↑ {percent_change:+.1f}%</span>'
     elif trend_direction == "DEGRADING":
-        return f'<span style="background: #d62728; color: white; padding: 2px 6px; border-radius: 3px;">↓ {percent_change:+.1f}%</span>'
+        return f'<span style="background: #555; color: white; padding: 2px 6px; border-radius: 3px;">↓ {percent_change:+.1f}%</span>'
     else:
         return f'<span style="background: #888; color: white; padding: 2px 6px; border-radius: 3px;">→ {percent_change:+.1f}%</span>'
 
@@ -374,9 +375,9 @@ def display_cost_indicator(is_regression: bool, percent_change: float) -> str:
         HTML badge string
     """
     if is_regression:
-        return f'<span style="background: #d62728; color: white; padding: 2px 6px; border-radius: 3px;">⚠️ +{percent_change:.1f}%</span>'
+        return f'<span style="background: #555; color: white; padding: 2px 6px; border-radius: 3px;">+{percent_change:.1f}%</span>'
     else:
-        return f'<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">✓ {percent_change:+.1f}%</span>'
+        return f'<span style="background: #2ca02c; color: white; padding: 2px 6px; border-radius: 3px;">Yes {percent_change:+.1f}%</span>'
 
 
 def display_filter_badge(filter_name: str, value: Any, removable: bool = True) -> None:

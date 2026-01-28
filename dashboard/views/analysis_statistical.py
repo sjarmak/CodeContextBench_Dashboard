@@ -46,49 +46,68 @@ def show_statistical_analysis():
     st.title("Statistical Analysis")
     st.markdown("**Determine statistical significance of performance differences**")
     st.markdown("---")
-    
+
     # Initialize loader from session state
     loader = st.session_state.get("analysis_loader")
     if loader is None:
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
+        st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
-    
-    # Sidebar configuration
-    with st.sidebar:
-        st.subheader("Configuration")
-        
-        # Experiment selector
-        experiment_id = experiment_selector()
-        if experiment_id is None:
+
+    # Configuration in main area
+    st.subheader("Configuration")
+
+    col_exp, col_agent, col_conf = st.columns(3)
+
+    with col_exp:
+        try:
+            experiments = loader.list_experiments()
+            if not experiments:
+                st.error("No experiments found in database.")
+                return
+
+            experiment_id = st.selectbox(
+                "Select Experiment",
+                experiments,
+                key="statistical_experiment",
+                help="Choose an experiment to analyze"
+            )
+        except Exception as e:
+            st.error(f"Failed to load experiments: {e}")
             return
-        
-        # Update navigation context
-        nav_context.navigate_to("analysis_statistical", experiment=experiment_id)
-        
-        # Baseline agent selector
+
+    # Update navigation context
+    nav_context.navigate_to("analysis_statistical", experiment=experiment_id)
+
+    with col_agent:
         agents = loader.list_agents(experiment_id)
         if not agents:
-            st.error(f"No agents found for experiment {experiment_id}")
-            return
-        
+            st.warning(f"No agents found for experiment {experiment_id}")
+            agents = ["(no agents)"]
+
         baseline_agent = st.selectbox(
             "Baseline Agent",
             agents,
+            key="statistical_baseline",
             help="Agent to compare all others against"
         )
-        
-        nav_context.navigate_to("analysis_statistical", experiment=experiment_id, agents=[baseline_agent])
-        
-        # Confidence level
-        confidence_level = confidence_level_slider(default=0.95)
-        
-        alpha = 1.0 - confidence_level
-        
-        st.markdown("---")
-        
-        # Advanced filtering section
-        st.subheader("Advanced Filters")
-        filter_config = render_filter_panel("statistical", loader, experiment_id)
+
+    with col_conf:
+        confidence_level = st.slider(
+            "Confidence Level",
+            min_value=0.90,
+            max_value=0.99,
+            value=0.95,
+            step=0.01,
+            key="statistical_confidence",
+            help="Higher confidence requires stronger evidence"
+        )
+
+    alpha = 1.0 - confidence_level
+
+    # Advanced filtering in expander
+    with st.expander("Advanced Filters"):
+        filter_config = render_filter_panel("statistical", loader, experiment_id, key_suffix="stat")
     
     # Load statistical analysis results
     try:
@@ -108,50 +127,42 @@ def show_statistical_analysis():
     # Apply filters if any are active
     filter_engine = FilterEngine()
     if filter_config.has_filters():
-        st.info(f"📊 Filters applied: {filter_engine.get_filter_summary(filter_config)}")
+        st.info(f"Filters applied: {filter_engine.get_filter_summary(filter_config)}")
         # Note: Filter application would go here when metrics are extracted
     
     # Summary statistics
     st.subheader("Test Summary")
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
-        # Count significant tests
-        significant_count = 0
-        total_tests = 0
-        if statistical_result.test_results:
-            for metric_tests in statistical_result.test_results.values():
-                for test_info in metric_tests.values():
-                    total_tests += 1
-                    if test_info.get('p_value', 1.0) < alpha:
-                        significant_count += 1
-        
+        # Use pre-computed summary from result
+        significant_count = statistical_result.significant_tests
+        total_tests = statistical_result.total_tests
+
         display_summary_card(
             "Significant Tests",
             f"{significant_count}/{total_tests}",
-            f"({significant_count/max(total_tests, 1)*100:.0f}% at α={alpha:.2f})",
+            f"({statistical_result.significance_rate*100:.0f}% at α={alpha:.2f})",
             color="green" if significant_count > 0 else "gray"
         )
-    
+
     with col2:
-        # Count effect size magnitudes
+        # Count effect size magnitudes from tests
         large_effects = 0
-        if statistical_result.effect_sizes:
-            for effects in statistical_result.effect_sizes.values():
-                for effect_val in effects.values():
-                    if isinstance(effect_val, dict):
-                        magnitude = effect_val.get('magnitude', 'negligible')
-                        if magnitude in ['large', 'very_large']:
-                            large_effects += 1
-        
+        if statistical_result.tests:
+            for variant_tests in statistical_result.tests.values():
+                for test in variant_tests.values():
+                    if test.effect_size and test.effect_size.interpretation in ['large', 'very_large']:
+                        large_effects += 1
+
         display_summary_card(
             "Large Effect Sizes",
             str(large_effects),
             "Practically significant differences",
-            color="red" if large_effects > 0 else "gray"
+            color="gray" if large_effects > 0 else "gray"
         )
-    
+
     with col3:
         display_summary_card(
             "Confidence Level",
@@ -159,7 +170,7 @@ def show_statistical_analysis():
             f"α = {alpha:.3f}",
             color="blue"
         )
-    
+
     with col4:
         display_summary_card(
             "Baseline Agent",
@@ -172,29 +183,27 @@ def show_statistical_analysis():
     
     # Test results table
     st.subheader("Statistical Test Results")
-    
+
     try:
-        if statistical_result.test_results:
+        if statistical_result.tests:
             results_data = []
-            
-            for metric, tests in statistical_result.test_results.items():
-                for comparison_pair, test_info in tests.items():
-                    p_value = test_info.get('p_value')
-                    test_type = test_info.get('test_type', 'unknown')
-                    statistic = test_info.get('statistic')
-                    
-                    is_significant = p_value < alpha if p_value else False
-                    
+
+            for variant_agent, variant_tests in statistical_result.tests.items():
+                comparison_pair = f"{baseline_agent} vs {variant_agent}"
+
+                for metric, test in variant_tests.items():
+                    test_type = "t-test" if test.t_statistic else "Fisher's exact"
+
                     results_row = {
-                        "Metric": metric,
+                        "Metric": test.metric_name,
                         "Comparison": comparison_pair,
                         "Test Type": test_type,
-                        "Statistic": f"{statistic:.4f}" if statistic else "N/A",
-                        "P-Value": f"{p_value:.4f}" if p_value else "N/A",
-                        "Significant": "✓" if is_significant else "✗",
+                        "Statistic": f"{test.t_statistic:.4f}" if test.t_statistic else "N/A",
+                        "P-Value": f"{test.p_value:.4f}",
+                        "Significant": "Yes" if test.is_significant else "No",
                     }
                     results_data.append(results_row)
-            
+
             if results_data:
                 results_df = pd.DataFrame(results_data)
                 st.dataframe(results_df, use_container_width=True, hide_index=True)
@@ -202,7 +211,7 @@ def show_statistical_analysis():
                 display_no_data_message("No test results available")
         else:
             display_no_data_message("No statistical tests performed")
-    
+
     except Exception as e:
         display_error_message(f"Failed to display test results: {e}")
     
@@ -210,52 +219,53 @@ def show_statistical_analysis():
     
     # Effect size analysis
     st.subheader("Effect Size Analysis")
-    
+
     try:
-        if statistical_result.effect_sizes:
-            # Create effect size visualization
-            col1, col2 = st.columns(2)
-            
+        if statistical_result.tests:
             effect_data = []
-            
-            for metric, effects in statistical_result.effect_sizes.items():
-                for comparison, effect_info in effects.items():
-                    if isinstance(effect_info, dict):
-                        effect_size = effect_info.get('value', 0)
-                        effect_name = effect_info.get('name', "Cohen's d")
-                        magnitude = effect_info.get('magnitude', 'negligible')
-                        
+
+            for variant_agent, variant_tests in statistical_result.tests.items():
+                comparison = f"{baseline_agent} vs {variant_agent}"
+
+                for metric, test in variant_tests.items():
+                    if test.effect_size:
+                        # Use Cohen's d or Cohen's h depending on what's available
+                        effect_size = test.effect_size.cohens_d or test.effect_size.cramers_v or 0
+                        effect_name = "Cohen's d" if test.effect_size.cohens_d else "Cohen's h/V"
+                        magnitude = test.effect_size.interpretation or 'negligible'
+
                         effect_data.append({
-                            "Metric": metric,
+                            "Metric": test.metric_name,
                             "Comparison": comparison,
                             "Effect Size": f"{effect_size:.4f}",
                             "Type": effect_name,
                             "Magnitude": magnitude.replace('_', ' ').title(),
                         })
-            
+
             if effect_data:
                 effect_df = pd.DataFrame(effect_data)
                 st.dataframe(effect_df, use_container_width=True, hide_index=True)
-                
+
                 # Display individual effect size bars
                 st.subheader("Effect Size Magnitudes")
-                
-                for metric, effects in statistical_result.effect_sizes.items():
-                    st.markdown(f"**{metric}**")
-                    
-                    for comparison, effect_info in effects.items():
-                        if isinstance(effect_info, dict):
-                            effect_size = effect_info.get('value', 0)
-                            effect_name = effect_info.get('name', "Cohen's d")
-                            
+
+                for variant_agent, variant_tests in statistical_result.tests.items():
+                    comparison = f"{baseline_agent} vs {variant_agent}"
+                    st.markdown(f"**{comparison}**")
+
+                    for metric, test in variant_tests.items():
+                        if test.effect_size:
+                            effect_size = test.effect_size.cohens_d or test.effect_size.cramers_v or 0
+                            effect_name = "Cohen's d" if test.effect_size.cohens_d else "Cohen's h/V"
+
                             with st.container():
-                                st.markdown(f"*{comparison}*")
+                                st.markdown(f"*{test.metric_name}*")
                                 display_effect_size_bar(effect_size, effect_name)
             else:
                 display_no_data_message("No effect size data available")
         else:
             display_no_data_message("No effect size analysis available")
-    
+
     except Exception as e:
         display_error_message(f"Failed to display effect sizes: {e}")
     
@@ -263,35 +273,36 @@ def show_statistical_analysis():
     
     # Power analysis
     st.subheader("Power Analysis")
-    
+
     try:
-        if statistical_result.power_analysis:
+        if statistical_result.tests:
             power_data = []
-            
-            for metric, power_info in statistical_result.power_analysis.items():
-                power_row = {
-                    "Metric": metric,
-                    "Sample Size": power_info.get('sample_size', 'N/A'),
-                    "Power": f"{power_info.get('power', 0):.2%}" if power_info.get('power') else "N/A",
-                    "Min Detectable Effect": f"{power_info.get('min_effect', 0):.4f}" if power_info.get('min_effect') else "N/A",
-                }
-                power_data.append(power_row)
-            
+
+            for variant_agent, variant_tests in statistical_result.tests.items():
+                for metric, test in variant_tests.items():
+                    power_row = {
+                        "Metric": test.metric_name,
+                        "Comparison": f"{baseline_agent} vs {variant_agent}",
+                        "Sample Size (Baseline)": test.baseline_n,
+                        "Sample Size (Variant)": test.variant_n,
+                        "Observed Power": f"{test.observed_power:.2%}",
+                    }
+                    power_data.append(power_row)
+
             if power_data:
                 power_df = pd.DataFrame(power_data)
                 st.dataframe(power_df, use_container_width=True, hide_index=True)
-                
+
                 st.info("""
                 **Power Analysis Interpretation**:
                 - **Power**: Probability of detecting true effect (target: 0.80+)
-                - **Min Detectable Effect**: Smallest meaningful difference detectable at given power
                 - If power < 0.80, consider increasing sample size or looking for larger effects
                 """)
             else:
                 display_no_data_message("No power analysis available")
         else:
             st.info("Power analysis not available for this experiment")
-    
+
     except Exception as e:
         st.warning(f"Could not display power analysis: {e}")
     
@@ -299,30 +310,29 @@ def show_statistical_analysis():
     
     # Per-metric significance summary
     st.subheader("Per-Metric Significance Summary")
-    
+
     try:
-        if statistical_result.test_results:
+        if statistical_result.tests:
             metric_summary = {}
-            
-            for metric, tests in statistical_result.test_results.items():
-                significant = 0
-                total = 0
-                
-                for test_info in tests.values():
-                    total += 1
-                    if test_info.get('p_value', 1.0) < alpha:
-                        significant += 1
-                
-                metric_summary[metric] = {
-                    "Significant": significant,
-                    "Total": total,
-                    "Percentage": f"{significant/max(total, 1)*100:.0f}%",
-                }
-            
-            summary_data = [
-                {"Metric": m, **v} for m, v in metric_summary.items()
-            ]
-            
+
+            for variant_agent, variant_tests in statistical_result.tests.items():
+                for metric, test in variant_tests.items():
+                    if test.metric_name not in metric_summary:
+                        metric_summary[test.metric_name] = {"Significant": 0, "Total": 0}
+
+                    metric_summary[test.metric_name]["Total"] += 1
+                    if test.is_significant:
+                        metric_summary[test.metric_name]["Significant"] += 1
+
+            summary_data = []
+            for metric, counts in metric_summary.items():
+                summary_data.append({
+                    "Metric": metric,
+                    "Significant": counts["Significant"],
+                    "Total": counts["Total"],
+                    "Percentage": f"{counts['Significant']/max(counts['Total'], 1)*100:.0f}%",
+                })
+
             if summary_data:
                 summary_df = pd.DataFrame(summary_data)
                 st.dataframe(summary_df, use_container_width=True, hide_index=True)
@@ -330,7 +340,7 @@ def show_statistical_analysis():
                 display_no_data_message("No metric summary available")
         else:
             display_no_data_message("No test results to summarize")
-    
+
     except Exception as e:
         display_error_message(f"Failed to display metric summary: {e}")
     
@@ -383,14 +393,13 @@ def show_statistical_analysis():
             "confidence_level": confidence_level,
             "alpha": alpha,
             "summary": {
-                "significant_count": significant_count if statistical_result.test_results else 0,
-                "total_tests": total_tests if statistical_result.test_results else 0,
+                "significant_count": statistical_result.significant_tests,
+                "total_tests": statistical_result.total_tests,
+                "significance_rate": statistical_result.significance_rate,
             },
-            "test_results": statistical_result.test_results or {},
-            "effect_sizes": statistical_result.effect_sizes or {},
-            "power_analysis": statistical_result.power_analysis or {},
+            "tests": statistical_result.to_dict().get("tests", {}),
         }
-        
+
         export_json_button(export_data, f"statistical_{experiment_id}_{baseline_agent}")
     
     except Exception as e:

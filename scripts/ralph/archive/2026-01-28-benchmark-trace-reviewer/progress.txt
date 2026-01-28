@@ -1,0 +1,18 @@
+# Ralph Progress Log
+Started: Tue Jan 28 2026
+
+## Codebase Patterns
+- Harbor adapter pattern: loader → adapter → CLI (see benchmarks/locobench_agent/, benchmarks/swebench_pro/)
+- Adapter data models use frozen @dataclass for immutability
+- Task output structure: task.toml, instruction.md, environment/Dockerfile, tests/test.sh, solution/ (optional)
+- Verifier outputs: /logs/verifier/reward.json and /logs/verifier/reward.txt
+- Templates use {key} replacement pattern (simple string substitution)
+- Ingestion pipeline: src/ingest/ (harbor_parser.py, swebench_parser.py, database.py, orchestrator.py)
+- Config loader: src/config/loader.py with YAML/JSON support and config inheritance
+- Dashboard: Streamlit with Plotly charts, views in dashboard/views/, utils in dashboard/utils/
+- Python 3.12 with type annotations, ruff for linting, py_compile for basic typecheck
+- Tests go in tests/ or benchmark-specific tests/ directories
+- Use immutable patterns: {**dict, key: value} for dict updates, [*list, item] for list appends
+
+---
+

@@ -33,11 +33,11 @@ except ImportError:
     load_locobench_oracle = None
     analyze_mcp_tool_usage = None
 
-# External jobs directory - same as run_results
-EXTERNAL_JOBS_DIR = Path(
+# External runs directory - same as run_results
+EXTERNAL_RUNS_DIR = Path(
     os.environ.get(
-        "CCB_EXTERNAL_JOBS_DIR",
-        os.path.expanduser("~/evals/custom_agents/agents/claudecode/jobs"),
+        "CCB_EXTERNAL_RUNS_DIR",
+        os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs"),
     )
 )
 
@@ -210,7 +210,7 @@ def show_llm_judge():
         }
 
     # Tabs for different sections
-    tabs = st.tabs(["🧪 Run Evaluation", "📊 View Reports", "📋 Rubric Configuration"])
+    tabs = st.tabs(["Run Evaluation", "View Reports", "Rubric Configuration"])
 
     with tabs[0]:
         show_evaluation_config(project_root)
@@ -230,7 +230,7 @@ def show_reports_view(project_root: Path):
     # Add refresh button at the top
     col_refresh, col_spacer = st.columns([1, 5])
     with col_refresh:
-        if st.button("🔄 Refresh", key="refresh_reports"):
+        if st.button("Refresh", key="refresh_reports"):
             st.rerun()
 
     reports = load_judge_reports(project_root)
@@ -255,7 +255,7 @@ def show_reports_view(project_root: Path):
         )
     with col2:
         # Delete report functionality
-        with st.expander("🗑️ Manage"):
+        with st.expander("Manage"):
             report_to_delete = st.selectbox(
                 "Delete Report",
                 [""] + report_names,
@@ -267,7 +267,7 @@ def show_reports_view(project_root: Path):
                     (r for r in reports if r.get("_file") == report_to_delete), None
                 )
                 if report and st.button(
-                    "🗑️ Delete", type="secondary", key="delete_report_btn"
+                    "Delete", type="secondary", key="delete_report_btn"
                 ):
                     if delete_judge_report(report.get("_path", "")):
                         st.success(f"Deleted {report_to_delete}")
@@ -349,7 +349,7 @@ def show_single_report(reports: list, report_names: list):
         row["Avg Score"] = f"{avg_score:.1f}"
 
         if r.get("error"):
-            row["Error"] = "⚠️"
+            row["Error"] = ""
 
         summary_data.append(row)
 
@@ -649,9 +649,9 @@ def show_evaluation_config(project_root: Path):
     experiments = []
     paired_experiments = {}  # Track which experiments are paired (baseline/deepsearch)
 
-    if EXTERNAL_JOBS_DIR.exists():
+    if EXTERNAL_RUNS_DIR.exists():
         for d in sorted(
-            EXTERNAL_JOBS_DIR.iterdir(),
+            EXTERNAL_RUNS_DIR.iterdir(),
             key=lambda x: x.stat().st_mtime,
             reverse=True,
         ):
@@ -678,9 +678,9 @@ def show_evaluation_config(project_root: Path):
 
     if not experiments:
         st.info(
-            "No experiments found. Check that CCB_EXTERNAL_JOBS_DIR is set correctly."
+            "No experiments found. Check that CCB_EXTERNAL_RUNS_DIR is set correctly."
         )
-        st.caption(f"Current directory: {EXTERNAL_JOBS_DIR}")
+        st.caption(f"Current directory: {EXTERNAL_RUNS_DIR}")
         return
 
     selected_exp = st.selectbox("Experiment", experiments, key="eval_exp_select")
@@ -705,7 +705,7 @@ def show_evaluation_config(project_root: Path):
                 task_dirs.append(subdir.name)
     else:
         # Standard Harbor format
-        exp_dir = EXTERNAL_JOBS_DIR / selected_exp
+        exp_dir = EXTERNAL_RUNS_DIR / selected_exp
         task_dirs = [
             d.name
             for d in exp_dir.iterdir()
@@ -787,7 +787,7 @@ def show_evaluation_config(project_root: Path):
                     },
                     "weight": 0.8,
                 }
-            st.caption("✓ Oracle data will be used if available")
+            st.caption("Yes Oracle data will be used if available")
 
     st.markdown("")
 
@@ -801,16 +801,16 @@ def show_evaluation_config(project_root: Path):
         estimated_cost = (
             len(selected_tasks) * len(selected_dims) * base_cost * voting_multiplier
         )
-        st.caption(f"💰 Estimated cost: ~${estimated_cost:.3f}")
+        st.caption(f"Estimated cost: ~${estimated_cost:.3f}")
 
     with col2:
         st.caption(
-            f"📊 {len(selected_tasks)} tasks × {len(selected_dims)} dims × {voting_multiplier}x"
+            f"({len(selected_tasks)} tasks × {len(selected_dims)} dims × {voting_multiplier}x"
         )
 
     with col3:
         run_button = st.button(
-            "🚀 Run Evaluation", key="run_judge_eval_btn", type="primary"
+            "Run Evaluation", key="run_judge_eval_btn", type="primary"
         )
 
     if run_button:
@@ -890,7 +890,7 @@ def show_rubric_config(project_root: Path):
                 placeholder=f"Description for score {i}",
             )
 
-        if st.button("💾 Save Rubric", key="save_new_rubric"):
+        if st.button("Save Rubric", key="save_new_rubric"):
             if new_rubric_name and all(scores.values()):
                 rubric_id = new_rubric_name.lower().replace(" ", "_")
                 rubric_data = {
@@ -900,7 +900,7 @@ def show_rubric_config(project_root: Path):
                     "rubric": {int(k): v for k, v in scores.items()},
                 }
                 save_rubric(project_root, rubric_id, rubric_data)
-                st.success(f"✓ Rubric '{new_rubric_name}' saved!")
+                st.success(f"Yes Rubric '{new_rubric_name}' saved!")
                 st.rerun()
             else:
                 st.error("Please fill in the rubric name and all score descriptions.")
@@ -1032,7 +1032,7 @@ def run_llm_judge_evaluation(
         mode, mode_dir = paired_experiments[experiment]
         base_dir = mode_dir
     else:
-        base_dir = EXTERNAL_JOBS_DIR / experiment
+        base_dir = EXTERNAL_RUNS_DIR / experiment
 
     try:
         if use_enhanced:
@@ -1316,7 +1316,7 @@ def run_llm_judge_evaluation(
             json.dump(report_data, f, indent=2)
 
         st.success(
-            f"✓ Evaluation complete! Switch to 'View Reports' tab to see results."
+            f"Yes Evaluation complete! Switch to 'View Reports' tab to see results."
         )
 
         # Quick summary
@@ -1331,9 +1331,9 @@ def run_llm_judge_evaluation(
                     "score", "N/A"
                 )
             if r.get("error"):
-                row["Status"] = "⚠️ Error"
+                row["Status"] = " Error"
             else:
-                row["Status"] = "✓"
+                row["Status"] = "Yes"
             summary_data.append(row)
 
         st.dataframe(summary_data, use_container_width=True, hide_index=True)

@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0.0",
+  "experiment_id": "exp_swebench_pro_combined_2026-01-25",
+  "generated_at": "2026-01-25T16:38:48.334412+00:00",
+  "runs_by_mcp_mode": {
+    "baseline": [
+      "swebenchpro_run_baseline_opus_nodebb_seed0_ce2dc3_baseline"
+    ],
+    "deepsearch_hybrid": [
+      "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_7afd03_deepsearch_hybrid"
+    ]
+  },
+  "aggregate_stats": {
+    "baseline": {
+      "total_runs": 1,
+      "mean_reward": 0.0,
+      "total_tasks": 20,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0
+    },
+    "mcp": {
+      "total_runs": 1,
+      "mean_reward": 0.0,
+      "total_tasks": 20,
+      "total_input_tokens": 75641355,
+      "total_output_tokens": 11041
+    },
+    "improvement_pct": 0.0
+  }
+}

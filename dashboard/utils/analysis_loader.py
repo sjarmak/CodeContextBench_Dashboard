@@ -111,10 +111,10 @@ class AnalysisLoader:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT DISTINCT agent_name FROM harbor_results WHERE experiment_id = ? ORDER BY agent_name",
+                "SELECT DISTINCT agent_name FROM harbor_results WHERE experiment_id = ? AND agent_name IS NOT NULL ORDER BY agent_name",
                 (experiment_id,)
             )
-            agents = [row[0] for row in cursor.fetchall()]
+            agents = [row[0] for row in cursor.fetchall() if row[0] is not None]
             conn.close()
             return agents
         except Exception as e:

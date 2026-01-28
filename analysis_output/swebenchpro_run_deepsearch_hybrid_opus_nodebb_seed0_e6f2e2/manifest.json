@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0.0",
+  "experiment_id": "exp_swebenchpro_run_deep_2026-01-25",
+  "created_at": "2026-01-23T15:13:59.097891",
+  "finished_at": "2026-01-23T17:12:23.967940",
+  "status": "completed",
+  "config": {
+    "source_dir": "/Users/sjarmak/evals/custom_agents/agents/claudecode/archive/jobs/swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_e6f2e2",
+    "experiment_name": "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_e6f2e2",
+    "description": "Retroactive analysis of swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_e6f2e2",
+    "benchmarks": [
+      "swebench_pro"
+    ],
+    "models": [
+      "claude-opus-4-5"
+    ],
+    "mcp_modes": [
+      "deepsearch_hybrid"
+    ],
+    "seeds": [
+      0
+    ],
+    "tags": [
+      "retroactive-analysis",
+      "swebench_pro"
+    ]
+  },
+  "matrix_summary": {
+    "total_runs": 1,
+    "total_pairs": 0,
+    "dimensions": {
+      "benchmarks": 1,
+      "models": 1,
+      "mcp_modes": 1,
+      "seeds": 1,
+      "tasks": 29
+    }
+  },
+  "runs": [
+    {
+      "run_id": "swebenchpro_run_deepsearch_hybrid_opus_nodebb_seed0_e6f2e2_deepsearch_hybrid",
+      "status": "completed",
+      "mcp_mode": "deepsearch_hybrid",
+      "total_tasks": 29,
+      "mean_reward": 0.6206896551724138
+    }
+  ],
+  "pairs": []
+}

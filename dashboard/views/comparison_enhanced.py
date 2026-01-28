@@ -368,7 +368,7 @@ def show_comparison_enhanced():
             hide_index=True,
         )
 
-        st.caption("💡 **Cached Tokens:** Charged at ~10% of regular input rates.")
+        st.caption("Cached Tokens: Charged at ~10% of regular input rates.")
 
         # Download option
         csv = filtered_df.to_csv(index=False)

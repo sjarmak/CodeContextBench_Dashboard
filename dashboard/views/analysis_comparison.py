@@ -45,40 +45,54 @@ def show_comparison_analysis():
     st.title("Agent Comparison Analysis")
     st.markdown("**Compare agent performance metrics across tasks**")
     st.markdown("---")
-    
+
     # Initialize loader from session state
     loader = st.session_state.get("analysis_loader")
     if loader is None:
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
+        st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
-    
-    # Sidebar configuration
-    with st.sidebar:
-        st.subheader("Configuration")
-        
-        # Experiment selector
-        experiment_id = experiment_selector()
-        if experiment_id is None:
+
+    # Configuration in main area (not sidebar) for better visibility
+    st.subheader("Configuration")
+
+    col_exp, col_agent, col_conf = st.columns(3)
+
+    with col_exp:
+        try:
+            experiments = loader.list_experiments()
+            if not experiments:
+                st.error("No experiments found in database.")
+                return
+
+            experiment_id = st.selectbox(
+                "Select Experiment",
+                experiments,
+                key="comparison_experiment",
+                help="Choose an experiment to analyze"
+            )
+        except Exception as e:
+            st.error(f"Failed to load experiments: {e}")
             return
-        
-        # Update navigation context with current view
-        nav_context.navigate_to("analysis_comparison", experiment=experiment_id)
-        
+
+    # Update navigation context with current view
+    nav_context.navigate_to("analysis_comparison", experiment=experiment_id)
+
+    with col_agent:
         # Baseline agent selector
         agents = loader.list_agents(experiment_id)
         if not agents:
-            st.error(f"No agents found for experiment {experiment_id}")
-            return
-        
+            st.warning(f"No agents found for experiment {experiment_id}")
+            agents = ["(no agents)"]
+
         baseline_agent = st.selectbox(
             "Baseline Agent",
             agents,
+            key="comparison_baseline",
             help="Agent to compare all others against"
         )
-        
-        # Update navigation with baseline agent
-        nav_context.navigate_to("analysis_comparison", experiment=experiment_id, agents=[baseline_agent])
-        
+
+    with col_conf:
         # Confidence level for significance tests
         confidence_level = st.slider(
             "Confidence Level",
@@ -86,15 +100,16 @@ def show_comparison_analysis():
             max_value=0.99,
             value=0.95,
             step=0.01,
+            key="comparison_confidence",
             help="Statistical confidence threshold"
         )
+
+    # Advanced filtering in expander
+    with st.expander("Advanced Filters"):
+        filter_config = render_filter_panel("comparison", loader, experiment_id, key_suffix="comp")
         
-        st.markdown("---")
-        
-        # Advanced filtering section
-        st.subheader("Advanced Filters")
-        filter_config = render_filter_panel("comparison", loader, experiment_id)
-    
+    st.markdown("---")
+
     # Load comparison results
     try:
         comparison_result = loader.load_comparison(
@@ -112,35 +127,46 @@ def show_comparison_analysis():
     # Apply filters if any are active
     filter_engine = FilterEngine()
     if filter_config.has_filters():
-        st.info(f"📊 Filters applied: {filter_engine.get_filter_summary(filter_config)}")
+        st.info(f"Filters applied: {filter_engine.get_filter_summary(filter_config)}")
         # Note: Filter application would go here when metrics are extracted
         # For now, show that filters are ready
     
     # Summary statistics
     st.subheader("Summary Statistics")
-    
+
+    # Calculate total tasks from agent metrics
+    total_tasks = sum(m.total_tasks for m in comparison_result.agent_metrics.values())
+
+    # Get best/worst agent pass rates
+    best_pass_rate = 0.0
+    worst_pass_rate = 1.0
+    if comparison_result.best_agent and comparison_result.best_agent in comparison_result.agent_metrics:
+        best_pass_rate = comparison_result.agent_metrics[comparison_result.best_agent].pass_rate
+    if comparison_result.worst_agent and comparison_result.worst_agent in comparison_result.agent_metrics:
+        worst_pass_rate = comparison_result.agent_metrics[comparison_result.worst_agent].pass_rate
+
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         display_summary_card(
             "Total Tasks",
-            str(comparison_result.total_tasks),
+            str(total_tasks),
             color="blue"
         )
-    
+
     with col2:
         display_summary_card(
             "Agents Compared",
-            str(len(comparison_result.agent_results)),
+            str(len(comparison_result.agent_metrics)),
             color="blue"
         )
-    
+
     with col3:
         if comparison_result.best_agent:
             display_summary_card(
                 "Best Agent",
                 comparison_result.best_agent,
-                f"({comparison_result.best_agent_pass_rate:.1%} pass rate)",
+                f"({best_pass_rate:.1%} pass rate)",
                 color="green"
             )
         else:
@@ -149,14 +175,14 @@ def show_comparison_analysis():
                 "N/A",
                 color="gray"
             )
-    
+
     with col4:
         if comparison_result.worst_agent:
             display_summary_card(
                 "Worst Agent",
                 comparison_result.worst_agent,
-                f"({comparison_result.worst_agent_pass_rate:.1%} pass rate)",
-                color="red"
+                f"({worst_pass_rate:.1%} pass rate)",
+                color="gray"
             )
         else:
             display_summary_card(
@@ -169,31 +195,26 @@ def show_comparison_analysis():
     
     # Agent metrics table
     st.subheader("Agent Performance Metrics")
-    
+
     try:
         metrics_data = []
-        
-        for agent_name, result in comparison_result.agent_results.items():
+
+        for agent_name, metrics in comparison_result.agent_metrics.items():
             metrics_row = {
                 "Agent": agent_name,
-                "Pass Rate": f"{result.get('pass_rate', 0):.1%}",
-                "Passed": result.get('passed_count', 0),
-                "Failed": result.get('failed_count', 0),
-                "Avg Duration": f"{result.get('avg_duration', 0):.1f}s",
-                "MCP Calls": result.get('mcp_call_count', 0),
-                "Local Calls": result.get('local_call_count', 0),
+                "Pass Rate": f"{metrics.pass_rate:.1%}",
+                "Passed": metrics.passed_tasks,
+                "Failed": metrics.total_tasks - metrics.passed_tasks,
+                "Avg Duration": f"{metrics.avg_duration_seconds:.1f}s",
+                "MCP Calls": f"{metrics.avg_mcp_calls:.1f}",
+                "Local Calls": f"{metrics.avg_local_calls:.1f}",
             }
-            
-            # Add cost metrics if available
-            if result.get('total_cost'):
-                metrics_row["Total Cost"] = f"${result.get('total_cost', 0):.2f}"
-                metrics_row["Cost/Success"] = f"${result.get('cost_per_success', 0):.2f}"
-            
+
             metrics_data.append(metrics_row)
-        
+
         metrics_df = pd.DataFrame(metrics_data)
         st.dataframe(metrics_df, use_container_width=True, hide_index=True)
-        
+
     except Exception as e:
         display_error_message(f"Failed to display metrics table: {e}")
         return
@@ -202,36 +223,31 @@ def show_comparison_analysis():
     
     # Deltas vs baseline
     st.subheader(f"Performance Delta vs {baseline_agent}")
-    
+
     try:
-        if comparison_result.agent_deltas:
+        if comparison_result.deltas:
             deltas_data = []
-            
-            for agent_name, delta in comparison_result.agent_deltas.items():
-                if agent_name == baseline_agent:
-                    continue
-                
+
+            for delta_key, delta in comparison_result.deltas.items():
                 delta_row = {
-                    "Agent": agent_name,
-                    "Pass Rate Δ": f"{delta.get('pass_rate_delta', 0):+.1%}",
-                    "Duration Δ": f"{delta.get('duration_delta', 0):+.1f}s",
-                    "MCP Call Δ": f"{delta.get('mcp_call_delta', 0):+.0f}",
+                    "Agent": delta.variant_agent,
+                    "Pass Rate Δ": f"{delta.pass_rate_delta:+.1%}",
+                    "Duration Δ": f"{delta.duration_delta_seconds:+.1f}s",
+                    "MCP Call Δ": f"{delta.mcp_calls_delta:+.1f}",
+                    "MCP Impact": delta.mcp_impact.title(),
+                    "Efficiency": delta.efficiency_impact.title(),
                 }
-                
-                # Add cost delta if available
-                if delta.get('cost_delta') is not None:
-                    delta_row["Cost Δ"] = f"${delta.get('cost_delta', 0):+.2f}"
-                
+
                 deltas_data.append(delta_row)
-            
+
             if deltas_data:
                 deltas_df = pd.DataFrame(deltas_data)
                 st.dataframe(deltas_df, use_container_width=True, hide_index=True)
             else:
                 display_no_data_message("No delta data available")
         else:
-            display_no_data_message("No delta data available")
-    
+            display_no_data_message("No delta data available (single agent)")
+
     except Exception as e:
         display_error_message(f"Failed to display deltas: {e}")
     
@@ -248,20 +264,18 @@ def show_comparison_analysis():
             confidence_level=confidence_level
         )
         
-        if statistical_result and statistical_result.test_results:
+        if statistical_result and statistical_result.tests:
             sig_data = []
-            
-            for metric, tests in statistical_result.test_results.items():
-                for comparison_pair, test_info in tests.items():
-                    p_value = test_info.get('p_value')
-                    if p_value is not None:
-                        sig_badge = display_significance_badge(p_value, alpha=1-confidence_level)
-                        sig_data.append({
-                            "Metric": metric,
-                            "Comparison": comparison_pair,
-                            "P-Value": f"{p_value:.4f}",
-                            "Significant": "✓" if p_value < (1-confidence_level) else "✗"
-                        })
+
+            for variant_agent, variant_tests in statistical_result.tests.items():
+                comparison_pair = f"{baseline_agent} vs {variant_agent}"
+                for metric, test in variant_tests.items():
+                    sig_data.append({
+                        "Metric": test.metric_name,
+                        "Comparison": comparison_pair,
+                        "P-Value": f"{test.p_value:.4f}",
+                        "Significant": "Yes" if test.is_significant else "No"
+                    })
             
             if sig_data:
                 sig_df = pd.DataFrame(sig_data)
@@ -318,15 +332,21 @@ def show_comparison_analysis():
             "experiment_id": experiment_id,
             "baseline_agent": baseline_agent,
             "summary": {
-                "total_tasks": comparison_result.total_tasks,
-                "agents_compared": len(comparison_result.agent_results),
+                "total_tasks": total_tasks,
+                "agents_compared": len(comparison_result.agent_metrics),
                 "best_agent": comparison_result.best_agent,
-                "best_agent_pass_rate": comparison_result.best_agent_pass_rate,
+                "best_agent_pass_rate": best_pass_rate,
             },
-            "agent_results": comparison_result.agent_results,
-            "agent_deltas": comparison_result.agent_deltas,
+            "agent_metrics": {
+                name: metrics.to_dict()
+                for name, metrics in comparison_result.agent_metrics.items()
+            },
+            "deltas": {
+                key: delta.to_dict()
+                for key, delta in comparison_result.deltas.items()
+            },
         }
-        
+
         export_json_button(export_data, f"comparison_{experiment_id}_{baseline_agent}")
     
     except Exception as e:

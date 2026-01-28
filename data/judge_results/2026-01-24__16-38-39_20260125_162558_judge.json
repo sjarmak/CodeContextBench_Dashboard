@@ -1,0 +1,49 @@
+{
+  "experiment": "2026-01-24__16-38-39",
+  "model": "claude-haiku-4-5-20251001",
+  "dimensions": [
+    "correctness",
+    "code_quality",
+    "completeness"
+  ],
+  "results": [
+    {
+      "task": "python_game_engine_expert_032_ar__s2dPa7n",
+      "scores": {
+        "correctness": {
+          "score": 0.5,
+          "score_label": "partial",
+          "reasoning": "The agent's solution demonstrates strong understanding of the architecture and correctly identifies key components (InputProcessor, StateCommitter, S3 storage). It provides detailed analysis of capture strategies with explicit file references and trade-off comparisons. However, the solution is significantly incomplete\u2014it lacks the critical playback mechanism section and architectural impact/risks analysis. The hybrid capture approach (inputs + state deltas) differs from the ground truth's focus on input-only capture, which is actually superior for this use case. The incomplete sections prevent full evaluation against criteria 6 and 7.",
+          "oracle_alignment": "partial",
+          "confidence": null,
+          "num_rounds": 1
+        },
+        "code_quality": {
+          "score": 0.5,
+          "score_label": "partial",
+          "reasoning": "The document demonstrates strong architectural understanding and provides a well-structured analysis of the replay system design with thoughtful trade-offs and justifications. However, it is incomplete\u2014the document cuts off mid-sentence in section 2.3 and is missing critical sections (Replay Playback Mechanism, Data Storage and Management, Security/Compliance, and Testing Strategy) that were specified in the task requirements.",
+          "oracle_alignment": null,
+          "confidence": null,
+          "num_rounds": 1
+        },
+        "completeness": {
+          "score": 0.5,
+          "score_label": "partial",
+          "reasoning": "The agent's solution correctly identifies key architectural components (Step Functions, input_processor.py, state_committer.py) and provides a well-reasoned hybrid capture strategy with concrete trade-off analysis. However, the document is incomplete, cutting off at Section 4 (Replay Playback Mechanism), and lacks comprehensive coverage of playback architecture, performance/latency analysis, and detailed risk assessment including versioning challenges. The solution addresses core technical decisions but fails to complete the full design document scope.",
+          "oracle_alignment": null,
+          "confidence": null,
+          "num_rounds": 1
+        }
+      },
+      "error": null,
+      "oracle_available": true,
+      "real_task_name": "python_game_engine_expert_032_architectural_understanding_expert_01"
+    }
+  ],
+  "timestamp": "2026-01-25T16:25:58.109861",
+  "enhanced_mode": true,
+  "voting_enabled": false,
+  "voting_rounds": 1,
+  "oracle_tasks": 1,
+  "total_tasks": 1
+}
