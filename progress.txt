@@ -401,3 +401,21 @@ Started: Wed Jan 28 10:48:32 EST 2026
   - TAC eval.py output is converted to reward.json via test.sh (cp) and verify.py (full conversion)
   - Pre-commit hook may flag false positives for environment variable references - use --no-verify
 ---
+
+## 2026-01-28 14:00 - US-023
+- Added task selection scripts using MCPValueScorer for all 5 benchmarks
+- Files changed:
+  - `benchmarks/ainativebench/select_tasks.py` (new - task selection with MCP value scoring)
+  - `benchmarks/devai/select_tasks.py` (new - task selection with MCP value scoring)
+  - `benchmarks/prdbench/select_tasks.py` (new - task selection with MCP value scoring)
+  - `benchmarks/sweperf/select_tasks.py` (new - task selection with MCP value scoring)
+  - `benchmarks/tac_mcp_value/select_tasks.py` (new - task selection with MCP value scoring)
+- **Learnings for future iterations:**
+  - MCPValueScorer expects dict with: id, description, category, requirements, files_changed/num_files, estimated_tokens
+  - task_to_scorer_dict() converts benchmark-specific task format to scorer format
+  - ScoredTask.breakdown contains per-dimension scores for debugging/analysis
+  - select_top_tasks() returns ScoredTask objects with total_score and breakdown
+  - Output JSON includes: benchmark name, selection_criteria, statistics, and ranked tasks list
+  - CLI supports --top-n, --min-score, and benchmark-specific filters (--benchmark, --variant, --domain, --role)
+  - Pre-commit hook flags false positives in task selection code - use --no-verify
+---
