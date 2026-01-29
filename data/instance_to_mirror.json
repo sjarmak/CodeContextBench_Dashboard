@@ -1,0 +1,162 @@
+[
+  {
+    "task_id": "big-code-k8s-001",
+    "benchmark": "big_code_mcp",
+    "repo": "kubernetes/kubernetes",
+    "commit": "HEAD",
+    "mirror_name": "kubernetes--latest",
+    "language": "go"
+  },
+  {
+    "task_id": "big-code-vsc-001",
+    "benchmark": "big_code_mcp",
+    "repo": "microsoft/vscode",
+    "commit": "HEAD",
+    "mirror_name": "vscode--latest",
+    "language": "typescript"
+  },
+  {
+    "task_id": "big-code-servo-001",
+    "benchmark": "big_code_mcp",
+    "repo": "servo/servo",
+    "commit": "HEAD",
+    "mirror_name": "servo--latest",
+    "language": "rust"
+  },
+  {
+    "task_id": "big-code-trt-001",
+    "benchmark": "big_code_mcp",
+    "repo": "NVIDIA/TensorRT-LLM",
+    "commit": "HEAD",
+    "mirror_name": "TensorRT-LLM--latest",
+    "language": "python,cpp"
+  },
+  {
+    "task_id": "tac-dependency-change",
+    "benchmark": "tac_mcp_value",
+    "repo": "All-Hands-AI/OpenHands",
+    "commit": "HEAD",
+    "mirror_name": "OpenHands--latest",
+    "language": "python"
+  },
+  {
+    "task_id": "tac-copilot-arena-endpoint",
+    "benchmark": "tac_mcp_value",
+    "repo": "lmarena/copilot-arena",
+    "commit": "HEAD",
+    "mirror_name": "copilot-arena--latest",
+    "language": "python"
+  },
+  {
+    "task_id": "tac-find-in-codebase-1",
+    "benchmark": "tac_mcp_value",
+    "repo": "ggerganov/llama.cpp",
+    "commit": "HEAD",
+    "mirror_name": "llama.cpp--latest",
+    "language": "cpp"
+  },
+  {
+    "task_id": "tac-implement-hyperloglog",
+    "benchmark": "tac_mcp_value",
+    "repo": "cmu-db/bustub",
+    "commit": "HEAD",
+    "mirror_name": "bustub--latest",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-002",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "ca2466126a00ba8fd877f5a185e40e36ddaceb87",
+    "mirror_name": "pytorch--ca246612",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-004",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "3ecf7c3d79894f8aa7e05aaacd288781c6e5da51",
+    "mirror_name": "pytorch--3ecf7c3d",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-003",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "d18007a1d0b1ea9a6b2bcd74e8b128eab4b434a0",
+    "mirror_name": "pytorch--d18007a1",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-010",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "5811a8d7da873dd699ff6687092c225caffcf1bb",
+    "mirror_name": "pytorch--5811a8d7",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-017",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "cbe1a35dbdfdc9b7490212bdd812f3e2f4ce9e2d",
+    "mirror_name": "pytorch--cbe1a35d",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-011",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "76b8fdafad537579cd97b5ec2502c6ac3bc473e0",
+    "mirror_name": "pytorch--76b8fdaf",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-008",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "863edc787f5fa7950e0f3f86d4952641e1ef9c2c",
+    "mirror_name": "pytorch--863edc78",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-006",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "a61b434dd46e951240ca6b9dd0e975f281c6d2a2",
+    "mirror_name": "pytorch--a61b434d",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-013",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "9976b77abbb6e920684f899c539101e4b412f911",
+    "mirror_name": "pytorch--9976b77a",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-025",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "e8ca8cc3c264ed3c76886835ea9b0603523a4883",
+    "mirror_name": "pytorch--e8ca8cc3",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-012",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "e3e93c7107830c13f4139c3a62fda62c6b84bbf5",
+    "mirror_name": "pytorch--e3e93c71",
+    "language": "cpp"
+  },
+  {
+    "task_id": "sgt-015",
+    "benchmark": "github_mined",
+    "repo": "pytorch/pytorch",
+    "commit": "a06141f73d603084910db381504b7c41eedb7210",
+    "mirror_name": "pytorch--a06141f7",
+    "language": "cpp"
+  }
+]
