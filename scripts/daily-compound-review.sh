@@ -1,7 +1,6 @@
 #!/bin/bash
 # scripts/daily-compound-review.sh
 # Exports Claude Code transcripts, then reviews them for learnings
-# Schedule: 10:30 PM nightly via launchd
 
 set -e
 
@@ -17,11 +16,9 @@ log "=== Starting Compound Review ==="
 
 cd "$PROJECT_DIR"
 
-# Ensure we're on main and up to date
 git checkout main
 git pull origin main
 
-# Export all Claude Code transcripts so the archive is current
 log "Exporting Claude Code transcripts..."
 claude-code-transcripts all 2>&1 | tee -a "$LOG_FILE"
 
@@ -29,7 +26,7 @@ log "Running Claude Code compound review..."
 
 claude -p "You are extracting learnings from recent Claude Code sessions for the CodeContextBench project.
 
-The transcripts are HTML files at /Users/sjarmak/claude-archive/sjarmak-CodeContextBench/. Each subdirectory is a session, containing index.html and page-NNN.html files.
+The transcripts are HTML files at $ARCHIVE_DIR/. Each subdirectory is a session, containing index.html and page-NNN.html files.
 
 Steps:
 1. List the session directories in $ARCHIVE_DIR
