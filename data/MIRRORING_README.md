@@ -1,91 +1,97 @@
-# Repository Mirroring for Sourcegraph Indexing
+# Repository Mirroring for CodeContextBench
 
-This directory contains the data and scripts for mirroring benchmark repositories to the `sg-benchmarks` GitHub organization for Sourcegraph indexing.
+This directory contains data and scripts for mirroring benchmark repositories to the `sg-benchmarks` GitHub organization for Sourcegraph indexing.
 
 ## Overview
 
-CodeContextBench tasks reference external repositories at specific commits. For Sourcegraph MCP to work, these repositories must be indexed. We create mirrors in `github.com/sg-benchmarks/` with naming convention `{repo-name}--{commit-prefix}` (e.g., `pytorch--ca246612`).
+For MCP/Deep Search to provide value, the benchmark codebases must be indexed in Sourcegraph. This requires:
+
+1. **Identifying repos and commits** used by each benchmark
+2. **Mirroring to sg-benchmarks** at the exact commit used in the task
+3. **Indexing in Sourcegraph** so Deep Search can query them
 
 ## Files
 
-- `instance_to_mirror.json` - Generated mapping of benchmark tasks to their required repo mirrors
-- `mirror_*.log` - Logs from mirror creation runs
-
-## Scripts (in `/scripts/`)
-
-### extract_benchmark_repos.py
-
-Scans benchmark directories and extracts all unique (repo, commit) pairs that need mirroring.
-
-```bash
-python3 scripts/extract_benchmark_repos.py
-```
-
-Output: `data/instance_to_mirror.json`
-
-### create_benchmark_mirrors.sh
-
-Creates mirrors in the `sg-benchmarks` GitHub org.
-
-```bash
-# Preview what would be created (no actual changes)
-./scripts/create_benchmark_mirrors.sh --dry-run
-
-# Mirror all repos
-./scripts/create_benchmark_mirrors.sh
-
-# Mirror specific benchmark only
-./scripts/create_benchmark_mirrors.sh --benchmark big_code_mcp
-./scripts/create_benchmark_mirrors.sh --benchmark github_mined
-
-# Mirror a range (useful for resuming)
-./scripts/create_benchmark_mirrors.sh --start 5 --end 10
-```
-
-### extract_tac_commits.sh
-
-TAC (TheAgentCompany) tasks use Docker images with bundled repos. This script extracts the exact git commits from those images.
-
-```bash
-# Extract commits (requires images to be pulled first)
-./scripts/extract_tac_commits.sh
-
-# Pull TAC images first, then extract
-./scripts/extract_tac_commits.sh --pull
-```
-
-Note: TAC images are hosted on ghcr.io/theagentcompany and may require authentication.
-
-## Benchmarks and Their Repos
-
-### big_code_mcp (4 repos at HEAD)
-- `kubernetes/kubernetes` → `kubernetes--latest`
-- `microsoft/vscode` → `vscode--latest`
-- `servo/servo` → `servo--latest`
-- `NVIDIA/TensorRT-LLM` → `TensorRT-LLM--latest`
-
-### github_mined (12 PyTorch commits)
-- `pytorch/pytorch` at various commits → `pytorch--{commit[:8]}`
-
-### tac_mcp_value (4 repos, commits from Docker)
-- `cmu-db/bustub` → `bustub--{commit[:8]}`
-- `All-Hands-AI/OpenHands` → `OpenHands--{commit[:8]}`
-- `ggerganov/llama.cpp` → `llama.cpp--{commit[:8]}`
-- `lmarena/copilot-arena` → `copilot-arena--{commit[:8]}`
+| File | Description |
+|------|-------------|
+| `instance_to_mirror.json` | Mapping of benchmark instances to repos/commits |
+| `tac_commits.json` | TAC-specific commits (extracted from Docker images) |
+| `.mirror_progress` | Tracks which mirrors have been created |
+| `mirror_*.log` | Logs from mirror creation runs |
 
 ## Workflow
 
-1. **Extract repos**: Run `extract_benchmark_repos.py` to generate `instance_to_mirror.json`
-2. **For TAC tasks**: Run `extract_tac_commits.sh --pull` to get exact commits from Docker images
-3. **Create mirrors**: Run `create_benchmark_mirrors.sh` to create GitHub mirrors
-4. **Index in Sourcegraph**: Add `sg-benchmarks` org to Sourcegraph code host config
+### 1. Extract Repository Information
 
-## Mirror Naming Convention
+```bash
+# Extract all benchmark repos
+python3 scripts/extract_benchmark_repos.py
 
-- `{repo-name}--latest` for HEAD/latest commits
-- `{repo-name}--{commit[:8]}` for specific commits
+# Extract only specific benchmark
+python3 scripts/extract_benchmark_repos.py --benchmark big_code_mcp
+```
 
-Examples:
-- `kubernetes--latest`
-- `pytorch--ca246612`
-- `bustub--abc12345`
+### 2. Extract TAC Commits (if running TAC tasks)
+
+TAC tasks use pre-built Docker images with code at specific commits:
+
+```bash
+# Pull TAC images and extract commits
+./scripts/extract_tac_commits.sh --pull
+
+# Or if images are already local
+./scripts/extract_tac_commits.sh
+```
+
+### 3. Create Mirrors
+
+```bash
+# Dry run (show what would be created)
+./scripts/create_benchmark_mirrors.sh --dry-run
+
+# Create mirrors for specific benchmark
+./scripts/create_benchmark_mirrors.sh --benchmark big_code_mcp
+
+# Create all mirrors
+./scripts/create_benchmark_mirrors.sh
+```
+
+### 4. Verify Sourcegraph Indexing
+
+After mirrors are created, verify they're indexed:
+
+```bash
+# Check if repo is searchable
+ds search --query "repo:sg-benchmarks/vscode--latest file:README"
+```
+
+## instance_to_mirror.json Format
+
+```json
+{
+  "big-code-vsc-001": {
+    "mirror_name": "vscode--latest",
+    "original_repo": "microsoft/vscode",
+    "commit": "HEAD",
+    "benchmark": "big_code_mcp",
+    "language": "typescript"
+  }
+}
+```
+
+## Benchmark Repository Requirements
+
+| Benchmark | Repos | Commit Pinning | Status |
+|-----------|-------|----------------|--------|
+| swebench_pro | 23 repos, 1231 instances | Yes (per-task) | ✅ Already mirrored |
+| locobench_agent | 34 synthetic projects | N/A | ✅ Indexed |
+| big_code_mcp | 4 repos (k8s, vscode, servo, trt) | No (HEAD) | 🔄 Pending |
+| tac_mcp_value | 4 repos (bustub, openhands, llama.cpp, copilot-arena) | Yes | 🔄 Pending |
+| github_mined | 1 repo (pytorch), 12 commits | Yes | 🔄 Pending |
+| kubernetes_docs | 1 repo (kubernetes) | No (HEAD) | 🔄 Pending |
+
+## Notes
+
+- **HEAD commits**: For benchmarks using `--depth 1` clones, we mirror the latest commit. Re-mirror periodically if tasks need updating.
+- **TAC commits**: Must be extracted from Docker images since TAC uses a private GitLab fork.
+- **Rate limits**: The mirror script includes sleep delays to avoid GitHub rate limiting.
