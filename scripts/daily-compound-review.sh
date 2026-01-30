@@ -1,11 +1,12 @@
 #!/bin/bash
 # scripts/daily-compound-review.sh
-# Runs BEFORE auto-compound.sh to update CLAUDE.md with learnings
+# Exports Claude Code transcripts, then reviews them for learnings
 # Schedule: 10:30 PM nightly via launchd
 
 set -e
 
 PROJECT_DIR="/Users/sjarmak/CodeContextBench"
+ARCHIVE_DIR="/Users/sjarmak/claude-archive/sjarmak-CodeContextBench"
 LOG_FILE="$PROJECT_DIR/logs/compound-review.log"
 
 log() {
@@ -20,9 +21,30 @@ cd "$PROJECT_DIR"
 git checkout main
 git pull origin main
 
+# Export all Claude Code transcripts so the archive is current
+log "Exporting Claude Code transcripts..."
+claude-code-transcripts all 2>&1 | tee -a "$LOG_FILE"
+
 log "Running Claude Code compound review..."
 
-claude -p "Look through and read each Claude Code conversation thread from the last 24 hours. For any thread where we did NOT extract and compound learnings at the end, do so now - extract the key learnings from that thread and update the relevant CLAUDE.md files so we can learn from our work and mistakes. Focus on: patterns discovered, gotchas encountered, architectural decisions made, and debugging insights. Commit your changes and push to main." \
+claude -p "You are extracting learnings from recent Claude Code sessions for the CodeContextBench project.
+
+The transcripts are HTML files at /Users/sjarmak/claude-archive/sjarmak-CodeContextBench/. Each subdirectory is a session, containing index.html and page-NNN.html files.
+
+Steps:
+1. List the session directories in $ARCHIVE_DIR
+2. Read the HTML pages from sessions that look recent (check file modification times)
+3. For each recent session, extract:
+   - What was worked on
+   - Patterns discovered
+   - Gotchas or bugs encountered
+   - Architectural decisions made
+   - Debugging insights
+   - What went well or poorly
+4. Update CLAUDE.md with any new learnings that aren't already captured
+5. Commit your changes and push to main
+
+Focus on actionable learnings that will help future sessions. Skip sessions you've already reviewed (check if the learnings are already in CLAUDE.md)." \
   --dangerously-skip-permissions \
   2>&1 | tee -a "$LOG_FILE"
 
