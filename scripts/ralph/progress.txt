@@ -577,3 +577,24 @@ Started: Mon Jan 27 13:12:00 EST 2026
   - `st.button(type="primary")` renders an emphasized action button suitable for "Run Analysis" actions
   - Browser verification not available in this environment; manual verification needed
 ---
+
+## 2026-01-30 - US-025
+- Verified existing GUI-driven comparison analysis implementation satisfies all acceptance criteria
+- The comparison view (`dashboard/views/analysis_comparison.py`) and config component (`dashboard/utils/comparison_config.py`) already provide:
+  - Two run selectors (baseline and variant experiment+agent)
+  - Metric selector (pass_rate, reward, avg_duration_seconds, total_tokens)
+  - Task filter text input
+  - Run Comparison button calling `loader.load_comparison()` (wraps `comparator.py`)
+  - Results: comparison table with deltas, pass rate bar chart, per-task scatter plot
+  - CSV export button
+- Moved configuration from `st.sidebar` to main content area to fix visibility issue (documented in Codebase Patterns: sidebar panels appear below navigation and may be invisible)
+- 51 of 52 tests pass; 1 pre-existing failure (`test_view_imports_config`) due to missing `dashboard.components.breadcrumb` module (not related to this change)
+- Files changed: `dashboard/views/analysis_comparison.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - The comparison config was already fully implemented by a previous iteration (comparison_config.py has ~620 lines with all visualization helpers)
+  - `st.sidebar` config placement documented as problematic; always use `st.columns()` in main content area instead
+  - `loader.load_comparison()` from AnalysisLoader wraps `ExperimentComparator.compare_experiment()` — no need to call comparator.py directly
+  - `ComparisonResult` has `agent_results` (dict access) not `agent_metrics` (dataclass access) — verify attribute names when working with comparison data
+  - `_extract_per_task_metrics()` uses `getattr(result, "per_task_results", None)` for optional per-task data — not all experiment types have this
+  - Browser verification not available in this environment; manual verification needed
+---

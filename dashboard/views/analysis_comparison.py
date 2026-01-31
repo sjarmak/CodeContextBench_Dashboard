@@ -43,12 +43,11 @@ def show_comparison_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         return
 
-    # Sidebar configuration
-    with st.sidebar:
-        config = render_comparison_config(loader)
+    # Configuration in main content area (not sidebar - sidebar is invisible below nav)
+    config = render_comparison_config(loader)
 
     if config is None:
-        st.info("Select baseline and variant runs in the sidebar to begin.")
+        st.info("Select baseline and variant runs above to begin.")
         return
 
     # Update navigation context
