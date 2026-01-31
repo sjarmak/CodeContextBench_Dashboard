@@ -6,6 +6,7 @@ Provides:
 - Status detection for each analysis type
 - Card rendering as a styled HTML card with icon, title, description, and status badge
 - Grid rendering for 2x3 card layout
+- Tab mode for info-only cards (no navigation buttons)
 """
 
 from dataclasses import dataclass
@@ -161,14 +162,18 @@ def render_analysis_card(
     card: AnalysisCard,
     has_results: bool,
     session_key: str = "current_page",
+    tab_mode: bool = False,
 ) -> None:
     """
-    Render a single analysis card with icon, title, description, status, and button.
+    Render a single analysis card with icon, title, description, and status.
+
+    In tab_mode, the card is info-only (no navigation button).
 
     Args:
         card: The AnalysisCard configuration.
         has_results: Whether results are available for this card.
         session_key: The session state key for page navigation.
+        tab_mode: If True, render without navigation button.
     """
     badge_html = _render_status_badge(has_results)
     border_color = "#2ca02c" if has_results else "#ddd"
@@ -190,18 +195,20 @@ def render_analysis_card(
     """
     st.markdown(card_html, unsafe_allow_html=True)
 
-    if st.button(
-        "Configure & Run",
-        key=f"analysis_card_{card.card_id}",
-        use_container_width=True,
-    ):
-        st.session_state[session_key] = card.page_name
-        st.rerun()
+    if not tab_mode:
+        if st.button(
+            "Configure & Run",
+            key=f"analysis_card_{card.card_id}",
+            use_container_width=True,
+        ):
+            st.session_state[session_key] = card.page_name
+            st.rerun()
 
 
 def render_analysis_card_grid(
     project_root: Optional[Path] = None,
     session_key: str = "current_page",
+    tab_mode: bool = False,
 ) -> None:
     """
     Render the 2x3 grid of analysis cards.
@@ -209,6 +216,7 @@ def render_analysis_card_grid(
     Args:
         project_root: Optional project root path for result status checks.
         session_key: The session state key for page navigation.
+        tab_mode: If True, render cards without navigation buttons.
     """
     cards = ANALYSIS_CARDS
     rows = [cards[i : i + 3] for i in range(0, len(cards), 3)]
@@ -218,4 +226,4 @@ def render_analysis_card_grid(
         for col, card in zip(cols, row):
             with col:
                 has_results = check_results_available(card.status_key, project_root)
-                render_analysis_card(card, has_results, session_key)
+                render_analysis_card(card, has_results, session_key, tab_mode=tab_mode)

@@ -13,8 +13,6 @@ Provides:
 
 import streamlit as st
 
-from dashboard.components.breadcrumb import render_breadcrumb_navigation
-from dashboard.utils.navigation import NavigationContext
 from dashboard.utils.timeseries_config import (
     render_timeseries_config,
     run_and_display_timeseries,
@@ -24,15 +22,6 @@ from dashboard.utils.timeseries_config import (
 
 def show_timeseries_analysis():
     """Display GUI-driven time series analysis view."""
-
-    # Initialize navigation context if not present
-    if "nav_context" not in st.session_state:
-        st.session_state.nav_context = NavigationContext()
-
-    nav_context = st.session_state.nav_context
-
-    # Render breadcrumb navigation
-    render_breadcrumb_navigation(nav_context)
 
     st.title("Time-Series Analysis")
     st.markdown("**Configure and run trend analysis across experiments from the GUI**")
@@ -44,12 +33,11 @@ def show_timeseries_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         return
 
-    # Sidebar configuration
-    with st.sidebar:
-        config = render_timeseries_config(loader)
+    # Configuration inline (no sidebar wrapper)
+    config = render_timeseries_config(loader)
 
     if config is None:
-        st.info("Select at least 2 experiments in the sidebar to begin trend analysis.")
+        st.info("Select at least 2 experiments to begin trend analysis.")
         return
 
     # Run Analysis button

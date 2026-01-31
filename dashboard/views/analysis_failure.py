@@ -2,7 +2,7 @@
 Failure Analysis View - GUI-driven failure pattern analysis.
 
 Displays:
-- Experiment selector and agent filter in sidebar
+- Experiment selector and agent filter
 - Failure pattern detection and distribution
 - Error category pie chart
 - Failure pattern frequency table
@@ -12,26 +12,15 @@ Displays:
 
 import streamlit as st
 
-from dashboard.components.breadcrumb import render_breadcrumb_navigation
 from dashboard.utils.failure_config import (
     render_failure_config,
     run_and_display_failures,
     _render_failure_results,
 )
-from dashboard.utils.navigation import NavigationContext
 
 
 def show_failure_analysis():
     """Display GUI-driven failure analysis view."""
-
-    # Initialize navigation context if not present
-    if "nav_context" not in st.session_state:
-        st.session_state.nav_context = NavigationContext()
-
-    nav_context = st.session_state.nav_context
-
-    # Render breadcrumb navigation
-    render_breadcrumb_navigation(nav_context)
 
     st.title("Failure Analysis")
     st.markdown("**Configure and run failure pattern analysis from the GUI**")
@@ -43,16 +32,12 @@ def show_failure_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         return
 
-    # Sidebar configuration
-    with st.sidebar:
-        config = render_failure_config(loader)
+    # Configuration inline (no sidebar wrapper)
+    config = render_failure_config(loader)
 
     if config is None:
-        st.info("Select an experiment in the sidebar to begin.")
+        st.info("Select an experiment to begin.")
         return
-
-    # Update navigation context
-    nav_context.navigate_to("analysis_failure", experiment=config.experiment_id)
 
     # Run Analysis button
     run_clicked = st.button(

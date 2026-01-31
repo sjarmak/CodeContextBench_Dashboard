@@ -42,11 +42,29 @@ EXTERNAL_RUNS_DIR = Path(
 
 
 def load_external_experiments() -> list:
-    """Load experiments from default external runs directory."""
-    return load_external_experiments_from_dir(EXTERNAL_RUNS_DIR)
+    """Load experiments from default external runs directory, including subdirectories."""
+    all_experiments = []
+    known_subdirs = {"official", "experiment", "troubleshooting"}
+
+    # Scan known subdirectories first
+    for subdir_name in known_subdirs:
+        subdir = EXTERNAL_RUNS_DIR / subdir_name
+        if subdir.is_dir():
+            exps = load_external_experiments_from_dir(subdir)
+            for exp in exps:
+                exp["folder"] = subdir_name
+            all_experiments.extend(exps)
+
+    # Scan root-level experiments (uncategorized)
+    root_exps = load_external_experiments_from_dir(EXTERNAL_RUNS_DIR, skip_dirs=known_subdirs)
+    for exp in root_exps:
+        exp["folder"] = "uncategorized"
+    all_experiments.extend(root_exps)
+
+    return all_experiments
 
 
-def load_external_experiments_from_dir(runs_dir: Path) -> list:
+def load_external_experiments_from_dir(runs_dir: Path, skip_dirs: set | None = None) -> list:
     """Load experiments from a specified runs directory."""
     experiments = []
 
@@ -57,6 +75,8 @@ def load_external_experiments_from_dir(runs_dir: Path) -> list:
         runs_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
     ):
         if not exp_dir.is_dir() or exp_dir.name.startswith("."):
+            continue
+        if skip_dirs and exp_dir.name in skip_dirs:
             continue
 
         result_file = exp_dir / "result.json"
@@ -432,28 +452,54 @@ def show_run_results():
 
     st.caption(f"Loading from: {EXTERNAL_RUNS_DIR}")
 
-    # Group experiments by benchmark set
-    benchmark_groups = _group_experiments_by_benchmark(external_experiments)
+    # --- Filters row: Folder category + Benchmark set ---
+    filter_col1, filter_col2 = st.columns(2)
 
-    # Benchmark set filter
-    group_options = [
-        f"{name} ({len(exps)})" for name, exps in benchmark_groups.items()
-    ]
-    all_option = f"All Benchmarks ({len(external_experiments)})"
-    filter_options = [all_option] + group_options
+    # Folder category filter
+    with filter_col1:
+        folder_counts = {}
+        for exp in external_experiments:
+            folder = exp.get("folder", "uncategorized")
+            folder_counts[folder] = folder_counts.get(folder, 0) + 1
 
-    selected_filter = st.selectbox("Benchmark Set", filter_options)
+        folder_all = f"All Categories ({len(external_experiments)})"
+        folder_options = [folder_all] + [
+            f"{f.title()} ({c})"
+            for f, c in sorted(folder_counts.items())
+        ]
+        selected_folder = st.selectbox("Category", folder_options, key="rr_folder_filter")
 
-    # Determine which experiments to show based on filter
-    if selected_filter == all_option:
-        filtered_experiments = external_experiments
+    # Apply folder filter
+    if selected_folder == folder_all:
+        folder_filtered = external_experiments
     else:
-        # Extract benchmark name from "Name (count)" format
+        selected_folder_name = selected_folder.rsplit(" (", 1)[0].lower()
+        folder_filtered = [
+            exp for exp in external_experiments
+            if exp.get("folder", "uncategorized") == selected_folder_name
+        ]
+
+    # Benchmark set filter (applied on top of folder filter)
+    with filter_col2:
+        benchmark_groups = _group_experiments_by_benchmark(folder_filtered)
+
+        group_options = [
+            f"{name} ({len(exps)})" for name, exps in benchmark_groups.items()
+        ]
+        all_option = f"All Benchmarks ({len(folder_filtered)})"
+        bm_filter_options = [all_option] + group_options
+
+        selected_filter = st.selectbox("Benchmark Set", bm_filter_options, key="rr_benchmark_filter")
+
+    # Apply benchmark filter
+    if selected_filter == all_option:
+        filtered_experiments = folder_filtered
+    else:
         selected_benchmark = selected_filter.rsplit(" (", 1)[0]
         filtered_experiments = benchmark_groups.get(selected_benchmark, [])
 
     if not filtered_experiments:
-        st.info("No experiments in this benchmark set.")
+        st.info("No experiments match the selected filters.")
         return
 
     # --- Mode toggle: Individual Review vs Paired Comparison ---

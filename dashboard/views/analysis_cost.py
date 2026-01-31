@@ -2,7 +2,7 @@
 Cost Analysis View - GUI-driven cost and efficiency analysis.
 
 Displays:
-- Experiment selector and baseline agent configuration in sidebar
+- Experiment selector and baseline agent configuration
 - Token costs (input/output), execution cost per agent
 - Cost breakdown charts (Plotly bar charts)
 - Cost regressions detection table
@@ -11,26 +11,15 @@ Displays:
 
 import streamlit as st
 
-from dashboard.components.breadcrumb import render_breadcrumb_navigation
 from dashboard.utils.cost_config import (
     render_cost_config,
     run_and_display_cost,
     _render_cost_results,
 )
-from dashboard.utils.navigation import NavigationContext
 
 
 def show_cost_analysis():
     """Display GUI-driven cost analysis view."""
-
-    # Initialize navigation context if not present
-    if "nav_context" not in st.session_state:
-        st.session_state.nav_context = NavigationContext()
-
-    nav_context = st.session_state.nav_context
-
-    # Render breadcrumb navigation
-    render_breadcrumb_navigation(nav_context)
 
     st.title("Cost Analysis")
     st.markdown("**Configure and run cost analysis from the GUI**")
@@ -42,16 +31,12 @@ def show_cost_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         return
 
-    # Sidebar configuration
-    with st.sidebar:
-        config = render_cost_config(loader)
+    # Configuration inline (no sidebar wrapper)
+    config = render_cost_config(loader)
 
     if config is None:
-        st.info("Select an experiment and baseline agent in the sidebar to begin.")
+        st.info("Select an experiment and baseline agent to begin.")
         return
-
-    # Update navigation context
-    nav_context.navigate_to("analysis_cost", experiment=config.experiment_id)
 
     # Run Analysis button
     run_clicked = st.button(

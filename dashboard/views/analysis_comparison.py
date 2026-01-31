@@ -12,26 +12,15 @@ Displays:
 
 import streamlit as st
 
-from dashboard.components.breadcrumb import render_breadcrumb_navigation
 from dashboard.utils.comparison_config import (
     render_comparison_config,
     run_and_display_comparison,
     _render_comparison_results,
 )
-from dashboard.utils.navigation import NavigationContext
 
 
 def show_comparison_analysis():
     """Display GUI-driven comparison analysis view."""
-
-    # Initialize navigation context if not present
-    if "nav_context" not in st.session_state:
-        st.session_state.nav_context = NavigationContext()
-
-    nav_context = st.session_state.nav_context
-
-    # Render breadcrumb navigation
-    render_breadcrumb_navigation(nav_context)
 
     st.title("Comparison Analysis")
     st.markdown("**Configure and run comparison analysis between two runs**")
@@ -43,18 +32,12 @@ def show_comparison_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         return
 
-    # Configuration in main content area (not sidebar - sidebar is invisible below nav)
+    # Configuration in main content area
     config = render_comparison_config(loader)
 
     if config is None:
         st.info("Select baseline and variant runs above to begin.")
         return
-
-    # Update navigation context
-    nav_context.navigate_to(
-        "analysis_comparison",
-        experiment=config.baseline_experiment,
-    )
 
     # Run Comparison button
     run_clicked = st.button(

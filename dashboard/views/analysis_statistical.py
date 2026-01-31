@@ -13,8 +13,6 @@ Provides:
 
 import streamlit as st
 
-from dashboard.components.breadcrumb import render_breadcrumb_navigation
-from dashboard.utils.navigation import NavigationContext
 from dashboard.utils.statistical_config import (
     render_statistical_config,
     run_and_display_results,
@@ -24,15 +22,6 @@ from dashboard.utils.statistical_config import (
 
 def show_statistical_analysis():
     """Display GUI-driven statistical analysis view."""
-
-    # Initialize navigation context if not present
-    if "nav_context" not in st.session_state:
-        st.session_state.nav_context = NavigationContext()
-
-    nav_context = st.session_state.nav_context
-
-    # Render breadcrumb navigation
-    render_breadcrumb_navigation(nav_context)
 
     st.title("Statistical Analysis")
     st.markdown("**Configure and run statistical significance tests from the GUI**")
@@ -44,12 +33,11 @@ def show_statistical_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         return
 
-    # Sidebar configuration
-    with st.sidebar:
-        config = render_statistical_config(loader)
+    # Configuration inline (no sidebar wrapper)
+    config = render_statistical_config(loader)
 
     if config is None:
-        st.info("Select experiments and a baseline agent in the sidebar to begin.")
+        st.info("Select experiments and a baseline agent to begin.")
         return
 
     # Run Analysis button
@@ -80,7 +68,7 @@ def show_statistical_analysis():
     st.markdown("---")
 
     with st.expander("Statistical Interpretation Guide"):
-        alpha = config.significance_level
+        alpha = config.significance_level if config else 0.05
         st.markdown(f"""
 ### Key Concepts
 
