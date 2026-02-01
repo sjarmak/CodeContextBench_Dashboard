@@ -36,3 +36,18 @@ Started: Fri Jan 30 23:15:14 EST 2026
   - `AlignmentResult` uses `frozen=True` for immutability per coding style rules
   - Trial dir hash suffix stripping uses `rsplit("__", 1)[0]` to handle task names that contain underscores
 ---
+
+## 2026-01-31 - US-003
+- Added `RewardNormalizer` class to `src/analysis/experiment_comparator.py`
+- `normalize(reward, benchmark_type)` returns clamped [0.0, 1.0] values using min-max normalization from `BENCHMARK_NORMALIZATION` constants
+- `infer_benchmark_type(task_path)` resolves benchmark type from config.json metadata or path components
+- Normalization rules: LoCoBench (passthrough), SWE-bench (passthrough), big_code_mcp (passthrough, 0-1 scale), github_mined, tac_mcp_value
+- Added 19 new tests covering: each benchmark type, alias variants, unknown type errors, clamping, benchmark inference from path and config.json
+- All 35 tests pass (16 existing + 19 new), typecheck passes
+- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - All current benchmarks produce 0-1 rewards natively; normalization is passthrough + clamping for safety
+  - `BENCHMARK_NORMALIZATION` dict maps benchmark_type -> (min_raw, max_raw) for extensibility when non-0-1 benchmarks are added
+  - `_BENCHMARK_DIR_NAMES` frozenset enables O(1) lookups when scanning path components for benchmark type inference
+  - Benchmark type inference checks config.json first (more reliable), then falls back to scanning path components
+---

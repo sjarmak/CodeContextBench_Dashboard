@@ -4,7 +4,7 @@ import json
 import pytest
 from pathlib import Path
 
-from src.analysis.experiment_comparator import TaskAligner, AlignmentResult
+from src.analysis.experiment_comparator import TaskAligner, AlignmentResult, RewardNormalizer
 
 
 @pytest.fixture
@@ -278,3 +278,111 @@ class TestTaskAlignerEdgeCases:
 
         with pytest.raises(AttributeError):
             result.total_baseline = 999
+
+
+# =============================================================================
+# RewardNormalizer Tests
+# =============================================================================
+
+
+@pytest.fixture
+def normalizer():
+    """Create a RewardNormalizer instance."""
+    return RewardNormalizer()
+
+
+class TestRewardNormalizerLoCoBench:
+    """LoCoBench rewards are already 0-1, passthrough."""
+
+    def test_passthrough_zero(self, normalizer):
+        assert normalizer.normalize(0.0, "locobench") == pytest.approx(0.0)
+
+    def test_passthrough_one(self, normalizer):
+        assert normalizer.normalize(1.0, "locobench") == pytest.approx(1.0)
+
+    def test_passthrough_mid(self, normalizer):
+        assert normalizer.normalize(0.45, "locobench") == pytest.approx(0.45)
+
+    def test_locobench_alias(self, normalizer):
+        """locobench_agent path variant should also work."""
+        assert normalizer.normalize(0.75, "locobench_agent") == pytest.approx(0.75)
+
+
+class TestRewardNormalizerSWEBench:
+    """SWE-bench rewards are binary 0/1, passthrough."""
+
+    def test_passthrough_zero(self, normalizer):
+        assert normalizer.normalize(0.0, "swebench") == pytest.approx(0.0)
+
+    def test_passthrough_one(self, normalizer):
+        assert normalizer.normalize(1.0, "swebench") == pytest.approx(1.0)
+
+    def test_swebench_pro_alias(self, normalizer):
+        assert normalizer.normalize(1.0, "swebench_pro") == pytest.approx(1.0)
+
+
+class TestRewardNormalizerBigCodeMCP:
+    """big_code_mcp uses min-max normalization from benchmark metadata."""
+
+    def test_min_value_maps_to_zero(self, normalizer):
+        assert normalizer.normalize(0.0, "big_code_mcp") == pytest.approx(0.0)
+
+    def test_max_value_maps_to_one(self, normalizer):
+        assert normalizer.normalize(1.0, "big_code_mcp") == pytest.approx(1.0)
+
+    def test_mid_value(self, normalizer):
+        assert normalizer.normalize(0.5, "big_code_mcp") == pytest.approx(0.5)
+
+
+class TestRewardNormalizerInferBenchmark:
+    """Test benchmark type inference from task directory paths."""
+
+    def test_infer_from_locobench_path(self, normalizer):
+        assert normalizer.infer_benchmark_type(
+            Path("benchmarks/locobench_agent/task-1")
+        ) == "locobench_agent"
+
+    def test_infer_from_swebench_path(self, normalizer):
+        assert normalizer.infer_benchmark_type(
+            Path("benchmarks/swebench_pro/django__django-12345")
+        ) == "swebench_pro"
+
+    def test_infer_from_big_code_path(self, normalizer):
+        assert normalizer.infer_benchmark_type(
+            Path("benchmarks/big_code_mcp/task-001")
+        ) == "big_code_mcp"
+
+    def test_infer_from_config_metadata(self, tmp_path, normalizer):
+        task_dir = tmp_path / "some_task__abc"
+        task_dir.mkdir()
+        config = {"task": {"path": "benchmarks/locobench_agent/task-x"}}
+        (task_dir / "config.json").write_text(json.dumps(config))
+
+        assert normalizer.infer_benchmark_type(task_dir) == "locobench_agent"
+
+    def test_infer_unknown_returns_none(self, normalizer):
+        assert normalizer.infer_benchmark_type(Path("unknown/path/task")) is None
+
+
+class TestRewardNormalizerUnknownType:
+    """Unknown benchmark types raise ValueError."""
+
+    def test_unknown_type_raises(self, normalizer):
+        with pytest.raises(ValueError, match="Unknown benchmark type"):
+            normalizer.normalize(0.5, "nonexistent_benchmark")
+
+    def test_empty_string_raises(self, normalizer):
+        with pytest.raises(ValueError, match="Unknown benchmark type"):
+            normalizer.normalize(0.5, "")
+
+
+class TestRewardNormalizerClamping:
+    """Normalized values should be clamped to [0.0, 1.0]."""
+
+    def test_clamp_above_one(self, normalizer):
+        result = normalizer.normalize(1.5, "locobench")
+        assert result == pytest.approx(1.0)
+
+    def test_clamp_below_zero(self, normalizer):
+        result = normalizer.normalize(-0.2, "locobench")
+        assert result == pytest.approx(0.0)

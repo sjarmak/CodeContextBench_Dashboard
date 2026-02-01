@@ -14,6 +14,23 @@ from pathlib import Path
 from typing import Optional
 
 
+# Normalization rules per benchmark type.
+# Each entry maps benchmark_type -> (min_raw, max_raw).
+# Passthrough benchmarks use (0.0, 1.0).
+BENCHMARK_NORMALIZATION: dict[str, tuple[float, float]] = {
+    "locobench": (0.0, 1.0),
+    "locobench_agent": (0.0, 1.0),
+    "swebench": (0.0, 1.0),
+    "swebench_pro": (0.0, 1.0),
+    "big_code_mcp": (0.0, 1.0),
+    "github_mined": (0.0, 1.0),
+    "tac_mcp_value": (0.0, 1.0),
+}
+
+# Known benchmark directory name prefixes for type inference.
+_BENCHMARK_DIR_NAMES = frozenset(BENCHMARK_NORMALIZATION.keys())
+
+
 @dataclass(frozen=True)
 class AlignmentResult:
     """Result of aligning tasks across two experiment directories."""
@@ -181,5 +198,76 @@ class TaskAligner:
                 return float(reward)
             except (ValueError, TypeError):
                 return None
+
+        return None
+
+
+class RewardNormalizer:
+    """Normalizes rewards to a 0-1 scale across benchmark types.
+
+    Normalization rules are defined in BENCHMARK_NORMALIZATION. For benchmarks
+    that already produce 0-1 rewards (LoCoBench, SWE-bench), this is a
+    passthrough with clamping. For others, min-max normalization is applied.
+    """
+
+    def normalize(self, reward: float, benchmark_type: str) -> float:
+        """Normalize a reward value to [0.0, 1.0].
+
+        Args:
+            reward: Raw reward value from the benchmark.
+            benchmark_type: Benchmark type string (e.g., 'locobench', 'swebench_pro').
+
+        Returns:
+            Normalized reward clamped to [0.0, 1.0].
+
+        Raises:
+            ValueError: If benchmark_type is not recognized.
+        """
+        if benchmark_type not in BENCHMARK_NORMALIZATION:
+            raise ValueError(
+                f"Unknown benchmark type: '{benchmark_type}'. "
+                f"Known types: {sorted(BENCHMARK_NORMALIZATION.keys())}"
+            )
+
+        raw_min, raw_max = BENCHMARK_NORMALIZATION[benchmark_type]
+
+        if raw_max == raw_min:
+            normalized = 0.0
+        else:
+            normalized = (reward - raw_min) / (raw_max - raw_min)
+
+        return max(0.0, min(1.0, normalized))
+
+    def infer_benchmark_type(self, task_path: Path) -> Optional[str]:
+        """Infer benchmark type from a task directory path or its config.json.
+
+        Checks config.json metadata first, then scans path components for
+        known benchmark directory names.
+
+        Args:
+            task_path: Path to a task directory or benchmark path.
+
+        Returns:
+            Benchmark type string, or None if not inferrable.
+        """
+        # Try config.json first
+        config_path = task_path / "config.json"
+        if config_path.is_file():
+            try:
+                with open(config_path, "r") as f:
+                    config = json.load(f)
+                task_config = config.get("task") or {}
+                config_task_path = task_config.get("path") or ""
+                if config_task_path:
+                    for part in Path(config_task_path).parts:
+                        if part in _BENCHMARK_DIR_NAMES:
+                            return part
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Scan path components for known benchmark names
+        for part in task_path.parts:
+            if part in _BENCHMARK_DIR_NAMES:
+                return part
 
         return None
