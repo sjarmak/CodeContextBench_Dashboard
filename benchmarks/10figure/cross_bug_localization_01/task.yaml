@@ -1,0 +1,66 @@
+task_id: cross_bug_localization_01
+type: bug_localization
+repos:
+  - kubernetes
+  - django
+
+description: >
+  Locate TOCTOU race conditions in the caching layers of both Kubernetes
+  (DeltaFIFO resync) and Django (database cache add). Document the bug
+  pattern and propose fixes.
+
+ground_truth:
+  bug_locations:
+    kubernetes:
+      - symbol: "syncKeyLocked"
+        file: "staging/src/k8s.io/client-go/tools/cache/delta_fifo.go"
+        description: "TOCTOU: checks len(f.items[id]) > 0 before queueActionLocked"
+        required: true
+
+      - symbol: "Replace"
+        file: "staging/src/k8s.io/client-go/tools/cache/delta_fifo.go"
+        description: "Race between ListKeys() and GetByKey() on knownObjects"
+        required: false
+
+      - symbol: "Pop"
+        file: "staging/src/k8s.io/client-go/tools/cache/delta_fifo.go"
+        description: "Deletes from items without preventing concurrent Resync"
+        required: false
+
+    django:
+      - symbol: "_base_set"
+        file: "django/core/cache/backends/db.py"
+        description: "Check-then-act: SELECT then conditional INSERT/UPDATE in add mode"
+        required: true
+
+      - symbol: "add"
+        file: "django/core/cache/backends/locmem.py"
+        description: "Correct implementation with self._lock for atomic check-and-act"
+        required: false
+
+  expected_fix_patterns:
+    kubernetes:
+      - "atomic check-and-queue or hold lock across check and queueAction"
+    django:
+      - "SELECT FOR UPDATE or database-level INSERT ON CONFLICT (UPSERT)"
+
+  expected_keywords:
+    - "syncKeyLocked"
+    - "DeltaFIFO"
+    - "TOCTOU"
+    - "items"
+    - "queueActionLocked"
+    - "_base_set"
+    - "add"
+    - "DatabaseError"
+    - "locmem"
+    - "_lock"
+    - "race"
+    - "atomic"
+
+scoring:
+  min_locations_required: 2
+  partial_credit: true
+  keyword_weight: 0.3
+  location_weight: 0.4
+  fix_proposal_weight: 0.3

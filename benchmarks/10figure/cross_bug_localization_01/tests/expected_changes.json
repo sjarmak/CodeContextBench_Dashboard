@@ -1,0 +1,53 @@
+{
+  "task_id": "cross_bug_localization_01",
+  "description": "Locate TOCTOU race conditions in K8s DeltaFIFO and Django database cache",
+  "repos": ["kubernetes", "django"],
+  "scoring_weights": {
+    "kubernetes": 0.55,
+    "django": 0.45
+  },
+  "expected_symbols": {
+    "kubernetes": [
+      {
+        "symbol": "syncKeyLocked",
+        "file": "staging/src/k8s.io/client-go/tools/cache/delta_fifo.go",
+        "required": true
+      },
+      {
+        "symbol": "Replace",
+        "file": "staging/src/k8s.io/client-go/tools/cache/delta_fifo.go",
+        "required": false
+      },
+      {
+        "symbol": "DeltaFIFO",
+        "file": "staging/src/k8s.io/client-go/tools/cache/delta_fifo.go",
+        "required": false
+      }
+    ],
+    "django": [
+      {
+        "symbol": "_base_set",
+        "file": "django/core/cache/backends/db.py",
+        "required": true
+      },
+      {
+        "symbol": "add",
+        "file": "django/core/cache/backends/locmem.py",
+        "required": false
+      }
+    ]
+  },
+  "expected_keywords": [
+    "syncKeyLocked",
+    "DeltaFIFO",
+    "TOCTOU",
+    "queueActionLocked",
+    "_base_set",
+    "DatabaseError",
+    "locmem",
+    "_lock",
+    "race",
+    "atomic"
+  ],
+  "compilation_required": false
+}

@@ -1,0 +1,13 @@
+[metadata]
+task_id = "cross_bug_localization_01"
+type = "bug_localization"
+difficulty = "hard"
+max_time_minutes = 20
+
+[environment]
+docker_image = "localhost/harbor-10figure:base"
+repos = ["kubernetes", "django"]
+repo_paths = ["/10figure/src/kubernetes", "/10figure/src/django"]
+
+[scoring]
+weights = { kubernetes = 0.55, django = 0.45 }

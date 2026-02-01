@@ -12,6 +12,20 @@ Started: Sat Jan 31 23:09:13 EST 2026
 - Existing 4 scored tasks are all Kubernetes-only (api_upgrade_01, bug_localization_01, cross_file_reasoning_01, refactor_rename_01)
 - Template `templates/test.sh.j2` generates test.sh scripts; expects patch at `/logs/agent/patch.diff`
 
+## 2026-01-31 - US-006
+- Created `benchmarks/10figure/cross_bug_localization_01/` task package (Kubernetes + Django)
+- Task: locate TOCTOU race conditions in K8s DeltaFIFO (syncKeyLocked/Replace) and Django db cache (_base_set add mode)
+- Bug locations: K8s delta_fifo.go syncKeyLocked len(f.items[id])>0 check; Django db.py _base_set SELECT→INSERT race
+- Includes correct implementation contrast (Django locmem.py add() with _lock)
+- Weights: kubernetes=0.55, django=0.45 (K8s has more bug locations)
+- Files: instruction.md, task.toml, task.yaml, environment/Dockerfile, tests/test.sh, tests/expected_changes.json
+- **Learnings for future iterations:**
+  - K8s DeltaFIFO is in staging/src/k8s.io/client-go/tools/cache/delta_fifo.go (not pkg/)
+  - Django cache backends are in django/core/cache/backends/ with db.py (database), locmem.py (in-memory), memcached.py
+  - The code comments in K8s acknowledge the race condition explicitly
+  - Django's DatabaseError silencing in _base_set is documented as intentional for thread safety
+---
+
 ## 2026-01-31 - US-005
 - Created `benchmarks/10figure/cross_dependency_impact_01/` task package (Django + TensorFlow)
 - Task analyzes JSON serialization incompatibilities: DjangoJSONEncoder vs TF get_json_type
