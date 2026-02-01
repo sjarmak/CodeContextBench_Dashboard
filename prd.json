@@ -1,17 +1,18 @@
 {
   "project": "CodeContextBench",
-  "branchName": "ralph/benchmark-trace-reviewer",
-  "description": "Benchmark Trace Reviewer & Experiment Explorer - GUI-driven experiment discovery, trace review, paired comparison, LLM judge configuration, and unified analysis hub for coding agent benchmarks",
+  "branchName": "ralph/harbor-benchmark-adapters",
+  "description": "Harbor Benchmark Adapters & Quality Framework - Create adapters for 5 benchmarks (AINativeBench, DevAI, PRDBench, SWE-Perf, TAC), agent-as-a-judge infrastructure, HOW2BENCH quality framework, and smoke test validation",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Update data source path from jobs/ to runs/",
-      "description": "As a developer, I need the dashboard to read from ~/evals/custom_agents/agents/claudecode/runs/ instead of jobs/ so future benchmark runs are discovered automatically.",
+      "title": "Create MCP-Value Scorer framework",
+      "description": "As a benchmark operator, I need a reusable scoring framework to select high-MCP-value tasks from any benchmark.",
       "acceptanceCriteria": [
-        "Find all references to 'jobs/' path in dashboard code (app.py, views/, utils/) and update to 'runs/'",
-        "Find all references to 'eval_runs_v2/' and update to use 'runs/'",
-        "Update the default RUNS_DIR in .env.local or config to ~/evals/custom_agents/agents/claudecode/runs/",
-        "Ensure harbor_parser.py and transcript_parser.py accept the new path",
+        "Create src/task_selection/mcp_value_scorer.py with MCPValueScorer class",
+        "Implement score_task(task: dict) -> float method returning 0.0-1.0",
+        "Scoring dimensions: context_complexity (0.3), cross_file_deps (0.3), semantic_search_potential (0.2), task_category_weight (0.2)",
+        "Implement select_top_tasks(tasks: list, n: int) -> list method",
+        "Add unit tests in tests/test_mcp_value_scorer.py",
         "Typecheck passes"
       ],
       "priority": 1,
@@ -20,99 +21,98 @@
     },
     {
       "id": "US-002",
-      "title": "Remove archived runs option from UI",
-      "description": "As a developer, I need to remove the 'include archived runs' toggle and related filtering logic from the dashboard.",
+      "title": "Create AINativeBench data model and loader",
+      "description": "As a benchmark operator, I need a data model and loader for AINativeBench tasks.",
       "acceptanceCriteria": [
-        "Remove the 'include archived runs' checkbox/toggle from all UI views (search in dashboard/views/ and dashboard/utils/)",
-        "Remove related filtering logic in filters.py and filter_ui.py that references 'archived' status",
-        "No references to 'archived' run status remain in the dashboard code",
+        "Create benchmarks/ainativebench/ directory structure",
+        "Create adapter.py with AINativeBenchTask dataclass: id, benchmark_name, variant, test_cases, scoring_metrics",
+        "Implement AINativeBenchLoader with load(), all_ids(), filter_by_benchmark(), filter_by_variant() methods",
+        "Loader reads from AINativeBench dataset structure (8 benchmarks, 4 variants each)",
+        "Add unit tests in benchmarks/ainativebench/tests/test_adapter.py",
         "Typecheck passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "No archived runs UI or filtering logic existed in the dashboard code - acceptance criteria verified as already met"
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Add benchmark set detection utility",
-      "description": "As a developer, I need a utility function that derives the benchmark set name (LoCoBench, SWE-Bench Pro, etc.) from a run's manifest.json or directory name.",
+      "title": "Create AINativeBench adapter and templates",
+      "description": "As a benchmark operator, I need an adapter that generates Harbor-compatible tasks from AINativeBench.",
       "acceptanceCriteria": [
-        "Create a function in dashboard/utils/ that accepts a run directory path and returns the benchmark set name",
-        "Detection logic: first check manifest.json config.benchmarks field, then fall back to directory name pattern matching (locobench_* -> LoCoBench, swebenchpro_* -> SWE-Bench Pro, repoqa_* -> RepoQA, dibench_* -> DIBench)",
-        "Returns 'Unknown' for unrecognized patterns",
-        "Unit test verifying detection for each known benchmark set",
+        "Implement AINativeBenchAdapter class with generate_task() method",
+        "Create templates/ directory with task.toml, instruction.md, Dockerfile, test.sh templates",
+        "Dockerfile uses Python 3.10+ with uv package manager",
+        "Verifier parses AINativeBench's native test_results/ JSON output to reward.json",
+        "Create run_adapter.py CLI with --benchmark, --variant, --limit, --output_dir flags",
+        "Add unit tests for adapter template rendering",
         "Typecheck passes"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Already implemented in dashboard/utils/benchmark_detection.py with 32 passing tests"
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Benchmark set grouping in experiment selector",
-      "description": "As an evaluator, I want experiments grouped by benchmark set in the experiment selector so I can quickly find runs for a specific benchmark.",
+      "title": "Create DevAI data model and loader",
+      "description": "As a benchmark operator, I need a data model and loader for DevAI benchmark tasks.",
       "acceptanceCriteria": [
-        "Experiment selector in run_results.py displays a two-level hierarchy: benchmark set header > experiment entries",
-        "Use the benchmark set detection utility from US-003 to categorize each experiment",
-        "Each benchmark group header shows the count of experiments in parentheses",
-        "Selecting a benchmark set filters to only show its experiments",
-        "Groups with no experiments are hidden",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Create benchmarks/devai/ directory structure",
+        "Create adapter.py with DevAITask dataclass: id, user_query, requirements (list with dependencies), preferences, domain",
+        "Implement DevAILoader with load(), all_ids(), filter_by_domain() methods",
+        "Loader parses DevAI's 55 tasks and 365 hierarchical requirements",
+        "Add unit tests in benchmarks/devai/tests/test_adapter.py",
+        "Typecheck passes"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Already implemented in run_results.py with _group_experiments_by_benchmark() and benchmark set selectbox filter"
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Paired vs individual experiment mode toggle",
-      "description": "As an evaluator, I want to toggle between paired comparison and individual review modes when selecting experiments.",
+      "title": "Create DevAI adapter and templates",
+      "description": "As a benchmark operator, I need an adapter that generates Harbor-compatible tasks from DevAI.",
       "acceptanceCriteria": [
-        "Add a radio button toggle: 'Paired Comparison' | 'Individual Review' at the top of the experiment selector",
-        "In Individual mode: standard single-run selection (existing behavior)",
-        "In Paired mode: show two dropdowns for baseline and variant run selection",
-        "In Paired mode: auto-detect available pairs from pairs/ directory and pre-populate selections",
-        "In Paired mode: allow manual pairing of any two runs that share common task_ids",
-        "Store selection mode in Streamlit session state",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Implement DevAIAdapter class with generate_task() method",
+        "Create templates/ directory with task.toml, instruction.md, Dockerfile, test.sh templates",
+        "Workspace generation matches DevAI's expected benchmark/workspaces/{AGENT_NAME}/{task_name}/ structure",
+        "Verifier validates trajectory format against trajectory-schema.json",
+        "Create run_adapter.py CLI with --domain, --limit, --output_dir flags",
+        "Add unit tests for adapter template rendering",
+        "Typecheck passes"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "Already implemented in run_results.py with radio toggle, individual/paired modes, auto-detect pairs from manifest, and manual pairing"
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Task list with inline metrics and filtering",
-      "description": "As an evaluator, I want to filter and sort the task list within an experiment by status, language, task type, and other criteria.",
+      "title": "Create PRDBench data model and loader",
+      "description": "As a benchmark operator, I need a data model and loader for PRDBench tasks.",
       "acceptanceCriteria": [
-        "Task list table shows columns: task_id (truncated), status badge (pass/fail/error), language, duration, token count, reward score",
-        "Filter sidebar with: status multiselect (pass/fail/error), language multiselect, task type multiselect, difficulty select",
-        "Text search input that filters by task_id substring",
-        "Sort dropdown: name, duration, token count, reward, status",
-        "In paired mode: show side-by-side status columns for baseline and variant",
-        "Clicking a task row sets it as the selected task in session state",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Create benchmarks/prdbench/ directory structure",
+        "Create adapter.py with PRDBenchTask dataclass: id, prd_content, test_plan, evaluation_criteria",
+        "Implement PRDBenchLoader with load(), all_ids() methods",
+        "Loader reads {task_id}/src/PRD.md and {task_id}/evaluation/detailed_test_plan.json",
+        "Add unit tests in benchmarks/prdbench/tests/test_adapter.py",
+        "Typecheck passes"
       ],
       "priority": 6,
       "passes": true,
-      "notes": "Already implemented in dashboard/utils/task_list.py with render_task_list(), filtering, sorting, and paired mode"
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Task detail view - metadata panel",
-      "description": "As an evaluator, I want to see task metadata, build environment, and execution metrics on the task detail page.",
+      "title": "Create PRDBench adapter and templates",
+      "description": "As a benchmark operator, I need an adapter that generates Harbor-compatible tasks from PRDBench.",
       "acceptanceCriteria": [
-        "Display task metadata in a card: task_id, benchmark source, language, difficulty, tags",
-        "Display build environment from config.json: docker image, agent model name, agent name, environment type",
-        "Display execution metrics: total duration, token usage (input/output/cached), tool call count, reward score",
-        "Display agent result: exit code, pass/fail status",
-        "Display verifier output: test pass/fail counts, reward breakdown from verifier/output.json",
-        "All sections wrapped in st.expander for collapsibility",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Implement PRDBenchAdapter class with generate_task() method",
+        "Create templates/ directory with task.toml, instruction.md, Dockerfile, test.sh templates",
+        "Dockerfile supports conda environment with multi-port configuration",
+        "PRD.md content correctly embedded in instruction.md",
+        "Create run_adapter.py CLI with --task_ids, --limit, --output_dir flags",
+        "Add unit tests for adapter template rendering",
+        "Typecheck passes"
       ],
       "priority": 7,
       "passes": true,
@@ -120,32 +120,32 @@
     },
     {
       "id": "US-008",
-      "title": "Task detail view - CLAUDE.md and task prompt display",
-      "description": "As an evaluator, I want to see the CLAUDE.md content and the task instruction prompt on the task detail page.",
+      "title": "Create SWE-Perf wrapper adapter",
+      "description": "As a benchmark operator, I need a thin wrapper adapter for SWE-Perf that delegates to existing infrastructure.",
       "acceptanceCriteria": [
-        "Extract CLAUDE.md content from the agent session directory (sessions/.claude.json or the project's CLAUDE.md if available)",
-        "Display CLAUDE.md content in a collapsible expander with markdown rendering",
-        "Extract the task instruction prompt from the first system message in claude-code.txt or from the task config",
-        "Display the task prompt in a collapsible expander with markdown rendering",
-        "If CLAUDE.md or prompt is not found, show 'Not available' message instead of error",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Create benchmarks/sweperf/ directory structure",
+        "Create adapter.py with SWEPerfTask dataclass: id, repo_name, target_function, human_solution_reference, baseline_runtime",
+        "Implement SWEPerfLoader loading 140 instances",
+        "Implement thin SWEPerfAdapter generating Harbor metadata (task.toml, instruction.md) wrapping SWE-Perf evaluation",
+        "Verifier wraps SWE-Perf's runtime measurement, outputs runtime_reduction as primary metric in reward.json",
+        "Create run_adapter.py CLI with --repo, --limit, --output_dir flags",
+        "Typecheck passes"
       ],
       "priority": 8,
       "passes": true,
-      "notes": "Already implemented in dashboard/utils/task_detail.py with CLAUDE.md extraction and task prompt display in collapsible expanders"
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "JSONL trace parser for claude-code.txt",
-      "description": "As a developer, I need a parser that reads claude-code.txt JSONL files and produces structured trace data for the UI to render.",
+      "title": "Complete TAC wrapper adapter",
+      "description": "As a benchmark operator, I need to complete the TheAgentCompany wrapper adapter started in tac_mcp_value/.",
       "acceptanceCriteria": [
-        "Create src/ingest/trace_viewer_parser.py with a parse_trace(file_path) function",
-        "Parser reads each line as JSON, skipping malformed lines with a warning",
-        "Returns a list of TraceMessage dataclasses with fields: type, subtype, content, tool_name, tool_input, tool_result, token_usage, parent_tool_use_id, session_id, uuid, sequence_number",
-        "Extracts token usage from assistant message usage field (input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens)",
-        "Computes summary metrics: total_messages, total_tool_calls, unique_tools, total_tokens, tools_by_name (count dict), files_accessed (dict of path -> {read_count, write_count, edit_count})",
-        "Unit test with sample JSONL data verifying parsing and metrics computation",
+        "Review existing benchmarks/tac_mcp_value/ implementation",
+        "Complete TACTask dataclass if missing fields (id, role, task_md_path, docker_image)",
+        "Complete TACLoader with filter_by_role() method (SWE, PM, DS, HR, Finance, Admin)",
+        "Ensure adapter wraps TAC Docker images and /utils/eval.py evaluator",
+        "Verify MCP configuration injection via environment variables",
+        "Create/update run_adapter.py CLI with --role, --limit, --output_dir flags",
         "Typecheck passes"
       ],
       "priority": 9,
@@ -154,315 +154,237 @@
     },
     {
       "id": "US-010",
-      "title": "Trace summary overview panel",
-      "description": "As an evaluator, I want a summary panel at the top of the trace view showing tool call metrics, file access summary, and key statistics.",
+      "title": "Create standalone Agent-as-a-Judge evaluator",
+      "description": "As a benchmark operator, I need a standalone agent-as-a-judge tool to evaluate Harbor results using LLM judgment.",
       "acceptanceCriteria": [
-        "Summary panel uses metrics from US-009 parser output",
-        "Display metric cards in a row: total messages, total tool calls, unique tools, total tokens, session duration",
-        "Bar chart (Plotly) showing tool call count per tool name, sorted descending",
-        "File access table: file path, read count, write count, edit count - sorted by total access count descending",
-        "Panel rendered at top of trace tab, above the full trace",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/trace_summary.py with 18 passing tests, integrated at run_results.py:1530-1546"
-    },
-    {
-      "id": "US-011",
-      "title": "Full trace card rendering - message display",
-      "description": "As an evaluator, I want each trace message rendered as a styled card with type-specific formatting.",
-      "acceptanceCriteria": [
-        "Each TraceMessage from the parser is rendered as a card using st.container with custom CSS",
-        "System messages (type=system): gray background, show init metadata (model, tools, session_id)",
-        "Assistant text messages: white background, render content as markdown",
-        "Assistant tool_use messages: light blue background, show tool name as a badge, show input as syntax-highlighted JSON in a collapsible expander",
-        "User tool_result messages: light green background, show content with syntax highlighting for code, truncate results longer than 100 lines with 'Show more' expander",
-        "Token usage shown as a small label on assistant messages (e.g., 'in: 2349 | out: 1 | cached: 18053')",
-        "Pagination: show 50 messages per page with page navigation buttons",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/trace_cards.py with 54 passing tests, integrated in run_results.py Full Trace tab"
-    },
-    {
-      "id": "US-012",
-      "title": "Trace search and type filtering",
-      "description": "As an evaluator, I want to search trace messages by text and filter by message type and tool name.",
-      "acceptanceCriteria": [
-        "Text search input above the trace cards that filters messages containing the search term (case-insensitive)",
-        "Message type multiselect filter: system, assistant, user (tool_result)",
-        "Tool name dropdown filter populated from unique tool names in the trace",
-        "Toggle: show/hide tool results (hides user type messages to focus on agent decisions)",
-        "Result count indicator: 'Showing X of Y messages'",
-        "Filters applied in combination (AND logic)",
-        "Filtered state preserved in session state across interactions",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/trace_filters.py with 51 passing tests, integrated in run_results.py Full Trace tab"
-    },
-    {
-      "id": "US-013",
-      "title": "Tool call timeline visualization",
-      "description": "As an evaluator, I want a visual timeline showing tool calls in sequence with color-coded categories.",
-      "acceptanceCriteria": [
-        "Plotly timeline chart showing tool calls as markers on a vertical axis (sequence order) with horizontal position by tool category",
-        "Color coding by category: file read (blue: Read), file write (green: Write, Edit), search (yellow: Grep, Glob), bash (gray: Bash), planning (purple: EnterPlanMode, ExitPlanMode, TodoWrite), other (orange)",
-        "Hover tooltip shows: tool name, sequence number, brief description (file path for file ops, command preview for Bash, pattern for search)",
-        "Legend shows category colors with toggle to show/hide categories",
-        "Rendered in a tab alongside the full trace view",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "Implemented in dashboard/utils/trace_timeline.py with 40 passing tests, integrated as Timeline tab in run_results.py"
-    },
-    {
-      "id": "US-014",
-      "title": "Extract file diffs from trace Edit/Write operations",
-      "description": "As a developer, I need a utility that extracts file modifications from Edit and Write tool calls in the trace to build diff views.",
-      "acceptanceCriteria": [
-        "Create a function in dashboard/utils/ that takes a list of TraceMessages and returns a dict of file_path -> list of {operation (Edit/Write), old_string, new_string, sequence_number, full_content}",
-        "For Edit operations: extract old_string and new_string from tool input",
-        "For Write operations: extract file_path and content from tool input",
-        "For Read operations: capture file content as the baseline state for that file",
-        "Return results sorted by sequence number per file",
-        "Unit test with sample trace data",
+        "Create src/evaluation/agent_judge.py with AgentJudge class",
+        "Implement evaluate_result(task: HarborResult, criteria: list[str]) -> JudgmentResult method",
+        "Support configurable LLM backend via ANTHROPIC_API_KEY or OPENAI_API_KEY environment variables",
+        "Create JudgmentResult dataclass: overall_score, requirement_scores (dict), reasoning, confidence",
+        "Implement structured output parsing for requirement satisfaction scores",
+        "Add rate limiting and retry logic for API calls",
+        "Add unit tests in tests/test_agent_judge.py",
         "Typecheck passes"
       ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/trace_diffs.py with 38 passing tests, FileOperation dataclass and extract_file_operations() function"
-    },
-    {
-      "id": "US-015",
-      "title": "Embedded file tree from trace data",
-      "description": "As an evaluator, I want a file tree showing all files the agent accessed, built from the trace data.",
-      "acceptanceCriteria": [
-        "Build a file tree structure from all file paths in Read/Edit/Write tool calls",
-        "Display as a nested tree using st.expander for directories",
-        "Each file shows an icon badge: read-only (eye), modified (pencil), created (plus)",
-        "Files the agent did not access are not shown (we only know about accessed files)",
-        "Clicking a file name sets it as the selected file in session state for the diff viewer",
-        "Rendered in a sidebar or left panel of the trace detail view",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/trace_file_tree.py with 47 passing tests, TreeNode/FileAccessInfo dataclasses and render_file_tree() function"
-    },
-    {
-      "id": "US-016",
-      "title": "File diff viewer panel",
-      "description": "As an evaluator, I want to see diffs for files modified by the agent with syntax highlighting.",
-      "acceptanceCriteria": [
-        "When a modified file is selected from the file tree, show its edit history",
-        "For Edit operations: show old_string -> new_string as a unified diff with red/green highlighting using difflib",
-        "For Write operations: show the full file content that was written",
-        "Each diff entry shows the sequence number linking back to the trace message",
-        "Toggle between unified and side-by-side diff format",
-        "Include a link to the GitHub locobench* repo for the file path (constructed from repo reference in task config)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/trace_diff_viewer.py with 57 passing tests, DiffEntry dataclass and render_diff_viewer()/render_file_diff_panel() functions"
-    },
-    {
-      "id": "US-017",
-      "title": "LLM judge - prompt and rubric editor UI",
-      "description": "As an evaluator, I want to edit the LLM judge system prompt, scoring dimensions, and rubric from the GUI.",
-      "acceptanceCriteria": [
-        "System prompt text area (large, resizable) pre-populated with current judge prompt from config",
-        "Scoring dimensions list: each dimension shown as a row with name input, weight slider (0-1), and delete button",
-        "Add dimension button to append a new dimension row",
-        "Per-dimension criteria text area: editable description of what each score level (1-5) means",
-        "Model selection dropdown populated from available Anthropic models",
-        "Temperature slider (0.0-1.0) and max_tokens numeric input",
-        "Save button that writes the config to configs/judge_templates/active_config.json",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": "Implemented via dashboard/utils/judge_config.py (data model + I/O) and dashboard/utils/judge_editor.py (Streamlit UI), integrated as 'Prompt & Rubric Editor' tab in analysis_llm_judge.py. 63 passing tests."
-    },
-    {
-      "id": "US-018",
-      "title": "LLM judge - test prompt on single task",
-      "description": "As an evaluator, I want to test the current judge configuration on a single task and see the result inline.",
-      "acceptanceCriteria": [
-        "Test Prompt button on the judge config page",
-        "Task selector dropdown to pick a task from the currently loaded experiment",
-        "Clicking Test Prompt calls the existing llm_judge_analyzer with current config on the selected task",
-        "Result displayed inline: per-dimension scores, overall score, judge reasoning text",
-        "Error handling: if API call fails, show error message without crashing",
-        "Loading spinner while judge is running",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/judge_test_prompt.py with 67 passing tests, integrated in analysis_llm_judge.py Prompt & Rubric Editor tab"
-    },
-    {
-      "id": "US-019",
-      "title": "LLM judge - template save and load",
-      "description": "As an evaluator, I want to save the current judge config as a named template and load previously saved templates.",
-      "acceptanceCriteria": [
-        "Save Template button with a text input for template name",
-        "Saves current config (prompt, dimensions, weights, model, temperature, max_tokens) as JSON to configs/judge_templates/{name}.json",
-        "Template list sidebar showing all saved templates with name, creation date, and model used",
-        "Load button on each template that populates all editor fields with the template's values",
-        "Delete button on each template with confirmation",
-        "Duplicate button that creates a copy with '-copy' suffix",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/judge_template_manager.py with 61 passing tests. Fixed tab integration test for 6-tab layout."
-    },
-    {
-      "id": "US-020",
-      "title": "LLM judge - A/B comparison mode",
-      "description": "As an evaluator, I want to run two different judge templates on the same tasks and compare scores side-by-side.",
-      "acceptanceCriteria": [
-        "A/B Comparison tab on the judge page",
-        "Two template selectors: Template A and Template B",
-        "Task set selector: choose which experiment and tasks to evaluate",
-        "Run Comparison button that executes both judges on all selected tasks",
-        "Results table: task_id, Template A scores (per dimension), Template B scores (per dimension), delta",
-        "Summary stats: mean score per template, correlation between templates, agreement rate",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/judge_ab_comparison.py with 55 passing tests, integrated as A/B Comparison tab in analysis_llm_judge.py"
-    },
-    {
-      "id": "US-021",
-      "title": "LLM judge - human alignment score entry",
-      "description": "As an evaluator, I want to enter human scores alongside LLM judge scores and see agreement metrics.",
-      "acceptanceCriteria": [
-        "Human Alignment tab on the judge page",
-        "Table showing: task_id, LLM scores per dimension, editable human score inputs (1-5) per dimension",
-        "Human scores saved to SQLite table (task_id, dimension, human_score, llm_score, annotator, timestamp)",
-        "Progress indicator: 'X of Y tasks reviewed'",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 21,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/judge_human_alignment.py with 47 passing tests, SQLite persistence, and integration in analysis_llm_judge.py Human Alignment tab"
-    },
-    {
-      "id": "US-022",
-      "title": "LLM judge - alignment agreement metrics",
-      "description": "As an evaluator, I want to see statistical agreement between human and LLM judge scores.",
-      "acceptanceCriteria": [
-        "Compute and display Cohen's kappa between human and LLM scores (treating as ordinal categories)",
-        "Compute and display Pearson correlation between human and LLM scores",
-        "Compute and display mean absolute error between human and LLM scores",
-        "Disagreement highlighter: rows where |human - LLM| > configurable threshold (default 2) are highlighted red",
-        "Export button: download human+LLM scores as CSV",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 22,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/judge_alignment_metrics.py with 67 passing tests, integrated in judge_human_alignment.py render panel"
-    },
-    {
-      "id": "US-023",
-      "title": "Analysis Hub - card-based navigation page",
-      "description": "As an evaluator, I want the Analysis Hub to show cards for each analysis type that I can click to configure and run.",
-      "acceptanceCriteria": [
-        "Analysis Hub page (dashboard/views/analysis_hub.py) displays 6 cards in a 2x3 grid: Statistical, Comparison, Time Series, Cost, Failure, LLM Judge",
-        "Each card shows: icon, title, brief description, and a 'Configure & Run' button",
-        "Clicking a card navigates to the corresponding analysis view using Streamlit session state",
-        "Cards show a status badge if results are already available (green check) or not (gray dash)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 23,
-      "passes": true,
-      "notes": "Already implemented in dashboard/views/analysis_hub.py and dashboard/utils/analysis_cards.py with 38 passing tests"
-    },
-    {
-      "id": "US-024",
-      "title": "Analysis Hub - GUI-driven statistical analysis config",
-      "description": "As an evaluator, I want to configure and run statistical analysis from the GUI without using the terminal.",
-      "acceptanceCriteria": [
-        "Statistical analysis page has: experiment selector (multiselect), task filter (reuse existing filters), significance level input (default 0.05), test type selector (t-test, Mann-Whitney, chi-squared), effect size threshold input",
-        "Run Analysis button that calls the existing statistical_analyzer.py with selected parameters",
-        "Results displayed inline: p-values table, confidence intervals, effect sizes with Plotly charts",
-        "Export button: download results as CSV",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 24,
-      "passes": true,
-      "notes": "Already implemented in dashboard/utils/statistical_config.py and dashboard/views/analysis_statistical.py with 59 passing tests"
-    },
-    {
-      "id": "US-025",
-      "title": "Analysis Hub - GUI-driven comparison analysis config",
-      "description": "As an evaluator, I want to configure and run comparison analysis between two runs from the GUI.",
-      "acceptanceCriteria": [
-        "Comparison page has: two run selectors (baseline and variant), metric selector (pass rate, reward, duration, tokens), task filter",
-        "Run Comparison button that calls the existing comparator.py",
-        "Results: comparison table with deltas, bar chart of pass rates, scatter plot of per-task metrics",
-        "Export button: download comparison report as CSV",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 25,
-      "passes": true,
-      "notes": "Implemented in dashboard/utils/comparison_config.py and dashboard/views/analysis_comparison.py with 52 passing tests"
-    },
-    {
-      "id": "US-026",
-      "title": "Analysis Hub - GUI-driven cost and failure analysis config",
-      "description": "As an evaluator, I want to configure and run cost analysis and failure analysis from the GUI.",
-      "acceptanceCriteria": [
-        "Cost analysis page: experiment selector, view token costs (input/output/cached), execution time per task, cost per model - all using existing cost_analyzer.py",
-        "Cost results: Plotly bar charts for token distribution, cost breakdown table, exportable as CSV",
-        "Failure analysis page: experiment selector, view error clusters, failure patterns, top error messages - using existing failure_analyzer.py",
-        "Failure results: error category pie chart, failure pattern table, root cause summary",
-        "Both pages require no CLI commands",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 26,
+      "priority": 10,
       "passes": true,
       "notes": ""
     },
     {
-      "id": "US-027",
-      "title": "Analysis Hub - GUI-driven time series analysis config",
-      "description": "As an evaluator, I want to configure and run time series analysis from the GUI.",
+      "id": "US-011",
+      "title": "Create Agent-as-a-Judge CLI",
+      "description": "As a benchmark operator, I need a CLI to batch-evaluate Harbor results using agent-as-a-judge.",
       "acceptanceCriteria": [
-        "Time series page: metric selector (pass rate, reward, duration, tokens), date range picker, aggregation level (per-run, per-day, per-week)",
-        "Run Analysis button that calls existing time_series_analyzer.py",
-        "Results: Plotly line chart with trend line, anomaly markers, data table below chart",
-        "Export button: download data as CSV",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Create scripts/run_agent_judge.py CLI",
+        "Support --results_dir pointing to Harbor results directory",
+        "Support --criteria_file for custom evaluation criteria (JSON/YAML)",
+        "Support --output_dir for judgment results",
+        "Support --model flag (default: claude-sonnet-4-20250514)",
+        "Output judgments to {task_id}_judgment.json files",
+        "Generate summary report with aggregate statistics",
+        "Typecheck passes"
       ],
-      "priority": 27,
+      "priority": 11,
       "passes": true,
-      "notes": "Implemented in dashboard/utils/timeseries_config.py and dashboard/views/analysis_timeseries.py with 55 passing tests"
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create Agent-as-a-Judge verifier integration",
+      "description": "As a benchmark operator, I need to use agent-as-a-judge as a verifier option in adapters.",
+      "acceptanceCriteria": [
+        "Create src/evaluation/agent_judge_verifier.py implementing Harbor verifier interface",
+        "Verifier reads task criteria from ground_truth.json or dedicated criteria file",
+        "Verifier outputs standard reward.json with judgment score as primary metric",
+        "Add verifier_type option to task.toml template: 'deterministic' | 'agent_judge' | 'hybrid'",
+        "Update adapter base template to support verifier type selection",
+        "Add unit tests in tests/test_agent_judge_verifier.py",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Create HOW2BENCH checklist data model",
+      "description": "As a quality engineer, I need the 55-criteria HOW2BENCH checklist as structured data.",
+      "acceptanceCriteria": [
+        "Create src/quality/how2bench_checklist.py with all 55 criteria as structured data",
+        "Organize criteria into categories: data_quality, reproducibility, methodology",
+        "Each criterion has: id, category, description, severity (critical/important/recommended), automated (bool)",
+        "Create ChecklistResult dataclass: criterion_id, passed, evidence, notes",
+        "Create BenchmarkAuditReport dataclass aggregating all results",
+        "Add unit tests in tests/test_how2bench_checklist.py",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Create pre-flight validation checks",
+      "description": "As a benchmark operator, I need automated pre-flight checks before deploying adapters.",
+      "acceptanceCriteria": [
+        "Create src/quality/preflight_validator.py with PreflightValidator class",
+        "Implement checks: task.toml schema validity, Dockerfile presence, test.sh executability",
+        "Implement checks: ground_truth.json presence, instruction.md completeness",
+        "Implement checks: no hardcoded secrets, valid timeout values, resource limits set",
+        "Return structured validation report with pass/fail per check",
+        "Create scripts/validate_adapter.py CLI that runs preflight on adapter directory",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Create documentation compliance auditor",
+      "description": "As a quality engineer, I need to generate compliance reports for each benchmark.",
+      "acceptanceCriteria": [
+        "Create src/quality/compliance_auditor.py with ComplianceAuditor class",
+        "Implement audit_benchmark(benchmark_dir: Path) -> BenchmarkAuditReport method",
+        "Check README.md presence and required sections",
+        "Check DESIGN.md with task selection rationale",
+        "Check LICENSE compatibility and data source attribution",
+        "Generate markdown compliance report",
+        "Create scripts/audit_benchmark.py CLI",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Create task quality scorer",
+      "description": "As a quality engineer, I need to score individual tasks against HOW2BENCH criteria.",
+      "acceptanceCriteria": [
+        "Create src/quality/task_quality_scorer.py with TaskQualityScorer class",
+        "Implement scoring against: instruction clarity, ground truth validity, evaluation determinism",
+        "Score each task 0.0-1.0 with breakdown by criterion",
+        "Flag tasks below threshold (default 0.7) for review",
+        "Create scripts/score_task_quality.py CLI",
+        "Output quality scores to task_quality_report.json",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Create smoke test runner",
+      "description": "As a benchmark operator, I need a smoke test runner to validate adapters before VM deployment.",
+      "acceptanceCriteria": [
+        "Create scripts/smoke_test_adapter.py CLI",
+        "Support --adapter_dir pointing to benchmark adapter",
+        "Support --num_tasks (default: 3) for number of tasks to test",
+        "Generate tasks using adapter's run_adapter.py",
+        "Validate generated task structure (task.toml, instruction.md, Dockerfile, test.sh present)",
+        "Support --build flag to optionally build Docker image",
+        "Support --verify flag to run verifier with mock agent output",
+        "Output smoke test report with pass/fail per task",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "AINativeBench smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the AINativeBench adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 AINativeBench tasks using smoke_test_adapter.py",
+        "Verify task.toml has correct metadata (category: ainativebench)",
+        "Verify instruction.md contains benchmark-specific instructions",
+        "Verify reward.json output format matches Harbor spec",
+        "Document any adapter-specific setup requirements in README.md",
+        "Smoke test passes"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "DevAI smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the DevAI adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 DevAI tasks using smoke_test_adapter.py",
+        "Verify trajectory schema validation works",
+        "Verify agent-as-a-judge integration produces valid judgment (if criteria provided)",
+        "Verify reward.json output format matches Harbor spec",
+        "Smoke test passes"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "PRDBench smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the PRDBench adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 PRDBench tasks using smoke_test_adapter.py",
+        "Verify PRD.md content is correctly embedded in instruction.md",
+        "Verify test_plan.json is accessible to verifier",
+        "Verify reward.json output format matches Harbor spec",
+        "Smoke test passes"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "SWE-Perf smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the SWE-Perf adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 SWE-Perf tasks using smoke_test_adapter.py",
+        "Verify wrapper correctly references SWE-Perf evaluation",
+        "Verify runtime_reduction metric is defined in reward.json schema",
+        "Verify reward.json output format matches Harbor spec",
+        "Smoke test passes"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "TAC smoke test validation",
+      "description": "As a benchmark operator, I need smoke test validation for the TAC adapter.",
+      "acceptanceCriteria": [
+        "Run smoke test on 1-3 TAC tasks using smoke_test_adapter.py",
+        "Verify TAC Docker image wrapper references are valid",
+        "Verify MCP configuration injection structure is correct",
+        "Verify TAC's eval.py output conversion to reward.json is defined",
+        "Smoke test passes"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Add task selection scripts per benchmark",
+      "description": "As a benchmark operator, I need task selection scripts using MCPValueScorer for each benchmark.",
+      "acceptanceCriteria": [
+        "Create benchmarks/ainativebench/select_tasks.py using MCPValueScorer",
+        "Create benchmarks/devai/select_tasks.py using MCPValueScorer",
+        "Create benchmarks/prdbench/select_tasks.py using MCPValueScorer",
+        "Create benchmarks/sweperf/select_tasks.py using MCPValueScorer",
+        "Update benchmarks/tac_mcp_value/select_tasks.py to use MCPValueScorer",
+        "Each script outputs ranked task list with scores to selected_tasks.json",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": ""
     }
   ]
 }

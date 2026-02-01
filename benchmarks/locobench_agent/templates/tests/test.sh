@@ -19,13 +19,17 @@ if [ ! -f /tests/ground_truth.json ]; then
     exit 0
 fi
 
-# Check for solution file
-SOLUTION_FILE="/app/solution.md"
+# Check for solution file (in mounted volume for persistence)
+SOLUTION_FILE="/logs/agent/solution.md"
 if [ ! -f "$SOLUTION_FILE" ]; then
-    echo "ERROR: Agent did not create solution.md"
-    echo '{"score": 0.0, "error": "No solution file created"}' > /logs/verifier/reward.json
-    echo "0.0" > /logs/verifier/reward.txt
-    exit 0
+    # Fallback to /app/solution.md for backwards compatibility
+    SOLUTION_FILE="/app/solution.md"
+    if [ ! -f "$SOLUTION_FILE" ]; then
+        echo "ERROR: Agent did not create solution.md"
+        echo '{"score": 0.0, "error": "No solution file created"}' > /logs/verifier/reward.json
+        echo "0.0" > /logs/verifier/reward.txt
+        exit 0
+    fi
 fi
 
 echo "Solution file found: $SOLUTION_FILE"

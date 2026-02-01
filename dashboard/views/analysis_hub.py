@@ -2,17 +2,20 @@
 Analysis Hub - Entry point for Phase 4 analysis components.
 
 Provides:
-- Auto-ingestion of results from external jobs directory
+- Auto-ingestion of results from external runs directory
 - Database connectivity status
 - Tabbed interface embedding all analysis views:
   Overview, Comparison, Statistical, Time-Series, Cost, Failure
+- Experiment overview
+- Analysis component availability checklist
+- Quick-start workflow
 """
 
 import streamlit as st
 from pathlib import Path
+from datetime import datetime
 import os
 
-from dashboard.utils.analysis_cards import render_analysis_card_grid
 from dashboard.utils.analysis_loader import AnalysisLoader, DatabaseNotFoundError
 
 
@@ -25,7 +28,7 @@ EXTERNAL_RUNS_DIR = Path(os.environ.get(
 
 def auto_ingest_if_needed(db_path: Path, project_root: Path) -> tuple[bool, str]:
     """
-    Auto-ingest results from external jobs directory if database is missing or empty.
+    Auto-ingest results from external jobs/runs directory if database is missing or empty.
 
     Returns:
         Tuple of (success, message)
@@ -40,7 +43,11 @@ def auto_ingest_if_needed(db_path: Path, project_root: Path) -> tuple[bool, str]
 
         experiment_dirs = [
             d for d in EXTERNAL_RUNS_DIR.iterdir()
-            if d.is_dir() and not d.name.startswith('.') and (d / "result.json").exists()
+            if d.is_dir() and not d.name.startswith('.') and (
+                (d / "result.json").exists() or  # Single experiment
+                (d / "baseline").exists() or      # Paired experiment
+                (d / "deepsearch").exists()       # Paired experiment
+            )
         ]
 
         if not experiment_dirs:
@@ -84,7 +91,7 @@ def _init_loader() -> bool:
             st.info("Database not found. Auto-ingesting results...")
             success, message = auto_ingest_if_needed(db_path, project_root)
             if success:
-                st.success(f"✓ {message}")
+                st.success(f"Yes {message}")
             else:
                 st.warning(message)
                 st.caption(f"Expected database at: {db_path}")
@@ -95,11 +102,11 @@ def _init_loader() -> bool:
             st.session_state.analysis_loader = loader
 
             if loader.is_healthy():
-                st.success("✓ Database Connected")
+                st.success("Yes Database Connected")
             else:
-                st.error("✗ Database Unhealthy")
+                st.error("No Database Unhealthy")
         except DatabaseNotFoundError:
-            st.error("✗ Database Not Found")
+            st.error("No Database Not Found")
             st.caption(f"Expected at: {db_path}")
             return False
 
@@ -121,7 +128,9 @@ def _init_loader() -> bool:
         except Exception:
             st.metric("Experiments", "N/A")
 
-    if st.button("Re-ingest Results", help="Re-scan external jobs directory and update database"):
+    # Re-ingest button
+    st.markdown("")
+    if st.button("Re-ingest Results", help="Re-scan external runs directory and update database"):
         with st.spinner("Ingesting results..."):
             success, message = auto_ingest_if_needed(db_path, project_root)
             if success:
@@ -141,6 +150,7 @@ def _render_overview_tab():
 
     st.subheader("Available Experiments")
 
+
     try:
         experiments = loader.list_experiments()
 
@@ -149,10 +159,12 @@ def _render_overview_tab():
             for exp_id in experiments:
                 try:
                     agents = loader.list_agents(exp_id)
+                    # Filter out any None values defensively
+                    agents = [a for a in agents if a is not None]
                     exp_data.append({
                         "Experiment": exp_id,
                         "Agents": len(agents),
-                        "Agent List": ", ".join(agents) if agents else "N/A"
+                        "Agent List": ", ".join(agents) if agents else "(no agent names)"
                     })
                 except Exception as e:
                     exp_data.append({
@@ -166,6 +178,57 @@ def _render_overview_tab():
             st.info("No experiments found. Run `ccb ingest` to populate the database.")
     except Exception as e:
         st.error(f"Failed to load experiments: {e}")
+
+    st.markdown("---")
+
+    # Analysis components checklist
+    st.subheader("3. Available Analysis Components")
+
+    components = {
+        "Experiment Comparison": {
+            "description": "Compare agent performance metrics",
+            "page": "Comparison Analysis",
+            "metrics": ["Pass Rate", "Duration", "MCP Calls"]
+        },
+        "Statistical Significance": {
+            "description": "Determine if differences are statistically significant",
+            "page": "Statistical Analysis",
+            "metrics": ["t-tests", "Chi-square", "Effect Sizes"]
+        },
+        "Time-Series Trends": {
+            "description": "Track metric changes across experiments",
+            "page": "Time-Series Analysis",
+            "metrics": ["Trends", "Anomalies", "Improvement Rate"]
+        },
+        "Cost Analysis": {
+            "description": "Analyze API costs and efficiency",
+            "page": "Cost Analysis",
+            "metrics": ["Token Usage", "Cost/Success", "Efficiency"]
+        },
+        "Failure Patterns": {
+            "description": "Understand failure modes and categories",
+            "page": "Failure Analysis",
+            "metrics": ["Patterns", "Categories", "Fixes"]
+        },
+        "LLM Judge": {
+            "description": "Evaluate agent responses with LLM-based scoring",
+            "page": "LLM Judge",
+            "metrics": ["Quality Scores", "Comparisons", "Criteria Matching"]
+        }
+    }
+
+    for component, info in components.items():
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.markdown(f"**{component}**")
+            st.caption(info["description"])
+            st.caption(f"Metrics: {', '.join(info['metrics'])}")
+
+        with col2:
+            if st.button(f"Open", key=f"hub_goto_{info['page'].replace(' ', '_')}"):
+                st.session_state.current_page = info["page"]
+                st.rerun()
 
     st.markdown("---")
 
@@ -218,3 +281,46 @@ def show_analysis_hub():
     with tab_failure:
         from dashboard.views.analysis_failure import show_failure_analysis
         show_failure_analysis()
+
+    st.markdown("---")
+
+    # Database management
+    st.subheader("6. Database Management")
+
+    project_root = st.session_state.get("project_root", Path(__file__).parent.parent.parent)
+    db_path = project_root / "data" / "metrics.db"
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Refresh Database Connection"):
+            st.session_state.analysis_loader = None
+            try:
+                loader = AnalysisLoader(db_path)
+                st.session_state.analysis_loader = loader
+                st.success("Yes Database refreshed")
+            except Exception as e:
+                st.error(f"Failed to refresh: {e}")
+            st.rerun()
+
+    with col2:
+        if st.button("Clear Result Cache"):
+            if hasattr(st.session_state.analysis_loader, 'clear_cache'):
+                st.session_state.analysis_loader.clear_cache()
+                st.success("Yes Cache cleared")
+
+    st.markdown("---")
+
+    # Documentation
+    st.subheader("7. Documentation")
+
+    st.markdown("""
+    - **Phase 4 Statistical Testing**: Perform t-tests, chi-square tests, Mann-Whitney U tests
+    - **Phase 4 Time-Series Analysis**: Track trends and anomalies across experiments
+    - **Phase 4 Cost Analysis**: Monitor API costs and compute efficiency
+
+    For detailed information, see:
+    - `docs/PIPELINE_OVERVIEW.md` - Complete pipeline architecture
+    - `docs/ANALYSIS_LAYER.md` - Analysis component details
+    - `AGENTS.md` - Workflow and patterns
+    """)

@@ -204,7 +204,7 @@ def create_agent_tool_comparison(
 
 def show_deep_search_analytics():
     """Main Deep Search analytics page."""
-    st.title("🔎 Deep Search Analytics")
+    st.title("Deep Search Analytics")
     st.markdown("Analyze MCP Deep Search usage patterns and effectiveness.")
 
     # Get project root

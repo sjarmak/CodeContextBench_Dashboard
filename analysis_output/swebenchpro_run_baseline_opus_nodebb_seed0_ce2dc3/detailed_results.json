@@ -1,0 +1,176 @@
+{
+  "baseline": {
+    "summary": {
+      "run_id": "swebenchpro_run_baseline_opus_nodebb_seed0_ce2dc3_baseline",
+      "benchmark": "swebench_pro",
+      "mcp_mode": "baseline",
+      "model": "claude-opus-4-5",
+      "total_tasks": 20,
+      "mean_reward": 0.0,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0
+    },
+    "tasks": [
+      {
+        "task_name": "instance_protonmail__webclients-369fd37de29c14c690cb3b1c09a949189734026f",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 147.727369,
+        "agent_execution_seconds": 0.800708
+      },
+      {
+        "task_name": "instance_protonmail__webclients-0d0267c4438cf378bda90bc85eed3a3615871ac4",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 24.491654,
+        "agent_execution_seconds": 0.737591
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 20.25179,
+        "agent_execution_seconds": 0.323986
+      },
+      {
+        "task_name": "instance_gravitational__teleport-db89206db6c2969266e664c7c0fb51b70e958b64",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1517.251393,
+        "agent_execution_seconds": 1220.811789
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-d109cc7e6e161170391f98f9a6fa1d02534c18e4-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 954.550353,
+        "agent_execution_seconds": 923.043621
+      },
+      {
+        "task_name": "instance_protonmail__webclients-2dce79ea4451ad88d6bfe94da22e7f2f988efa60",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1.050076,
+        "agent_execution_seconds": 0.0
+      },
+      {
+        "task_name": "instance_tutao__tutanota-befce4b146002b9abc86aa95f4d57581771815ce-vee878bb72091875e912c52fc32bc60ec3760227b",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 377.242469,
+        "agent_execution_seconds": 0.769339
+      },
+      {
+        "task_name": "instance_protonmail__webclients-2dce79ea4451ad88d6bfe94da22e7f2f988efa60",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 223.043065,
+        "agent_execution_seconds": 0.775742
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-bb152d23c004f3d68986877143bb0f83531fe401-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 819.442387,
+        "agent_execution_seconds": 788.693179
+      },
+      {
+        "task_name": "instance_protonmail__webclients-c6f65d205c401350a226bb005f42fac1754b0b5b",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 448.453936,
+        "agent_execution_seconds": 0.733448
+      },
+      {
+        "task_name": "instance_gravitational__teleport-d6ffe82aaf2af1057b69c61bf9df777f5ab5635a-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 2031.539278,
+        "agent_execution_seconds": 935.286657
+      },
+      {
+        "task_name": "instance_protonmail__webclients-6e1873b06df6529a469599aa1d69d3b18f7d9d37",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 268.179259,
+        "agent_execution_seconds": 0.776021
+      },
+      {
+        "task_name": "instance_gravitational__teleport-fb0ab2b9b771377a689fd0d0374777c251e58bbf",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1630.595597,
+        "agent_execution_seconds": 1318.952949
+      },
+      {
+        "task_name": "instance_protonmail__webclients-8be4f6cb9380fcd2e67bcb18cef931ae0d4b869c",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 123.345913,
+        "agent_execution_seconds": 0.792417
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-7f6b722a10f822171501d027cad60afe53337732-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 683.788295,
+        "agent_execution_seconds": 651.67371
+      },
+      {
+        "task_name": "instance_protonmail__webclients-caf10ba9ab2677761c88522d1ba8ad025779c492",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 501.453494,
+        "agent_execution_seconds": 0.716413
+      },
+      {
+        "task_name": "instance_gravitational__teleport-d873ea4fa67d3132eccba39213c1ca2f52064dcc-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1701.014457,
+        "agent_execution_seconds": 749.354202
+      },
+      {
+        "task_name": "instance_internetarchive__openlibrary-b67138b316b1e9c11df8a4a8391fe5cc8e75ff9f-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1047.94336,
+        "agent_execution_seconds": 1017.146099
+      },
+      {
+        "task_name": "instance_gravitational__teleport-7744f72c6eb631791434b648ba41083b5f6d2278-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 3926.839416,
+        "agent_execution_seconds": 805.055609
+      },
+      {
+        "task_name": "instance_navidrome__navidrome-bf2bcb12799b21069f137749e0c331f761d1f693",
+        "reward": 0.0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "duration_seconds": 1049.511961,
+        "agent_execution_seconds": 908.628728
+      }
+    ]
+  }
+}

@@ -20,12 +20,6 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from dashboard.utils.judge_ab_comparison import render_ab_comparison_tab
-from dashboard.utils.judge_editor import render_judge_editor
-from dashboard.utils.judge_human_alignment import render_human_alignment_tab
-from dashboard.utils.judge_template_manager import render_template_manager
-from dashboard.utils.judge_test_prompt import render_test_prompt_section
-
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -216,14 +210,7 @@ def show_llm_judge():
         }
 
     # Tabs for different sections
-    tabs = st.tabs([
-        "🧪 Run Evaluation",
-        "📊 View Reports",
-        "📋 Rubric Configuration",
-        "Prompt & Rubric Editor",
-        "A/B Comparison",
-        "Human Alignment",
-    ])
+    tabs = st.tabs(["Run Evaluation", "View Reports", "Rubric Configuration"])
 
     with tabs[0]:
         show_evaluation_config(project_root)
@@ -234,18 +221,6 @@ def show_llm_judge():
     with tabs[2]:
         show_rubric_config(project_root)
 
-    with tabs[3]:
-        render_judge_editor(project_root)
-        render_test_prompt_section(project_root)
-        st.markdown("---")
-        render_template_manager(project_root)
-
-    with tabs[4]:
-        render_ab_comparison_tab(project_root)
-
-    with tabs[5]:
-        render_human_alignment_tab(project_root)
-
 
 def show_reports_view(project_root: Path):
     """Display and compare judge reports."""
@@ -255,7 +230,7 @@ def show_reports_view(project_root: Path):
     # Add refresh button at the top
     col_refresh, col_spacer = st.columns([1, 5])
     with col_refresh:
-        if st.button("🔄 Refresh", key="refresh_reports"):
+        if st.button("Refresh", key="refresh_reports"):
             st.rerun()
 
     reports = load_judge_reports(project_root)
@@ -280,7 +255,7 @@ def show_reports_view(project_root: Path):
         )
     with col2:
         # Delete report functionality
-        with st.expander("🗑️ Manage"):
+        with st.expander("Manage"):
             report_to_delete = st.selectbox(
                 "Delete Report",
                 [""] + report_names,
@@ -292,7 +267,7 @@ def show_reports_view(project_root: Path):
                     (r for r in reports if r.get("_file") == report_to_delete), None
                 )
                 if report and st.button(
-                    "🗑️ Delete", type="secondary", key="delete_report_btn"
+                    "Delete", type="secondary", key="delete_report_btn"
                 ):
                     if delete_judge_report(report.get("_path", "")):
                         st.success(f"Deleted {report_to_delete}")
@@ -374,7 +349,7 @@ def show_single_report(reports: list, report_names: list):
         row["Avg Score"] = f"{avg_score:.1f}"
 
         if r.get("error"):
-            row["Error"] = "⚠️"
+            row["Error"] = ""
 
         summary_data.append(row)
 
@@ -812,7 +787,7 @@ def show_evaluation_config(project_root: Path):
                     },
                     "weight": 0.8,
                 }
-            st.caption("✓ Oracle data will be used if available")
+            st.caption("Yes Oracle data will be used if available")
 
     st.markdown("")
 
@@ -826,16 +801,16 @@ def show_evaluation_config(project_root: Path):
         estimated_cost = (
             len(selected_tasks) * len(selected_dims) * base_cost * voting_multiplier
         )
-        st.caption(f"💰 Estimated cost: ~${estimated_cost:.3f}")
+        st.caption(f"Estimated cost: ~${estimated_cost:.3f}")
 
     with col2:
         st.caption(
-            f"📊 {len(selected_tasks)} tasks × {len(selected_dims)} dims × {voting_multiplier}x"
+            f"({len(selected_tasks)} tasks × {len(selected_dims)} dims × {voting_multiplier}x"
         )
 
     with col3:
         run_button = st.button(
-            "🚀 Run Evaluation", key="run_judge_eval_btn", type="primary"
+            "Run Evaluation", key="run_judge_eval_btn", type="primary"
         )
 
     if run_button:
@@ -915,7 +890,7 @@ def show_rubric_config(project_root: Path):
                 placeholder=f"Description for score {i}",
             )
 
-        if st.button("💾 Save Rubric", key="save_new_rubric"):
+        if st.button("Save Rubric", key="save_new_rubric"):
             if new_rubric_name and all(scores.values()):
                 rubric_id = new_rubric_name.lower().replace(" ", "_")
                 rubric_data = {
@@ -925,7 +900,7 @@ def show_rubric_config(project_root: Path):
                     "rubric": {int(k): v for k, v in scores.items()},
                 }
                 save_rubric(project_root, rubric_id, rubric_data)
-                st.success(f"✓ Rubric '{new_rubric_name}' saved!")
+                st.success(f"Yes Rubric '{new_rubric_name}' saved!")
                 st.rerun()
             else:
                 st.error("Please fill in the rubric name and all score descriptions.")
@@ -1341,7 +1316,7 @@ def run_llm_judge_evaluation(
             json.dump(report_data, f, indent=2)
 
         st.success(
-            f"✓ Evaluation complete! Switch to 'View Reports' tab to see results."
+            f"Yes Evaluation complete! Switch to 'View Reports' tab to see results."
         )
 
         # Quick summary
@@ -1356,9 +1331,9 @@ def run_llm_judge_evaluation(
                     "score", "N/A"
                 )
             if r.get("error"):
-                row["Status"] = "⚠️ Error"
+                row["Status"] = " Error"
             else:
-                row["Status"] = "✓"
+                row["Status"] = "Yes"
             summary_data.append(row)
 
         st.dataframe(summary_data, use_container_width=True, hide_index=True)

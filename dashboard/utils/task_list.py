@@ -22,24 +22,47 @@ logger = logging.getLogger(__name__)
 
 # --- Task ID parsing patterns ---
 
-# LoCoBench: {language}_{domain}_{complexity}_{num}_{task_category}_{difficulty}_{variant}
-# e.g., python_web_medium_001_bugfix_hard_v1
-LOCOBENCH_PATTERN = re.compile(
-    r"^(?P<language>[a-z]+)_"
-    r"(?P<domain>[a-z]+)_"
-    r"(?P<complexity>[a-z]+)_"
-    r"(?P<num>\d+)_"
-    r"(?P<task_category>[a-z_]+)_"
-    r"(?P<difficulty>[a-z]+)_"
-    r"(?P<variant>.+)$",
+# SWE-Bench: instance_{org}__{repo}-{hash} or instance_{org}__{repo}__{hash}
+SWEBENCH_PATTERN = re.compile(
+    r"^instance_(?P<org>[^_]+)__(?P<repo>[^_-]+)[-_](?P<hash>.+)$",
     re.IGNORECASE,
 )
 
-# SWE-Bench: instance_{org}__{repo}__{hash}
-SWEBENCH_PATTERN = re.compile(
-    r"^instance_(?P<org>[^_]+)__(?P<repo>[^_]+)__(?P<hash>.+)$",
-    re.IGNORECASE,
-)
+# Known languages for detection
+KNOWN_LANGUAGES = {
+    "python", "typescript", "javascript", "go", "rust",
+    "cpp", "c", "java", "csharp", "ruby", "php", "swift",
+    "kotlin", "scala", "haskell", "elixir", "clojure",
+}
+
+# Known difficulty levels
+KNOWN_DIFFICULTIES = {"easy", "medium", "hard", "expert", "beginner", "advanced"}
+
+
+def _format_language_display(language: str) -> str:
+    """Format language name for display (e.g., cpp -> C++, csharp -> C#)."""
+    lang_lower = language.lower()
+
+    # Special cases
+    if lang_lower == "cpp":
+        return "C++"
+    elif lang_lower == "csharp":
+        return "C#"
+    elif lang_lower == "javascript":
+        return "JavaScript"
+    elif lang_lower == "typescript":
+        return "TypeScript"
+    elif lang_lower == "golang":
+        return "Go"
+
+    # Default: capitalize
+    return language.capitalize()
+
+# Known task categories
+KNOWN_TASK_CATEGORIES = {
+    "cross_file_refactoring", "architectural_understanding", "bug_investigation",
+    "bugfix", "refactor", "feature", "test", "documentation", "api",
+}
 
 
 @dataclass(frozen=True)
@@ -55,7 +78,14 @@ def parse_task_metadata(task_id: str) -> TaskMetadata:
     """
     Parse language, task type, and difficulty from a task ID string.
 
-    Supports LoCoBench and SWE-Bench ID formats.
+    Supports LoCoBench format:
+      {language}_{domain...}_{complexity}_{num}_{task_category...}_{difficulty}_{variant}
+
+    Examples:
+      typescript_system_monitoring_expert_061_cross_file_refactoring_expert_01
+      rust_web_social_expert_073_architectural_understanding_expert_01
+
+    Also supports SWE-Bench ID formats.
 
     Args:
         task_id: The task identifier string
@@ -63,28 +93,72 @@ def parse_task_metadata(task_id: str) -> TaskMetadata:
     Returns:
         TaskMetadata with extracted or default fields
     """
-    # Try LoCoBench pattern
-    match = LOCOBENCH_PATTERN.match(task_id)
-    if match:
-        return TaskMetadata(
-            language=match.group("language").capitalize(),
-            task_type=match.group("task_category").replace("_", " ").title(),
-            difficulty=match.group("difficulty").capitalize(),
-        )
+    if not task_id:
+        return TaskMetadata(language="Unknown", task_type="Unknown", difficulty="Unknown")
 
-    # Try SWE-Bench pattern
+    # Try SWE-Bench pattern first
     match = SWEBENCH_PATTERN.match(task_id)
     if match:
+        org = match.group("org").lower()
+        repo = match.group("repo").lower()
+
+        # Determine language based on known repos
+        language = "Python"  # Default for SWE-Bench
+        typescript_orgs = {"protonmail"}
+        typescript_repos = {"webclients"}
+        if org in typescript_orgs or repo in typescript_repos:
+            language = "TypeScript"
+
         return TaskMetadata(
-            language="Python",
+            language=language,
             task_type="SWE-Bench",
             difficulty="Unknown",
         )
 
+    # Parse LoCoBench-style IDs by analyzing parts
+    parts = task_id.lower().split("_")
+
+    if len(parts) < 3:
+        return TaskMetadata(language="Unknown", task_type="Unknown", difficulty="Unknown")
+
+    # Extract language (first part if it's a known language)
+    language = "Unknown"
+    if parts[0] in KNOWN_LANGUAGES:
+        language = _format_language_display(parts[0])
+
+    # Find the 3-digit number as a pivot point
+    num_index = -1
+    for i, part in enumerate(parts):
+        if part.isdigit() and len(part) == 3:
+            num_index = i
+            break
+
+    # Extract difficulty (typically second-to-last part, should be a known difficulty)
+    difficulty = "Unknown"
+    if len(parts) >= 2:
+        # Check second-to-last part
+        if parts[-2] in KNOWN_DIFFICULTIES:
+            difficulty = parts[-2].capitalize()
+        # Also check the part right before the number (complexity level)
+        elif num_index > 0 and parts[num_index - 1] in KNOWN_DIFFICULTIES:
+            difficulty = parts[num_index - 1].capitalize()
+
+    # Extract task type (parts between number and difficulty)
+    task_type = "Unknown"
+    if num_index > 0 and num_index < len(parts) - 2:
+        # Task category is between number+1 and second-to-last
+        task_parts = parts[num_index + 1 : -2]
+        if task_parts:
+            task_type = " ".join(task_parts).title()
+            # Also try to match known categories
+            task_category_str = "_".join(task_parts)
+            if task_category_str in KNOWN_TASK_CATEGORIES:
+                task_type = task_category_str.replace("_", " ").title()
+
     return TaskMetadata(
-        language="Unknown",
-        task_type="Unknown",
-        difficulty="Unknown",
+        language=language,
+        task_type=task_type,
+        difficulty=difficulty,
     )
 
 
@@ -173,9 +247,36 @@ def normalize_task(task: dict) -> NormalizedTask:
 
     Handles both paired mode tasks (from _scan_paired_mode_tasks) and
     single experiment tasks (from load_external_tasks).
+
+    Language, task_type, and difficulty are extracted from:
+    1. Database fields (task_language, task_category, task_difficulty) if present
+    2. Fallback to parsing from task_id pattern
     """
     task_id = task.get("task_name", task.get("task_id", "unknown"))
-    metadata = parse_task_metadata(task_id)
+
+    # First try to get metadata from database fields
+    db_language = task.get("task_language")
+    db_category = task.get("task_category")
+    db_difficulty = task.get("task_difficulty")
+
+    # Use database values if present and not "unknown", otherwise parse from task_id
+    if db_language and db_language.lower() != "unknown":
+        language = _format_language_display(db_language)
+    else:
+        parsed = parse_task_metadata(task_id)
+        language = parsed.language
+
+    if db_category and db_category.lower() != "unknown":
+        task_type = db_category.replace("_", " ").title()
+    else:
+        parsed = parse_task_metadata(task_id)
+        task_type = parsed.task_type
+
+    if db_difficulty and db_difficulty.lower() != "unknown":
+        difficulty = db_difficulty.capitalize()
+    else:
+        parsed = parse_task_metadata(task_id)
+        difficulty = parsed.difficulty
 
     reward_val = task.get("reward")
     reward_float: Optional[float] = None
@@ -192,9 +293,9 @@ def normalize_task(task: dict) -> NormalizedTask:
     return NormalizedTask(
         task_id=task_id,
         status=_determine_status(task),
-        language=metadata.language,
-        task_type=metadata.task_type,
-        difficulty=metadata.difficulty,
+        language=language,
+        task_type=task_type,
+        difficulty=difficulty,
         duration_seconds=_compute_duration_seconds(task),
         token_count=_compute_token_count(task),
         reward=reward_float,
@@ -291,8 +392,8 @@ def _unique_values(
 
 _STATUS_BADGES = {
     "pass": ":green[Pass]",
-    "fail": ":red[Fail]",
-    "error": ":orange[Error]",
+    "fail": ":gray[Fail]",
+    "error": ":gray[Error]",
 }
 
 

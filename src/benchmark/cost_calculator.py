@@ -23,6 +23,34 @@ class ModelPricing:
 
 # Anthropic Claude pricing (as of pricing page)
 ANTHROPIC_PRICING = {
+    # Claude 4.5 Opus (latest)
+    "anthropic/claude-opus-4-5-20251101": ModelPricing(
+        input_per_mtok=15.00,
+        output_per_mtok=75.00,
+        cache_write_per_mtok=18.75,
+        cache_read_per_mtok=1.50,
+    ),
+    "claude-opus-4-5-20251101": ModelPricing(
+        input_per_mtok=15.00,
+        output_per_mtok=75.00,
+        cache_write_per_mtok=18.75,
+        cache_read_per_mtok=1.50,
+    ),
+
+    # Claude 4.5 Sonnet
+    "anthropic/claude-sonnet-4-5-20251101": ModelPricing(
+        input_per_mtok=3.00,
+        output_per_mtok=15.00,
+        cache_write_per_mtok=3.75,
+        cache_read_per_mtok=0.30,
+    ),
+    "claude-sonnet-4-5-20251101": ModelPricing(
+        input_per_mtok=3.00,
+        output_per_mtok=15.00,
+        cache_write_per_mtok=3.75,
+        cache_read_per_mtok=0.30,
+    ),
+
     # Claude 3.5 Sonnet
     "anthropic/claude-sonnet-3-5-20241022": ModelPricing(
         input_per_mtok=3.00,
@@ -78,7 +106,8 @@ ANTHROPIC_PRICING = {
 
 # Aliases for common model names
 MODEL_ALIASES = {
-    "claude-sonnet-4-5": "anthropic/claude-sonnet-3-5-20250929",
+    "claude-opus-4-5": "anthropic/claude-opus-4-5-20251101",
+    "claude-sonnet-4-5": "anthropic/claude-sonnet-4-5-20251101",
     "claude-haiku-4-5": "anthropic/claude-haiku-4-5-20251001",
     "claude-opus-3": "anthropic/claude-opus-3-20240229",
 }
@@ -122,10 +151,10 @@ def calculate_cost(
 
     Args:
         model_name: Model identifier
-        input_tokens: Number of input tokens
+        input_tokens: Number of total input/prompt tokens (includes cached)
         output_tokens: Number of output tokens
         cache_creation_tokens: Number of cache write tokens
-        cache_read_tokens: Number of cache read tokens
+        cache_read_tokens: Number of cache read tokens (subset of input_tokens)
 
     Returns:
         Dictionary with cost breakdown
@@ -142,8 +171,12 @@ def calculate_cost(
             "error": f"Pricing not found for model: {model_name}",
         }
 
+    # Calculate non-cached input tokens
+    # cache_read_tokens are already included in input_tokens, so subtract them
+    non_cached_input = max(0, input_tokens - cache_read_tokens)
+
     # Calculate costs (convert tokens to millions)
-    input_cost = (input_tokens / 1_000_000) * pricing.input_per_mtok
+    input_cost = (non_cached_input / 1_000_000) * pricing.input_per_mtok
     output_cost = (output_tokens / 1_000_000) * pricing.output_per_mtok
     cache_write_cost = (cache_creation_tokens / 1_000_000) * pricing.cache_write_per_mtok
     cache_read_cost = (cache_read_tokens / 1_000_000) * pricing.cache_read_per_mtok
@@ -156,7 +189,8 @@ def calculate_cost(
         "output_cost": round(output_cost, 6),
         "cache_write_cost": round(cache_write_cost, 6),
         "cache_read_cost": round(cache_read_cost, 6),
-        "total_tokens": input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens,
+        "non_cached_input_tokens": non_cached_input,
+        "total_tokens": input_tokens + output_tokens + cache_creation_tokens,
     }
 
 

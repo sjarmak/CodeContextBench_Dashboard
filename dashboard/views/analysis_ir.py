@@ -217,7 +217,7 @@ class IRASDLCAnalysisView(ViewBase):
             detailed = data.get("detailed_metrics", {})
             if detailed:
                 for metric_name, metric_data in detailed.items():
-                    with st.expander(f"📊 {metric_name}"):
+                    with st.expander(f"({metric_name}"):
                         if isinstance(metric_data, dict):
                             metric_df = pd.DataFrame([metric_data])
                             st.dataframe(metric_df, use_container_width=True)

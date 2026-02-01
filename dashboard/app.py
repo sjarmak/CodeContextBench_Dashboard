@@ -139,9 +139,9 @@ def main():
     # Show credential status
     api_key_loaded = bool(os.environ.get("ANTHROPIC_API_KEY"))
     if api_key_loaded:
-        st.sidebar.success("✓ API Key Loaded")
+        st.sidebar.success("Yes API Key Loaded")
     else:
-        st.sidebar.error("✗ API Key Missing")
+        st.sidebar.error("No API Key Missing")
         st.sidebar.caption("Add ANTHROPIC_API_KEY to .env.local")
 
     # Get selected page
@@ -224,6 +224,7 @@ def show_home():
                 "Name": bm["name"],
                 "Tasks": bm["task_count"],
                 "Source": _benchmark_source(bm),
+                "Type": bm["adapter_type"],
             }
             for bm in benchmarks
             if bm["name"] != "hello_world_test"

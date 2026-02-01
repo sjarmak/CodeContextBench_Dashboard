@@ -46,9 +46,9 @@ streamlit run dashboard/app.py
 6. On the monitoring page, click **"Start Run"** to execute
 
 **Common mistakes:**
-- ❌ Not selecting any tasks → run completes immediately with 0 tasks
-- ❌ Forgetting to click "Start Run" → run stays in pending state
-- ❌ Dashboard not started with environment variables → Harbor fails with exit code 1
+- Not selecting any tasks → run completes immediately with 0 tasks
+- Forgetting to click "Start Run" → run stays in pending state
+- Dashboard not started with environment variables → Harbor fails with exit code 1
 
 ### 2. Viewing Results
 

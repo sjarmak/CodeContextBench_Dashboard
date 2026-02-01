@@ -15,6 +15,7 @@ from datetime import datetime
 
 from .harbor_parser import HarborResultParser
 from .transcript_parser import TranscriptParser
+from .trajectory_parser import TrajectoryParser
 from .database import MetricsDatabase
 
 
@@ -43,6 +44,7 @@ class IngestionOrchestrator:
         self.transcripts_dir = transcripts_dir
         self.parser = HarborResultParser()
         self.transcript_parser = TranscriptParser()
+        self.trajectory_parser = TrajectoryParser()
     
     def ingest_experiment(
         self,
@@ -88,7 +90,13 @@ class IngestionOrchestrator:
                 
                 # Parse the result
                 result = self.parser.parse_file(result_file)
-                
+
+                # Extract agent variant name from path (e.g., "baseline", "deepsearch")
+                # This overrides the generic "claude-code" from result.json
+                agent_variant = self._extract_agent_name_from_path(result_file, results_dir)
+                if agent_variant:
+                    result.agent_name = agent_variant
+
                 # Store in database
                 self.db.store_harbor_result(
                     result,
@@ -97,10 +105,27 @@ class IngestionOrchestrator:
                 )
                 
                 # Look for corresponding transcript
-                transcript_file = result_file.parent / "claude-code.txt"
+                # Try multiple locations: agent/claude-code.txt (Harbor format) or claude-code.txt (legacy)
+                transcript_file = result_file.parent / "agent" / "claude-code.txt"
+                if not transcript_file.exists():
+                    transcript_file = result_file.parent / "claude-code.txt"
+
                 if transcript_file.exists():
                     try:
                         metrics = self.transcript_parser.parse_file(transcript_file)
+
+                        # Look for trajectory.json for detailed token metrics
+                        # trajectory.json is in same directory as claude-code.txt
+                        trajectory_file = transcript_file.parent / "trajectory.json"
+                        if trajectory_file.exists():
+                            try:
+                                trajectory_metrics = self.trajectory_parser.parse_file(trajectory_file)
+                                if trajectory_metrics:
+                                    metrics.merge_trajectory_metrics(trajectory_metrics)
+                                    logger.debug(f"Merged trajectory metrics for {result.task_id}")
+                            except Exception as e:
+                                logger.warning(f"Error parsing trajectory {trajectory_file}: {e}")
+
                         self.db.store_tool_usage(
                             task_id=result.task_id,
                             metrics=metrics,
@@ -194,9 +219,47 @@ class IngestionOrchestrator:
         # Pattern: runs/{job_id}/result.json
         if result_file.parent.parent.name == "runs":
             return result_file.parent.name
-        
+
         # Pattern: {experiment}/{job_id}/result.json
         return result_file.parent.name
+
+    def _extract_agent_name_from_path(self, result_file: Path, results_dir: Path) -> Optional[str]:
+        """
+        Extract agent variant name from directory structure.
+
+        Supports patterns like:
+        - {experiment}/baseline/{timestamp}/{task_id}/result.json -> "baseline"
+        - {experiment}/deepsearch/{timestamp}/{task_id}/result.json -> "deepsearch"
+        - {experiment}/{task_id}/result.json -> None (use result.json agent_info)
+
+        Args:
+            result_file: Path to result.json
+            results_dir: Base experiment directory
+
+        Returns:
+            Agent variant name or None if not found in path
+        """
+        try:
+            # Get the relative path from results_dir to result_file
+            rel_path = result_file.relative_to(results_dir)
+            parts = rel_path.parts
+
+            # Check for agent variant in path (e.g., baseline/2026-01-28__15-21-58/task_id/result.json)
+            # The agent name would be the first part after the experiment directory
+            if len(parts) >= 3:
+                # Check if first part looks like an agent variant name (not a timestamp or task_id)
+                first_part = parts[0]
+                # Agent variant names are typically short, lowercase, no underscores with double digits
+                if (
+                    not first_part.startswith("instance_")  # Not a task ID
+                    and "__" not in first_part  # Not a timestamp like 2026-01-28__15-21-58
+                    and not first_part[0].isdigit()  # Not starting with a digit
+                ):
+                    return first_part
+
+            return None
+        except (ValueError, IndexError):
+            return None
     
     def get_experiment_stats(self, experiment_id: str) -> dict:
         """Get statistics for an experiment."""
