@@ -135,8 +135,8 @@
         "Unit tests cover: single-repo fallback, two-repo weighted, weight validation error"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "Same priority as US-004 since US-004-007 depend on this alongside US-003"
+      "passes": true,
+      "notes": "Implemented 2026-01-31 as validate_patch_cross_repo.py (wraps base validator). 11 unit tests pass covering all AC scenarios."
     },
     {
       "id": "US-009",

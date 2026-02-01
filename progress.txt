@@ -12,6 +12,20 @@ Started: Sat Jan 31 23:09:13 EST 2026
 - Existing 4 scored tasks are all Kubernetes-only (api_upgrade_01, bug_localization_01, cross_file_reasoning_01, refactor_rename_01)
 - Template `templates/test.sh.j2` generates test.sh scripts; expects patch at `/logs/agent/patch.diff`
 
+## 2026-01-31 - US-008
+- Created `benchmarks/10figure/scripts/validate_patch_cross_repo.py` with `--weights` argument support
+- Wraps base `validate_patch.py` -- splits combined patch by repo, validates per-repo, computes weighted score
+- Without `--weights`, delegates to base validator unchanged (single-repo fallback)
+- Output JSON includes `overall_score` and `per_repo_scores` fields
+- 11 unit tests in `tests/test_validate_patch_cross_repo.py` covering: weight validation, patch splitting, two-repo weighted scoring, partial coverage, single-repo fallback
+- Files changed: `benchmarks/10figure/scripts/validate_patch_cross_repo.py`, `tests/test_validate_patch_cross_repo.py`, `prd.json`
+- **Learnings for future iterations:**
+  - Base validate_patch.py lives in external corpus at ~/10Figure-Codebases/scripts/ - don't modify it directly
+  - Created wrapper script in benchmark dir instead of modifying corpus
+  - Patch repo detection uses `/{repo_name}/` pattern in diff headers
+  - Python 3.14 is available on this system (via Homebrew)
+---
+
 ## 2026-01-31 - US-003
 - Created `benchmarks/10figure/templates/cross_repo_test.sh.j2` for cross-repo task validation
 - Template splits combined patch into per-repo patches, validates each with validate_patch.py, computes weighted score
