@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -689,3 +690,361 @@ def compute_tool_correlation(
         interpretation=_interpret_correlation(rho),
         per_task=per_task,
     )
+
+
+@dataclass(frozen=True)
+class ComparisonReport:
+    """Full comparison report from the ExperimentComparison pipeline."""
+
+    baseline_dir: str
+    treatment_dir: str
+    alignment: AlignmentResult
+    overall_bootstrap: BootstrapResult
+    category_breakdown: list[CategoryBreakdown]
+    tool_correlation: Optional[ToolCorrelation]
+    generated_at: str
+    config: dict
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-compatible dict.
+
+        Converts all dataclass fields, Path objects, and numpy types to
+        JSON-serializable Python primitives.
+
+        Returns:
+            Dict safe for json.dumps().
+        """
+        def _bootstrap_to_dict(b: BootstrapResult) -> dict:
+            return {
+                "mean_delta": b.mean_delta,
+                "ci_lower": b.ci_lower,
+                "ci_upper": b.ci_upper,
+                "p_value": b.p_value,
+                "effect_size": b.effect_size,
+                "effect_interpretation": b.effect_interpretation,
+                "n_resamples": b.n_resamples,
+                "n_tasks": b.n_tasks,
+            }
+
+        def _category_to_dict(c: CategoryBreakdown) -> dict:
+            return {
+                "category": c.category,
+                "n_tasks": c.n_tasks,
+                "baseline_mean": c.baseline_mean,
+                "treatment_mean": c.treatment_mean,
+                "mean_delta": c.mean_delta,
+                "bootstrap": _bootstrap_to_dict(c.bootstrap) if c.bootstrap else None,
+            }
+
+        def _tool_corr_to_dict(tc: ToolCorrelation) -> dict:
+            return {
+                "spearman_rho": tc.spearman_rho,
+                "spearman_p_value": tc.spearman_p_value,
+                "n_tasks": tc.n_tasks,
+                "interpretation": tc.interpretation,
+                "per_task": list(tc.per_task),
+            }
+
+        return {
+            "version": "1.0.0",
+            "generated_at": self.generated_at,
+            "config": self.config,
+            "metadata": {
+                "baseline_dir": self.baseline_dir,
+                "treatment_dir": self.treatment_dir,
+            },
+            "alignment": {
+                "common_tasks": list(self.alignment.common_tasks),
+                "baseline_only": list(self.alignment.baseline_only),
+                "treatment_only": list(self.alignment.treatment_only),
+                "total_baseline": self.alignment.total_baseline,
+                "total_treatment": self.alignment.total_treatment,
+            },
+            "overall": _bootstrap_to_dict(self.overall_bootstrap),
+            "categories": [_category_to_dict(c) for c in self.category_breakdown],
+            "tool_correlation": (
+                _tool_corr_to_dict(self.tool_correlation)
+                if self.tool_correlation
+                else None
+            ),
+        }
+
+    def to_markdown(self) -> str:
+        """Render as a Markdown report.
+
+        Returns:
+            Complete Markdown document string.
+        """
+        lines: list[str] = []
+        a = self.alignment
+        ob = self.overall_bootstrap
+
+        # --- Summary ---
+        lines.append("# Experiment Comparison Report")
+        lines.append("")
+        lines.append("## Summary")
+        lines.append("")
+        lines.append(f"- **Baseline:** {self.baseline_dir}")
+        lines.append(f"- **Treatment:** {self.treatment_dir}")
+        lines.append(f"- **Date:** {self.generated_at}")
+        lines.append(
+            f"- **Common tasks:** {len(a.common_tasks)}"
+        )
+        lines.append(
+            f"- **Excluded tasks:** "
+            f"{len(a.baseline_only)} baseline-only, "
+            f"{len(a.treatment_only)} treatment-only"
+        )
+        lines.append("")
+
+        # --- Overall Result ---
+        lines.append("## Overall Result")
+        lines.append("")
+        sig_marker = _significance_marker(ob.p_value)
+        lines.append(
+            f"- **Mean delta:** {ob.mean_delta:.4f} "
+            f"(95% CI: [{ob.ci_lower:.4f}, {ob.ci_upper:.4f}])"
+        )
+        lines.append(f"- **p-value:** {ob.p_value:.4f}{sig_marker}")
+        lines.append(
+            f"- **Effect size (Cohen's d):** {ob.effect_size:.4f} "
+            f"({ob.effect_interpretation})"
+        )
+        significant = "Yes" if ob.p_value < 0.05 else "No"
+        lines.append(f"- **Significant at alpha=0.05:** {significant}")
+        lines.append("")
+
+        # --- Per-Category Breakdown ---
+        lines.append("## Per-Category Breakdown")
+        lines.append("")
+        lines.append(
+            "| Category | N | Baseline Mean | Treatment Mean "
+            "| Delta | 95% CI | Significant? |"
+        )
+        lines.append(
+            "|----------|---|---------------|----------------"
+            "|-------|--------|--------------|"
+        )
+        for cat in self.category_breakdown:
+            if cat.bootstrap:
+                ci_str = f"[{cat.bootstrap.ci_lower:.4f}, {cat.bootstrap.ci_upper:.4f}]"
+                sig_str = (
+                    "Yes" + _significance_marker(cat.bootstrap.p_value)
+                    if cat.bootstrap.p_value < 0.05
+                    else "No"
+                )
+            else:
+                ci_str = "N/A"
+                sig_str = "N/A"
+            lines.append(
+                f"| {cat.category} | {cat.n_tasks} "
+                f"| {cat.baseline_mean:.4f} | {cat.treatment_mean:.4f} "
+                f"| {cat.mean_delta:.4f} | {ci_str} | {sig_str} |"
+            )
+        lines.append("")
+
+        # --- Tool Usage Correlation ---
+        lines.append("## Tool Usage Correlation")
+        lines.append("")
+        if self.tool_correlation:
+            tc = self.tool_correlation
+            lines.append(f"- **Spearman rho:** {tc.spearman_rho:.4f}")
+            lines.append(f"- **p-value:** {tc.spearman_p_value:.4f}")
+            lines.append(f"- **Interpretation:** {tc.interpretation}")
+            lines.append(f"- **Tasks with tool data:** {tc.n_tasks}")
+            lines.append("")
+            lines.append("*See JSON output for per-task scatter plot data.*")
+        else:
+            lines.append("No tool usage data available for correlation analysis.")
+        lines.append("")
+
+        # --- Excluded Tasks ---
+        lines.append("## Excluded Tasks")
+        lines.append("")
+        lines.append(
+            _format_excluded_list("Baseline-only", a.baseline_only)
+        )
+        lines.append(
+            _format_excluded_list("Treatment-only", a.treatment_only)
+        )
+
+        return "\n".join(lines)
+
+
+def _significance_marker(p_value: float) -> str:
+    """Return asterisk significance markers for a p-value."""
+    if p_value < 0.001:
+        return " ***"
+    if p_value < 0.01:
+        return " **"
+    if p_value < 0.05:
+        return " *"
+    return ""
+
+
+def _format_excluded_list(label: str, task_ids: list[str]) -> str:
+    """Format a list of excluded task IDs, collapsing if > 10."""
+    if not task_ids:
+        return f"**{label}:** None"
+
+    if len(task_ids) <= 10:
+        items = ", ".join(task_ids)
+        return f"**{label}:** {items}"
+
+    # Collapse long lists
+    items = ", ".join(task_ids[:10])
+    return (
+        f"<details>\n<summary><b>{label}:</b> "
+        f"{len(task_ids)} tasks</summary>\n\n"
+        f"{items}, ... and {len(task_ids) - 10} more\n\n"
+        f"</details>"
+    )
+
+
+class ExperimentComparison:
+    """Orchestrator that combines all comparison pipeline stages.
+
+    Runs task alignment, reward normalization, bootstrap testing,
+    per-category breakdown, and tool correlation in one call.
+    """
+
+    def __init__(
+        self,
+        n_resamples: int = 10000,
+        confidence: float = 0.95,
+        random_seed: Optional[int] = None,
+        min_category_size: int = 5,
+    ) -> None:
+        self._n_resamples = n_resamples
+        self._confidence = confidence
+        self._random_seed = random_seed
+        self._min_category_size = min_category_size
+        self._aligner = TaskAligner()
+        self._normalizer = RewardNormalizer()
+
+    def compare(
+        self,
+        baseline_dir: Path,
+        treatment_dir: Path,
+    ) -> ComparisonReport:
+        """Run the full comparison pipeline.
+
+        Args:
+            baseline_dir: Path to baseline experiment run directory.
+            treatment_dir: Path to treatment experiment run directory.
+
+        Returns:
+            ComparisonReport with all analysis results.
+
+        Raises:
+            ValueError: If alignment produces 0 common tasks.
+        """
+        # Step 1: Task alignment
+        alignment = self._aligner.align(baseline_dir, treatment_dir)
+
+        if not alignment.common_tasks:
+            raise ValueError(
+                "No common tasks between baseline and treatment directories. "
+                f"Baseline has {alignment.total_baseline} tasks, "
+                f"treatment has {alignment.total_treatment} tasks, "
+                "but none overlap."
+            )
+
+        # Step 2: Load rewards and build aligned result list
+        baseline_tasks = self._aligner._discover_tasks(baseline_dir)
+        treatment_tasks = self._aligner._discover_tasks(treatment_dir)
+
+        aligned_results: list[dict] = []
+        baseline_rewards: list[float] = []
+        treatment_rewards: list[float] = []
+        categories: dict[str, str] = {}
+        treatment_result_data: list[dict] = []
+        reward_deltas: dict[str, float] = {}
+
+        for task_id in alignment.common_tasks:
+            b_dir = baseline_tasks[task_id]
+            t_dir = treatment_tasks[task_id]
+
+            b_reward = self._aligner.load_reward(b_dir)
+            t_reward = self._aligner.load_reward(t_dir)
+
+            # Skip tasks with missing reward data
+            if b_reward is None or t_reward is None:
+                continue
+
+            # Normalize rewards
+            b_type = self._normalizer.infer_benchmark_type(b_dir)
+            if b_type:
+                b_reward = self._normalizer.normalize(b_reward, b_type)
+                t_reward = self._normalizer.normalize(t_reward, b_type)
+
+            aligned_results = [
+                *aligned_results,
+                {
+                    "task_id": task_id,
+                    "baseline_reward": b_reward,
+                    "treatment_reward": t_reward,
+                },
+            ]
+            baseline_rewards = [*baseline_rewards, b_reward]
+            treatment_rewards = [*treatment_rewards, t_reward]
+
+            # Category for breakdown
+            categories[task_id] = extract_task_category(t_dir)
+
+            # Treatment result data for tool correlation
+            t_result = self._aligner.load_result(t_dir)
+            treatment_result_data = [
+                *treatment_result_data,
+                {"task_id": task_id, "result_data": t_result},
+            ]
+
+            reward_deltas[task_id] = t_reward - b_reward
+
+        if not aligned_results:
+            raise ValueError(
+                "No tasks with valid reward data in both baseline and treatment. "
+                f"{len(alignment.common_tasks)} common tasks found but "
+                "all had missing reward values."
+            )
+
+        # Step 3: Overall bootstrap
+        overall_bootstrap = pairwise_bootstrap(
+            baseline_rewards=baseline_rewards,
+            treatment_rewards=treatment_rewards,
+            n_resamples=self._n_resamples,
+            confidence=self._confidence,
+            random_seed=self._random_seed,
+        )
+
+        # Step 4: Per-category breakdown
+        category_breakdown = compute_category_breakdown(
+            aligned_results=aligned_results,
+            categories=categories,
+            n_resamples=self._n_resamples,
+            confidence=self._confidence,
+            random_seed=self._random_seed,
+            min_category_size=self._min_category_size,
+        )
+
+        # Step 5: Tool usage correlation
+        tool_correlation = compute_tool_correlation(
+            treatment_results=treatment_result_data,
+            reward_deltas=reward_deltas,
+        )
+
+        return ComparisonReport(
+            baseline_dir=str(baseline_dir),
+            treatment_dir=str(treatment_dir),
+            alignment=alignment,
+            overall_bootstrap=overall_bootstrap,
+            category_breakdown=category_breakdown,
+            tool_correlation=tool_correlation,
+            generated_at=datetime.now(timezone.utc).isoformat(),
+            config={
+                "n_resamples": self._n_resamples,
+                "confidence": self._confidence,
+                "random_seed": self._random_seed,
+                "min_category_size": self._min_category_size,
+            },
+        )

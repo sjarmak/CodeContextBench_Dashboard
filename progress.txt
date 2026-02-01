@@ -102,3 +102,21 @@ Started: Fri Jan 30 23:15:14 EST 2026
   - Spearman correlation needs at least 3 data points to be meaningful; returning None for < 3 is the right pattern
   - When constructing "no correlation" test data, verify with actual Spearman computation -- intuitive "mixed" orderings can still produce significant correlations
 ---
+
+## 2026-01-31 - US-007
+- Added `ComparisonReport` frozen dataclass with `to_dict()` and `to_markdown()` methods to `src/analysis/experiment_comparator.py`
+- Added `ExperimentComparison` orchestrator class with `compare()` method that chains: task alignment -> reward loading/normalization -> bootstrap testing -> category breakdown -> tool correlation
+- Added `_significance_marker()` and `_format_excluded_list()` helpers for Markdown formatting
+- Pipeline stops early with `ValueError` if alignment produces 0 common tasks or all rewards are missing
+- `to_dict()` returns JSON-serializable dict with schema: version, generated_at, config, metadata, alignment, overall, categories, tool_correlation
+- `to_markdown()` produces complete report with Summary, Overall Result, Per-Category Breakdown table, Tool Usage Correlation, Excluded Tasks sections
+- Added 14 new tests covering: full pipeline, tool correlation present/absent, zero-overlap error, single-task edge case, to_dict round-trip + schema + null fields, to_markdown sections + table + formatting + no-tool message, frozen dataclass, missing rewards error
+- All 87 tests pass (73 existing + 14 new)
+- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `ExperimentComparison` uses `TaskAligner._discover_tasks()` (private method) to get task-id-to-dir mappings; this is an internal coupling but avoids re-scanning directories
+  - Immutable list building with `[*existing, new_item]` pattern is used throughout per coding style rules, even in loops
+  - `_format_excluded_list()` collapses lists > 10 items into `<details>` HTML blocks for cleaner Markdown
+  - Significance markers follow standard convention: * p<0.05, ** p<0.01, *** p<0.001
+  - `datetime.now(timezone.utc).isoformat()` produces ISO 8601 timestamps with timezone info
+---

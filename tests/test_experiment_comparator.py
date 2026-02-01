@@ -11,6 +11,8 @@ from src.analysis.experiment_comparator import (
     BootstrapResult,
     CategoryBreakdown,
     ToolCorrelation,
+    ComparisonReport,
+    ExperimentComparison,
     pairwise_bootstrap,
     compute_category_breakdown,
     compute_tool_correlation,
@@ -1042,3 +1044,342 @@ class TestToolCorrelationFrozenDataclass:
         )
         with pytest.raises(AttributeError):
             tc.spearman_rho = 0.9
+
+
+# =============================================================================
+# ExperimentComparison Orchestrator Tests (US-007)
+# =============================================================================
+
+
+def _setup_experiment_dirs(
+    tmp_path: Path,
+    tasks: list[tuple[str, float, float]],
+    benchmark: str = "locobench_agent",
+    category: str = "architectural_understanding",
+    tool_calls: int | None = None,
+) -> tuple[Path, Path]:
+    """Helper: create baseline and treatment dirs with matching tasks.
+
+    Args:
+        tmp_path: Pytest tmp_path.
+        tasks: List of (task_id, baseline_reward, treatment_reward).
+        benchmark: Benchmark name for config.json path.
+        category: Category for config.json path.
+        tool_calls: Optional tool call count for treatment results.
+
+    Returns:
+        Tuple of (baseline_dir, treatment_dir).
+    """
+    baseline = tmp_path / "baseline"
+    treatment = tmp_path / "treatment"
+
+    for task_id, b_reward, t_reward in tasks:
+        task_path = f"benchmarks/{benchmark}/{category}/{task_id}"
+
+        # Baseline
+        b_dir = baseline / f"{task_id}__abc"
+        b_dir.mkdir(parents=True)
+        (b_dir / "config.json").write_text(json.dumps({"task": {"path": task_path}}))
+        _make_result(b_dir, reward=b_reward)
+
+        # Treatment
+        t_dir = treatment / f"{task_id}__xyz"
+        t_dir.mkdir(parents=True)
+        (t_dir / "config.json").write_text(json.dumps({"task": {"path": task_path}}))
+        agent_info = {"tool_calls": tool_calls} if tool_calls is not None else {}
+        t_data = {
+            "task_name": task_id,
+            "started_at": "2025-12-17T21:03:06.052742",
+            "finished_at": "2025-12-17T21:06:18.968956",
+            "agent_info": agent_info,
+            "agent_result": {},
+            "verifier_result": {"rewards": {"reward": t_reward}},
+            "exception_info": None,
+        }
+        (t_dir / "result.json").write_text(json.dumps(t_data))
+
+    return baseline, treatment
+
+
+class TestExperimentComparisonFullPipeline:
+    """Test full pipeline with mock data."""
+
+    def test_full_pipeline_produces_report(self, tmp_path):
+        tasks = [
+            ("task-1", 0.3, 0.5),
+            ("task-2", 0.4, 0.6),
+            ("task-3", 0.5, 0.7),
+            ("task-4", 0.6, 0.8),
+            ("task-5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=10,
+        )
+
+        comparator = ExperimentComparison(
+            n_resamples=500, random_seed=42,
+        )
+        report = comparator.compare(baseline, treatment)
+
+        assert isinstance(report, ComparisonReport)
+        assert report.baseline_dir == str(baseline)
+        assert report.treatment_dir == str(treatment)
+        assert len(report.alignment.common_tasks) == 5
+        assert report.overall_bootstrap.n_tasks == 5
+        assert report.overall_bootstrap.mean_delta == pytest.approx(0.2)
+        assert len(report.category_breakdown) > 0
+        assert report.generated_at  # non-empty ISO timestamp
+        assert report.config["n_resamples"] == 500
+        assert report.config["random_seed"] == 42
+
+    def test_pipeline_with_tool_correlation(self, tmp_path):
+        """When treatment has tool data, tool_correlation is populated."""
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=15,
+        )
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        # All tasks have same tool_calls=15 -> zero variance -> weak/no correlation
+        if report.tool_correlation:
+            assert report.tool_correlation.interpretation == "weak/no correlation"
+
+    def test_pipeline_without_tool_data(self, tmp_path):
+        """When treatment has no tool data, tool_correlation is None."""
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=None,
+        )
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        assert report.tool_correlation is None
+
+
+class TestExperimentComparisonZeroOverlap:
+    """Test error when alignment produces 0 common tasks."""
+
+    def test_zero_overlap_raises(self, tmp_path):
+        baseline = tmp_path / "baseline"
+        treatment = tmp_path / "treatment"
+
+        _make_task_dir(baseline, "alpha__abc", task_path="benchmarks/test/alpha")
+        _make_result(baseline / "alpha__abc", reward=0.5)
+        _make_task_dir(treatment, "beta__xyz", task_path="benchmarks/test/beta")
+        _make_result(treatment / "beta__xyz", reward=0.5)
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+
+        with pytest.raises(ValueError, match="No common tasks"):
+            comparator.compare(baseline, treatment)
+
+
+class TestExperimentComparisonSingleTask:
+    """Edge case: single shared task."""
+
+    def test_single_task_works(self, tmp_path):
+        tasks = [("only-task", 0.3, 0.8)]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks,
+        )
+
+        comparator = ExperimentComparison(
+            n_resamples=500, random_seed=42,
+        )
+        report = comparator.compare(baseline, treatment)
+
+        assert report.overall_bootstrap.n_tasks == 1
+        assert report.overall_bootstrap.mean_delta == pytest.approx(0.5)
+
+
+class TestComparisonReportToDict:
+    """Test to_dict() JSON serialization."""
+
+    def test_to_dict_round_trip(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=10,
+        )
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        d = report.to_dict()
+
+        # Should be JSON-serializable (no Path, no numpy types)
+        json_str = json.dumps(d)
+        parsed = json.loads(json_str)
+
+        assert parsed["version"] == "1.0.0"
+        assert parsed["generated_at"] == report.generated_at
+        assert parsed["config"]["n_resamples"] == 500
+        assert parsed["metadata"]["baseline_dir"] == str(baseline)
+        assert parsed["metadata"]["treatment_dir"] == str(treatment)
+        assert len(parsed["alignment"]["common_tasks"]) == 5
+        assert parsed["overall"]["mean_delta"] == pytest.approx(0.2)
+        assert isinstance(parsed["categories"], list)
+        assert len(parsed["categories"]) > 0
+
+    def test_to_dict_schema_fields(self, tmp_path):
+        """Verify all required top-level keys are present."""
+        tasks = [("t1", 0.3, 0.5), ("t2", 0.4, 0.6), ("t3", 0.5, 0.7)]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        d = report.to_dict()
+        expected_keys = {
+            "version", "generated_at", "config", "metadata",
+            "alignment", "overall", "categories", "tool_correlation",
+        }
+        assert set(d.keys()) == expected_keys
+
+    def test_to_dict_null_tool_correlation(self, tmp_path):
+        """tool_correlation is null when no tool data."""
+        tasks = [("t1", 0.3, 0.5), ("t2", 0.4, 0.6), ("t3", 0.5, 0.7)]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=None,
+        )
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        d = report.to_dict()
+        assert d["tool_correlation"] is None
+
+
+class TestComparisonReportToMarkdown:
+    """Test to_markdown() output format."""
+
+    def test_markdown_contains_all_sections(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=10,
+        )
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        assert "## Summary" in md
+        assert "## Overall Result" in md
+        assert "## Per-Category Breakdown" in md
+        assert "## Tool Usage Correlation" in md
+        assert "## Excluded Tasks" in md
+
+    def test_markdown_contains_table(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        assert "| Category |" in md
+        assert "|----------|" in md
+
+    def test_markdown_no_tool_data_message(self, tmp_path):
+        tasks = [("t1", 0.3, 0.5), ("t2", 0.4, 0.6), ("t3", 0.5, 0.7)]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=None,
+        )
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        assert "No tool usage data available" in md
+
+    def test_markdown_numbers_formatted(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        # Mean delta 0.2 should appear as 0.2000
+        assert "0.2000" in md
+
+
+class TestComparisonReportFrozen:
+    """ComparisonReport should be immutable."""
+
+    def test_frozen(self, tmp_path):
+        tasks = [("t1", 0.3, 0.5), ("t2", 0.4, 0.6), ("t3", 0.5, 0.7)]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        with pytest.raises(AttributeError):
+            report.baseline_dir = "other"
+
+
+class TestExperimentComparisonMissingRewards:
+    """Test when common tasks have missing reward data."""
+
+    def test_all_rewards_missing_raises(self, tmp_path):
+        baseline = tmp_path / "baseline"
+        treatment = tmp_path / "treatment"
+
+        # Create matching tasks without reward data
+        for name in ["task-a", "task-b"]:
+            b_dir = baseline / f"{name}__abc"
+            b_dir.mkdir(parents=True)
+            (b_dir / "config.json").write_text(
+                json.dumps({"task": {"path": f"benchmarks/test/{name}"}})
+            )
+            (b_dir / "result.json").write_text(
+                json.dumps({"verifier_result": None})
+            )
+
+            t_dir = treatment / f"{name}__xyz"
+            t_dir.mkdir(parents=True)
+            (t_dir / "config.json").write_text(
+                json.dumps({"task": {"path": f"benchmarks/test/{name}"}})
+            )
+            (t_dir / "result.json").write_text(
+                json.dumps({"verifier_result": None})
+            )
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+
+        with pytest.raises(ValueError, match="No tasks with valid reward data"):
+            comparator.compare(baseline, treatment)
