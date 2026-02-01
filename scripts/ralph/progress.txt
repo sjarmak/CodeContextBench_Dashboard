@@ -1,0 +1,23 @@
+## Codebase Patterns
+- Analysis views follow 3-layer architecture: View (UI) -> Config (widget collection) -> Analyzer (computation), coordinated by AnalysisLoader
+- All analysis result objects are immutable dataclasses with `.to_dict()` for JSON serialization
+- Plotly charts use `st.plotly_chart(fig, use_container_width=True)` pattern
+- Common components in `dashboard/utils/common_components.py` provide reusable UI helpers (summary cards, export buttons, selectors)
+- Session state keys must be unique across views: prefix with view name (e.g., `cost_experiment`, `failure_agent`)
+- CSV export uses `export_csv_button(df, filename, key=unique_key)` from common_components
+- Pre-existing test files `test_analysis_cost_v2.py` and `test_analysis_failure_v2.py` reference non-existent v2 modules - these are stale tests
+- Filter UI uses `render_filter_panel(view_type, loader, experiment_id, key_suffix=suffix)` pattern
+
+## 2026-01-31 - US-026
+- What was implemented: Added Plotly bar charts for token distribution and agent cost breakdown to cost analysis view. Added Plotly pie chart for error category distribution and horizontal bar chart for failure pattern frequency to failure analysis view. Added CSV export alongside JSON export for both views. Added `export_csv_button` helper to common_components.
+- Files changed:
+  - `dashboard/views/analysis_cost.py` - Added plotly imports, token distribution bar chart, agent cost breakdown stacked bar chart, CSV export
+  - `dashboard/views/analysis_failure.py` - Added plotly import, failure pattern bar chart, error category pie chart, CSV export
+  - `dashboard/utils/common_components.py` - Added `export_csv_button` function
+  - `scripts/ralph/prd.json` - Marked US-026 as passes: true
+- **Learnings for future iterations:**
+  - Cost and failure analysis views were already functional with tables and JSON export; the gap was Plotly visualizations and CSV export
+  - Plotly is available (v6.5.2) and already used in comparison.py and deep_search.py views
+  - The `go.Figure()` pattern with `add_trace()` is used for stacked/grouped bar charts; `px.bar/px.pie` for simpler charts
+  - `export_csv_button` needs a unique `key` parameter to avoid StreamlitDuplicateElementKey errors
+---

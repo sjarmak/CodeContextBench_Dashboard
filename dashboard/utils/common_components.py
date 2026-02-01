@@ -251,18 +251,38 @@ def metric_selector(available_metrics: List[str], default: List[str] = None) -> 
 def export_json_button(data: Dict[str, Any], filename: str) -> None:
     """
     Render JSON export button.
-    
+
     Args:
         data: Data to export (will be converted to JSON)
         filename: Name of file to download (without extension)
     """
     json_data = json.dumps(data, indent=2, default=str)
-    
+
     st.download_button(
         label="Export as JSON",
         data=json_data,
         file_name=f"{filename}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
         mime="application/json"
+    )
+
+
+def export_csv_button(df: Any, filename: str, key: Optional[str] = None) -> None:
+    """
+    Render CSV export button for a pandas DataFrame.
+
+    Args:
+        df: pandas DataFrame to export
+        filename: Name of file to download (without extension)
+        key: Optional Streamlit widget key for deduplication
+    """
+    csv_data = df.to_csv(index=False)
+
+    st.download_button(
+        label="Export as CSV",
+        data=csv_data,
+        file_name=f"{filename}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+        mime="text/csv",
+        key=key,
     )
 
 

@@ -19,6 +19,8 @@ import streamlit as st
 from pathlib import Path
 from typing import Optional
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 
 from dashboard.utils.cost_config import (
     render_cost_config,
@@ -31,6 +33,7 @@ from dashboard.utils.common_components import (
     display_error_message,
     display_summary_card,
     export_json_button,
+    export_csv_button,
     display_cost_indicator,
     display_filter_badge,
 )
@@ -225,6 +228,38 @@ def show_cost_analysis():
                 cat_df = pd.DataFrame(cat_data)
                 st.dataframe(cat_df, use_container_width=True, hide_index=True)
 
+                # Plotly bar chart for token distribution by category
+                chart_rows = []
+                for category, tokens in tokens_by_cat.items():
+                    prompt = tokens.get("prompt", 0)
+                    completion = tokens.get("completion", 0)
+                    cached = tokens.get("cached", 0)
+                    chart_rows.append({"Category": category.upper(), "Type": "Prompt", "Tokens": prompt})
+                    chart_rows.append({"Category": category.upper(), "Type": "Completion", "Tokens": completion})
+                    chart_rows.append({"Category": category.upper(), "Type": "Cached", "Tokens": cached})
+
+                if chart_rows:
+                    chart_df = pd.DataFrame(chart_rows)
+                    fig = px.bar(
+                        chart_df,
+                        x="Category",
+                        y="Tokens",
+                        color="Type",
+                        barmode="group",
+                        title="Token Distribution by Category",
+                        color_discrete_map={
+                            "Prompt": "#636EFA",
+                            "Completion": "#EF553B",
+                            "Cached": "#00CC96",
+                        },
+                    )
+                    fig.update_layout(
+                        xaxis_title="Token Category",
+                        yaxis_title="Token Count",
+                        legend_title="Token Type",
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
                 # Show MCP vs Local comparison
                 mcp_tokens = tokens_by_cat.get("mcp", {})
                 local_tokens = tokens_by_cat.get("local", {})
@@ -273,6 +308,39 @@ def show_cost_analysis():
             # Sort by total cost
             cost_df = pd.DataFrame(cost_data)
             st.dataframe(cost_df, use_container_width=True, hide_index=True)
+
+            # Plotly bar chart for agent cost breakdown
+            agent_chart_rows = []
+            for agent_name, metrics in cost_result.agent_metrics.items():
+                agent_chart_rows.append({
+                    "Agent": agent_name,
+                    "Input Cost": metrics.input_cost_usd,
+                    "Output Cost": metrics.output_cost_usd,
+                })
+
+            if agent_chart_rows:
+                agent_chart_df = pd.DataFrame(agent_chart_rows)
+                fig_cost = go.Figure()
+                fig_cost.add_trace(go.Bar(
+                    name="Input Cost",
+                    x=agent_chart_df["Agent"],
+                    y=agent_chart_df["Input Cost"],
+                    marker_color="#636EFA",
+                ))
+                fig_cost.add_trace(go.Bar(
+                    name="Output Cost",
+                    x=agent_chart_df["Agent"],
+                    y=agent_chart_df["Output Cost"],
+                    marker_color="#EF553B",
+                ))
+                fig_cost.update_layout(
+                    title="Cost Breakdown by Agent",
+                    xaxis_title="Agent",
+                    yaxis_title="Cost (USD)",
+                    barmode="stack",
+                    legend_title="Cost Type",
+                )
+                st.plotly_chart(fig_cost, use_container_width=True)
         else:
             display_no_data_message("No cost data available")
 
@@ -423,6 +491,27 @@ def show_cost_analysis():
     st.subheader("Export Results")
 
     try:
+        # CSV export of cost breakdown table
+        if hasattr(cost_result, 'agent_metrics') and cost_result.agent_metrics:
+            export_rows = []
+            for agent_name, metrics in cost_result.agent_metrics.items():
+                export_rows.append({
+                    "Agent": agent_name,
+                    "Total Cost (USD)": metrics.total_cost_usd,
+                    "Input Tokens": metrics.total_input_tokens,
+                    "Output Tokens": metrics.total_output_tokens,
+                    "Cached Tokens": metrics.total_cached_tokens,
+                    "Cost Per Success (USD)": metrics.cost_per_success,
+                    "Pass Rate": metrics.pass_rate,
+                    "Total Tasks": metrics.total_tasks,
+                    "Passed Tasks": metrics.passed_tasks,
+                    "Avg Cost Per Task (USD)": metrics.avg_cost_per_task,
+                })
+
+            export_df = pd.DataFrame(export_rows)
+            export_csv_button(export_df, f"cost_{experiment_id}_{baseline_agent}", key="cost_csv_export")
+
+        # Also offer JSON export
         export_data = cost_result.to_dict() if hasattr(cost_result, 'to_dict') else {
             "experiment_id": experiment_id,
             "baseline_agent": baseline_agent,

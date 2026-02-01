@@ -19,6 +19,7 @@ import streamlit as st
 from pathlib import Path
 from typing import Optional
 import pandas as pd
+import plotly.express as px
 
 from dashboard.utils.failure_config import (
     render_failure_config,
@@ -31,6 +32,7 @@ from dashboard.utils.common_components import (
     display_error_message,
     display_summary_card,
     export_json_button,
+    export_csv_button,
     display_filter_badge,
 )
 from dashboard.utils.filter_ui import render_filter_panel
@@ -216,6 +218,30 @@ def show_failure_analysis():
             # Sort by occurrences
             pattern_df = pd.DataFrame(pattern_data).sort_values("Occurrences", ascending=False)
             st.dataframe(pattern_df, use_container_width=True, hide_index=True)
+
+            # Bar chart for failure pattern frequency
+            bar_data = []
+            for pattern, count in failure_result.failure_patterns.items():
+                if count > 0:
+                    bar_data.append({"Pattern": pattern, "Occurrences": count})
+
+            if bar_data:
+                bar_df = pd.DataFrame(bar_data).sort_values("Occurrences", ascending=True)
+                fig_bar = px.bar(
+                    bar_df,
+                    x="Occurrences",
+                    y="Pattern",
+                    orientation="h",
+                    title="Failure Pattern Frequency",
+                    color="Occurrences",
+                    color_continuous_scale="Reds",
+                )
+                fig_bar.update_layout(
+                    xaxis_title="Occurrences",
+                    yaxis_title="",
+                    showlegend=False,
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
         else:
             display_no_data_message("No failure pattern data available")
     
@@ -243,6 +269,26 @@ def show_failure_analysis():
             # Sort by count
             category_df = pd.DataFrame(category_data).sort_values("Count", ascending=False)
             st.dataframe(category_df, use_container_width=True, hide_index=True)
+
+            # Pie chart for failure category distribution
+            pie_data = []
+            for category, info in failure_result.failure_categories.items():
+                count = info.get('count', 0)
+                if count > 0:
+                    pie_data.append({"Category": category, "Count": count})
+
+            if pie_data:
+                pie_df = pd.DataFrame(pie_data)
+                fig_pie = px.pie(
+                    pie_df,
+                    names="Category",
+                    values="Count",
+                    title="Error Category Distribution",
+                    hole=0.3,
+                )
+                fig_pie.update_traces(textposition="inside", textinfo="percent+label")
+                fig_pie.update_layout(legend_title="Category")
+                st.plotly_chart(fig_pie, use_container_width=True)
         else:
             display_no_data_message("No failure categories available")
     
@@ -384,8 +430,31 @@ def show_failure_analysis():
     
     # Export functionality
     st.subheader("Export Results")
-    
+
     try:
+        # CSV export of failure summary table
+        csv_rows = []
+        if hasattr(failure_result, 'failure_patterns') and failure_result.failure_patterns:
+            for pattern, count in failure_result.failure_patterns.items():
+                csv_rows.append({
+                    "Pattern": pattern,
+                    "Occurrences": count,
+                    "Percentage": (count / total_failures * 100) if total_failures > 0 else 0,
+                })
+
+        if hasattr(failure_result, 'failure_categories') and failure_result.failure_categories:
+            for category, info in failure_result.failure_categories.items():
+                csv_rows.append({
+                    "Pattern": f"[Category] {category}",
+                    "Occurrences": info.get('count', 0),
+                    "Percentage": (info.get('count', 0) / total_failures * 100) if total_failures > 0 else 0,
+                })
+
+        if csv_rows:
+            csv_df = pd.DataFrame(csv_rows)
+            export_csv_button(csv_df, f"failure_{experiment_id}_{agent_name or 'all'}", key="failure_csv_export")
+
+        # Also offer JSON export
         export_data = {
             "experiment_id": experiment_id,
             "focused_agent": agent_name,
@@ -400,9 +469,9 @@ def show_failure_analysis():
             "suggested_fixes": failure_result.suggested_fixes if hasattr(failure_result, 'suggested_fixes') else [],
             "high_risk_tasks": failure_result.high_risk_tasks if hasattr(failure_result, 'high_risk_tasks') else [],
         }
-        
+
         export_json_button(export_data, f"failure_{experiment_id}_{agent_name or 'all'}")
-    
+
     except Exception as e:
         display_error_message(f"Failed to export data: {e}")
     
