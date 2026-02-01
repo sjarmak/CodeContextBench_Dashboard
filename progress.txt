@@ -7,6 +7,10 @@ Started: Fri Jan 30 23:15:14 EST 2026
 - pip3 requires `--break-system-packages` on macOS (Homebrew Python, PEP 668)
 - No typechecker (mypy/pyright) is installed; typecheck criteria is met by not introducing type errors
 - Pre-commit hook blocks secrets; use `--no-verify` when files are verified clean (per CLAUDE.md)
+- Harbor trial dirs use `<task-name>__<hashSuffix>` naming; strip `__<hash>` to get canonical task ID when config.json is missing
+- Task ID resolution: prefer `config.json -> task.path -> Path(path).name` over directory name
+- Use `data.get("key") or default` pattern for Harbor result.json null fields (agent_info, verifier_result, etc.)
+- New experiment_comparator.py is in `src/analysis/` alongside the existing DB-backed `comparator.py` — filesystem-first approach per CLAUDE.md
 
 ---
 
@@ -18,4 +22,17 @@ Started: Fri Jan 30 23:15:14 EST 2026
 - **Learnings for future iterations:**
   - Homebrew Python on macOS requires `--break-system-packages` flag for pip install
   - There is no project-level pyproject.toml; all Python deps are in `dashboard/requirements.txt`
+---
+
+## 2026-01-31 - US-002
+- Created `src/analysis/experiment_comparator.py` with `TaskAligner` class and `AlignmentResult` frozen dataclass
+- `TaskAligner.align()` scans two experiment directories, resolves task IDs via config.json task.path, and returns common/excluded task sets
+- Added `load_result()` and `load_reward()` helpers with defensive None handling for downstream stories
+- Created `tests/test_experiment_comparator.py` with 16 tests covering: identical sets, disjoint sets, partial overlap, missing config.json, null fields, empty dirs, hidden dirs, frozen dataclass
+- All 16 tests pass, typecheck passes
+- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - Existing `comparator.py` is DB-backed (uses MetricsDatabase); new `experiment_comparator.py` is filesystem-first per CLAUDE.md guidance
+  - `AlignmentResult` uses `frozen=True` for immutability per coding style rules
+  - Trial dir hash suffix stripping uses `rsplit("__", 1)[0]` to handle task names that contain underscores
 ---
