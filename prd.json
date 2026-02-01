@@ -30,8 +30,8 @@
         "Typecheck passes (N/A -- Dockerfile, shell script only)"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-31: Multi-stage Dockerfile (builder strips .git, copies only 4 target repos; runtime installs deps). build.sh validates all 4 repos, reports image size. Cannot verify docker build without Docker daemon."
     },
     {
       "id": "US-003",

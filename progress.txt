@@ -12,6 +12,18 @@ Started: Sat Jan 31 23:09:13 EST 2026
 - Existing 4 scored tasks are all Kubernetes-only (api_upgrade_01, bug_localization_01, cross_file_reasoning_01, refactor_rename_01)
 - Template `templates/test.sh.j2` generates test.sh scripts; expects patch at `/logs/agent/patch.diff`
 
+## 2026-01-31 - US-002
+- Rewrote `benchmarks/10figure/base/Dockerfile` as multi-stage build (builder strips .git + copies only 4 target repos; runtime installs deps)
+- Updated `benchmarks/10figure/base/build.sh` with validation for all 4 repos and image size reporting
+- Added pinned commit SHA env vars (KUBERNETES_SHA, ENVOY_SHA, DJANGO_SHA, TENSORFLOW_SHA)
+- Files changed: `benchmarks/10figure/base/Dockerfile`, `benchmarks/10figure/base/build.sh`, `prd.json`
+- **Learnings for future iterations:**
+  - The corpus .git dirs are small (~195MB total) since repos are shallow/partial clones
+  - 4 target repos total ~1.1GB source; full corpus is 3.6GB (has 24 repos total)
+  - Multi-stage build discards builder layer, so .git stripping and intermediate copies don't add to final image
+  - build.sh uses podman (not docker) - check `podman` availability on target system
+---
+
 ## 2026-01-31 - US-001
 - Resolved all 4 open questions in `tasks/prd-10figure-benchmark-expansion.md`
 - Pinned commit SHAs from local 10Figure-Codebases corpus: kubernetes=ef274e86, envoy=782c6cae, django=c4e07f94, tensorflow=420baf67
