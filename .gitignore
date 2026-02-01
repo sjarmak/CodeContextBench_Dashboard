@@ -34,7 +34,7 @@ results/
 history/
 
 # Large external datasets (reference by symlink or variable)
-10figure/
+/10figure/
 harbor-10figure-dataset/
 
 # Environment variables and credentials (CRITICAL: never commit)
@@ -53,3 +53,4 @@ jobs/**/.mcp.json
 .dashboard_runs/
 data/*.db
 trials/
+claude-archive/
