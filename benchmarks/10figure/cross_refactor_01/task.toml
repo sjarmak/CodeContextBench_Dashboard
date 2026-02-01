@@ -1,0 +1,13 @@
+[metadata]
+task_id = "cross_refactor_01"
+type = "refactor_rename"
+difficulty = "hard"
+max_time_minutes = 20
+
+[environment]
+docker_image = "localhost/harbor-10figure:base"
+repos = ["envoy", "kubernetes"]
+repo_paths = ["/10figure/src/envoy", "/10figure/src/kubernetes"]
+
+[scoring]
+weights = { envoy = 0.6, kubernetes = 0.4 }

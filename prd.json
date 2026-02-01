@@ -118,8 +118,8 @@
         "Typecheck passes (N/A -- config and shell files only)"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-31: gRPC health check service_name → grpc_service_name rename across Envoy proto/C++ and K8s Go types. Envoy weighted 0.6 (proto source), K8s 0.4."
     },
     {
       "id": "US-008",

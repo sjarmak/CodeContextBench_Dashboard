@@ -1,0 +1,86 @@
+task_id: cross_refactor_01
+type: refactor_rename
+repos:
+  - envoy
+  - kubernetes
+
+description: >
+  Rename gRPC health check service field to grpc_service_name consistently
+  across Envoy (service_name in proto/C++) and Kubernetes (Service in Go types).
+
+ground_truth:
+  rename_targets:
+    envoy:
+      - file: "api/envoy/config/core/v3/health_check.proto"
+        old_name: "service_name"
+        new_name: "grpc_service_name"
+        description: "Proto field in GrpcHealthCheck message"
+        required: true
+
+      - file: "source/extensions/health_checkers/grpc/health_checker_impl.h"
+        old_name: "service_name_"
+        new_name: "grpc_service_name_"
+        description: "C++ member variable"
+        required: true
+
+      - file: "source/extensions/health_checkers/grpc/health_checker_impl.cc"
+        old_name: "service_name"
+        new_name: "grpc_service_name"
+        description: "C++ implementation references (4 occurrences)"
+        required: true
+
+      - file: "test/common/upstream/health_checker_impl_test.cc"
+        old_name: "set_service_name"
+        new_name: "set_grpc_service_name"
+        description: "Test references (2 occurrences)"
+        required: false
+
+    kubernetes:
+      - file: "staging/src/k8s.io/api/core/v1/types.go"
+        old_name: "Service"
+        new_name: "GRPCServiceName"
+        description: "Go struct field in GRPCAction"
+        required: true
+
+      - file: "pkg/probe/grpc/grpc.go"
+        old_name: "service"
+        new_name: "grpcServiceName"
+        description: "Prober function parameter and usage"
+        required: true
+
+      - file: "pkg/kubelet/prober/prober.go"
+        old_name: "p.GRPC.Service"
+        new_name: "p.GRPC.GRPCServiceName"
+        description: "Kubelet prober field access"
+        required: true
+
+      - file: "staging/src/k8s.io/client-go/applyconfigurations/core/v1/grpcaction.go"
+        old_name: "WithService"
+        new_name: "WithGRPCServiceName"
+        description: "Apply configuration builder method"
+        required: false
+
+  expected_patterns:
+    removed:
+      - "service_name_"
+      - "set_service_name"
+      - "Service \\*string"
+    added:
+      - "grpc_service_name"
+      - "GRPCServiceName"
+
+  expected_keywords:
+    - "grpc_service_name"
+    - "GRPCServiceName"
+    - "health_check.proto"
+    - "health_checker_impl"
+    - "GRPCAction"
+    - "grpc.go"
+    - "prober.go"
+
+scoring:
+  min_files_required: 4
+  partial_credit: true
+  pattern_weight: 0.5
+  file_coverage_weight: 0.3
+  keyword_weight: 0.2

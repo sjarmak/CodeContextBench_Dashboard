@@ -1,0 +1,41 @@
+{
+  "task_id": "cross_refactor_01",
+  "description": "Rename gRPC health check service field to grpc_service_name across Envoy and Kubernetes",
+  "repos": ["envoy", "kubernetes"],
+  "scoring_weights": {
+    "envoy": 0.6,
+    "kubernetes": 0.4
+  },
+  "expected_files": {
+    "envoy": [
+      "api/envoy/config/core/v3/health_check.proto",
+      "source/extensions/health_checkers/grpc/health_checker_impl.h",
+      "source/extensions/health_checkers/grpc/health_checker_impl.cc"
+    ],
+    "kubernetes": [
+      "staging/src/k8s.io/api/core/v1/types.go",
+      "pkg/probe/grpc/grpc.go",
+      "pkg/kubelet/prober/prober.go"
+    ]
+  },
+  "expected_patterns": {
+    "removed": [
+      "service_name_",
+      "set_service_name"
+    ],
+    "added": [
+      "grpc_service_name",
+      "GRPCServiceName"
+    ]
+  },
+  "expected_keywords": [
+    "grpc_service_name",
+    "GRPCServiceName",
+    "health_check.proto",
+    "health_checker_impl",
+    "GRPCAction",
+    "grpc.go",
+    "prober.go"
+  ],
+  "compilation_required": false
+}
