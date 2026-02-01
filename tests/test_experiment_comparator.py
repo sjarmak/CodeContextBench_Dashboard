@@ -9,7 +9,10 @@ from src.analysis.experiment_comparator import (
     AlignmentResult,
     RewardNormalizer,
     BootstrapResult,
+    CategoryBreakdown,
     pairwise_bootstrap,
+    compute_category_breakdown,
+    extract_task_category,
 )
 
 
@@ -557,3 +560,243 @@ class TestPairwiseBootstrapValidation:
     def test_empty_lists_raises(self):
         with pytest.raises(ValueError, match="at least one"):
             pairwise_bootstrap([], [])
+
+
+# =============================================================================
+# Per-Category Breakdown Tests
+# =============================================================================
+
+
+def _make_aligned_results(tasks: list[tuple[str, float, float]]) -> list[dict]:
+    """Helper: create aligned results list from (task_id, baseline, treatment) tuples."""
+    return [
+        {"task_id": tid, "baseline_reward": br, "treatment_reward": tr}
+        for tid, br, tr in tasks
+    ]
+
+
+class TestCategoryBreakdownMultipleCategories:
+    """Test breakdown with multiple task categories."""
+
+    def test_two_categories_sorted_by_delta(self):
+        results = _make_aligned_results([
+            ("t1", 0.3, 0.8),  # arch: delta=+0.5
+            ("t2", 0.4, 0.9),  # arch: delta=+0.5
+            ("t3", 0.5, 0.7),  # arch: delta=+0.2
+            ("t4", 0.6, 0.7),  # arch: delta=+0.1
+            ("t5", 0.5, 0.6),  # arch: delta=+0.1
+            ("t6", 0.5, 0.5),  # bug: delta=0.0
+            ("t7", 0.6, 0.6),  # bug: delta=0.0
+            ("t8", 0.7, 0.7),  # bug: delta=0.0
+            ("t9", 0.8, 0.8),  # bug: delta=0.0
+            ("t10", 0.9, 0.9),  # bug: delta=0.0
+        ])
+        categories = {
+            "t1": "arch", "t2": "arch", "t3": "arch", "t4": "arch", "t5": "arch",
+            "t6": "bug", "t7": "bug", "t8": "bug", "t9": "bug", "t10": "bug",
+        }
+
+        breakdowns = compute_category_breakdown(
+            results, categories, n_resamples=500, random_seed=42,
+        )
+
+        # Should have: arch, bug, all
+        cats = [b.category for b in breakdowns]
+        assert "arch" in cats
+        assert "bug" in cats
+        assert "all" in cats
+
+        # Sorted by absolute mean_delta descending
+        deltas = [abs(b.mean_delta) for b in breakdowns]
+        assert deltas == sorted(deltas, reverse=True)
+
+    def test_categories_have_correct_counts(self):
+        results = _make_aligned_results([
+            ("t1", 0.3, 0.8),
+            ("t2", 0.4, 0.9),
+            ("t3", 0.5, 0.5),
+        ])
+        categories = {"t1": "arch", "t2": "arch", "t3": "bug"}
+
+        breakdowns = compute_category_breakdown(
+            results, categories, n_resamples=500, random_seed=42,
+        )
+
+        by_cat = {b.category: b for b in breakdowns}
+        assert by_cat["arch"].n_tasks == 2
+        assert by_cat["bug"].n_tasks == 1
+        assert by_cat["all"].n_tasks == 3
+
+
+class TestCategoryBreakdownSingleCategory:
+    """Test breakdown when all tasks belong to one category."""
+
+    def test_single_category_plus_all(self):
+        results = _make_aligned_results([
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ])
+        categories = {f"t{i}": "arch" for i in range(1, 6)}
+
+        breakdowns = compute_category_breakdown(
+            results, categories, n_resamples=500, random_seed=42,
+        )
+
+        cats = [b.category for b in breakdowns]
+        assert "arch" in cats
+        assert "all" in cats
+        # arch and all should have same stats
+        by_cat = {b.category: b for b in breakdowns}
+        assert by_cat["arch"].mean_delta == pytest.approx(by_cat["all"].mean_delta)
+        assert by_cat["arch"].n_tasks == by_cat["all"].n_tasks
+
+
+class TestCategoryBreakdownSmallCategory:
+    """Categories with < min_category_size tasks skip bootstrap."""
+
+    def test_small_category_no_bootstrap(self):
+        results = _make_aligned_results([
+            ("t1", 0.3, 0.8),
+            ("t2", 0.4, 0.9),
+            ("t3", 0.5, 0.7),
+        ])
+        categories = {"t1": "arch", "t2": "arch", "t3": "arch"}
+
+        breakdowns = compute_category_breakdown(
+            results, categories, n_resamples=500, random_seed=42, min_category_size=5,
+        )
+
+        by_cat = {b.category: b for b in breakdowns}
+
+        # 3 tasks < min_category_size=5 -> no bootstrap
+        assert by_cat["arch"].bootstrap is None
+        assert by_cat["arch"].n_tasks == 3
+        # Raw means should still be reported
+        assert by_cat["arch"].baseline_mean == pytest.approx(0.4)
+        assert by_cat["arch"].treatment_mean == pytest.approx(0.8)
+        assert by_cat["arch"].mean_delta == pytest.approx(0.4)
+
+    def test_large_category_has_bootstrap(self):
+        results = _make_aligned_results([
+            (f"t{i}", 0.3 + i * 0.05, 0.5 + i * 0.05)
+            for i in range(6)
+        ])
+        categories = {f"t{i}": "arch" for i in range(6)}
+
+        breakdowns = compute_category_breakdown(
+            results, categories, n_resamples=500, random_seed=42, min_category_size=5,
+        )
+
+        by_cat = {b.category: b for b in breakdowns}
+        assert by_cat["arch"].bootstrap is not None
+        assert by_cat["arch"].bootstrap.n_tasks == 6
+
+
+class TestCategoryBreakdownMissingCategory:
+    """Tasks with missing category metadata default to 'unknown'."""
+
+    def test_missing_category_becomes_unknown(self):
+        results = _make_aligned_results([
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+        ])
+        # t2 is not in the categories dict
+        categories = {"t1": "arch"}
+
+        breakdowns = compute_category_breakdown(
+            results, categories, n_resamples=500, random_seed=42,
+        )
+
+        cats = [b.category for b in breakdowns]
+        assert "unknown" in cats
+
+
+class TestCategoryBreakdownEmptyInput:
+    """Empty aligned results produce empty output."""
+
+    def test_empty_results(self):
+        breakdowns = compute_category_breakdown([], {})
+        assert breakdowns == []
+
+
+class TestCategoryBreakdownAllPseudoCategory:
+    """The 'all' pseudo-category aggregates all tasks."""
+
+    def test_all_includes_every_task(self):
+        results = _make_aligned_results([
+            ("t1", 0.2, 0.4),
+            ("t2", 0.3, 0.5),
+            ("t3", 0.4, 0.6),
+            ("t4", 0.5, 0.7),
+            ("t5", 0.6, 0.8),
+        ])
+        categories = {"t1": "a", "t2": "a", "t3": "b", "t4": "b", "t5": "b"}
+
+        breakdowns = compute_category_breakdown(
+            results, categories, n_resamples=500, random_seed=42,
+        )
+
+        by_cat = {b.category: b for b in breakdowns}
+        assert by_cat["all"].n_tasks == 5
+        assert by_cat["all"].mean_delta == pytest.approx(0.2)
+
+
+class TestCategoryBreakdownFrozenDataclass:
+    """CategoryBreakdown should be immutable."""
+
+    def test_frozen(self):
+        bd = CategoryBreakdown(
+            category="test", n_tasks=3,
+            baseline_mean=0.5, treatment_mean=0.7,
+            mean_delta=0.2, bootstrap=None,
+        )
+        with pytest.raises(AttributeError):
+            bd.category = "other"
+
+
+# =============================================================================
+# extract_task_category Tests
+# =============================================================================
+
+
+class TestExtractTaskCategoryFromConfig:
+    """Test category extraction from config.json."""
+
+    def test_direct_category_field(self, tmp_path):
+        task_dir = tmp_path / "task__abc"
+        task_dir.mkdir()
+        config = {"task": {"category": "architectural_understanding"}}
+        (task_dir / "config.json").write_text(json.dumps(config))
+
+        assert extract_task_category(task_dir) == "architectural_understanding"
+
+    def test_infer_from_task_path(self, tmp_path):
+        task_dir = tmp_path / "task__abc"
+        task_dir.mkdir()
+        config = {"task": {"path": "benchmarks/locobench_agent/bug_investigation/task-42"}}
+        (task_dir / "config.json").write_text(json.dumps(config))
+
+        assert extract_task_category(task_dir) == "bug_investigation"
+
+    def test_no_config_returns_unknown(self, tmp_path):
+        task_dir = tmp_path / "task__abc"
+        task_dir.mkdir()
+
+        assert extract_task_category(task_dir) == "unknown"
+
+    def test_empty_config_returns_unknown(self, tmp_path):
+        task_dir = tmp_path / "task__abc"
+        task_dir.mkdir()
+        (task_dir / "config.json").write_text("{}")
+
+        assert extract_task_category(task_dir) == "unknown"
+
+    def test_invalid_json_returns_unknown(self, tmp_path):
+        task_dir = tmp_path / "task__abc"
+        task_dir.mkdir()
+        (task_dir / "config.json").write_text("not json")
+
+        assert extract_task_category(task_dir) == "unknown"

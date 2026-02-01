@@ -67,3 +67,19 @@ Started: Fri Jan 30 23:15:14 EST 2026
   - Vectorized bootstrap: `rng.integers(0, n, size=(n_resamples, n))` + fancy indexing is much faster than Python loops
   - Two-sided p-value via `min(proportion * 2, 1.0)` matches standard bootstrap hypothesis testing
 ---
+
+## 2026-01-31 - US-005
+- Added `CategoryBreakdown` frozen dataclass and `compute_category_breakdown()` function to `src/analysis/experiment_comparator.py`
+- Added `extract_task_category()` helper for resolving task categories from config.json metadata or path components
+- `_build_category_breakdown()` private helper constructs individual category results with optional bootstrap
+- Categories with fewer than `min_category_size` (default 5) tasks skip bootstrap but still report raw means
+- Results sorted by absolute mean_delta descending; 'all' pseudo-category always included
+- Added 14 new tests covering: multiple categories, single category, small category (no bootstrap), missing category, empty input, 'all' aggregate, frozen dataclass, extract_task_category with config/path/missing/invalid
+- All 62 tests pass (48 existing + 14 new), typecheck passes
+- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `from __future__ import annotations` enables forward type references, so `CategoryBreakdown` can reference `BootstrapResult` even when defined before it
+  - Python resolves function calls at runtime not definition time, so `_build_category_breakdown` can call `pairwise_bootstrap` even though it's defined later in the file
+  - Category inference from task.path uses the segment immediately after the benchmark directory name (e.g., `benchmarks/locobench_agent/<category>/task-name`)
+  - Immutable grouping pattern: `groups[cat] = [*groups[cat], item]` instead of `groups[cat].append(item)` per coding style immutability rules
+---

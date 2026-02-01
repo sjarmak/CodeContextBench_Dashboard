@@ -276,6 +276,158 @@ class RewardNormalizer:
         return None
 
 
+def extract_task_category(task_dir: Path) -> str:
+    """Extract task category from config.json metadata or task directory path.
+
+    Checks config.json for category metadata first, then infers from the
+    task path components (e.g., 'architectural_understanding' from
+    'benchmarks/locobench_agent/architectural_understanding/task-1').
+
+    Args:
+        task_dir: Path to a task result directory.
+
+    Returns:
+        Category string, or 'unknown' if not inferrable.
+    """
+    config_path = task_dir / "config.json"
+    if config_path.is_file():
+        try:
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            task_config = config.get("task") or {}
+
+            # Direct category field
+            category = task_config.get("category") or ""
+            if category:
+                return category
+
+            # Infer from task.path (e.g., "benchmarks/locobench_agent/arch_understanding/task-1")
+            task_path_str = task_config.get("path") or ""
+            if task_path_str:
+                parts = Path(task_path_str).parts
+                # Category is typically the segment after the benchmark name
+                for i, part in enumerate(parts):
+                    if part in _BENCHMARK_DIR_NAMES and i + 1 < len(parts):
+                        return parts[i + 1]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Fallback: scan directory ancestors for category-like names
+    return "unknown"
+
+
+@dataclass(frozen=True)
+class CategoryBreakdown:
+    """Per-category comparison result."""
+
+    category: str
+    n_tasks: int
+    baseline_mean: float
+    treatment_mean: float
+    mean_delta: float
+    bootstrap: Optional[BootstrapResult]
+
+
+def compute_category_breakdown(
+    aligned_results: list[dict],
+    categories: dict[str, str],
+    n_resamples: int = 10000,
+    confidence: float = 0.95,
+    random_seed: Optional[int] = None,
+    min_category_size: int = 5,
+) -> list[CategoryBreakdown]:
+    """Compute per-category breakdown with optional bootstrap testing.
+
+    Args:
+        aligned_results: List of dicts with keys 'task_id', 'baseline_reward', 'treatment_reward'.
+        categories: Mapping of task_id -> category string.
+        n_resamples: Number of bootstrap resamples.
+        confidence: Confidence level for bootstrap CI.
+        random_seed: Optional seed for reproducibility.
+        min_category_size: Minimum tasks for bootstrap testing.
+
+    Returns:
+        List of CategoryBreakdown sorted by absolute mean_delta descending,
+        with an 'all' pseudo-category included.
+    """
+    if not aligned_results:
+        return []
+
+    # Group tasks by category
+    groups: dict[str, list[dict]] = {}
+    for item in aligned_results:
+        task_id = item["task_id"]
+        cat = categories.get(task_id) or "unknown"
+        if cat not in groups:
+            groups[cat] = []
+        groups[cat] = [*groups[cat], item]
+
+    breakdowns: list[CategoryBreakdown] = []
+
+    # Per-category breakdowns
+    for cat, items in groups.items():
+        breakdown = _build_category_breakdown(
+            category=cat,
+            items=items,
+            n_resamples=n_resamples,
+            confidence=confidence,
+            random_seed=random_seed,
+            min_category_size=min_category_size,
+        )
+        breakdowns.append(breakdown)
+
+    # 'all' pseudo-category aggregate
+    all_breakdown = _build_category_breakdown(
+        category="all",
+        items=aligned_results,
+        n_resamples=n_resamples,
+        confidence=confidence,
+        random_seed=random_seed,
+        min_category_size=min_category_size,
+    )
+    breakdowns.append(all_breakdown)
+
+    # Sort by absolute mean_delta descending
+    return sorted(breakdowns, key=lambda b: abs(b.mean_delta), reverse=True)
+
+
+def _build_category_breakdown(
+    category: str,
+    items: list[dict],
+    n_resamples: int,
+    confidence: float,
+    random_seed: Optional[int],
+    min_category_size: int,
+) -> CategoryBreakdown:
+    """Build a single CategoryBreakdown from a list of aligned result dicts."""
+    baseline_rewards = [item["baseline_reward"] for item in items]
+    treatment_rewards = [item["treatment_reward"] for item in items]
+    n_tasks = len(items)
+
+    baseline_mean = sum(baseline_rewards) / n_tasks
+    treatment_mean = sum(treatment_rewards) / n_tasks
+    mean_delta = treatment_mean - baseline_mean
+
+    bootstrap_result: Optional[BootstrapResult] = None
+    if n_tasks >= min_category_size:
+        bootstrap_result = pairwise_bootstrap(
+            baseline_rewards=baseline_rewards,
+            treatment_rewards=treatment_rewards,
+            n_resamples=n_resamples,
+            confidence=confidence,
+            random_seed=random_seed,
+        )
+
+    return CategoryBreakdown(
+        category=category,
+        n_tasks=n_tasks,
+        baseline_mean=baseline_mean,
+        treatment_mean=treatment_mean,
+        mean_delta=mean_delta,
+        bootstrap=bootstrap_result,
+    )
+
+
 @dataclass(frozen=True)
 class BootstrapResult:
     """Result of pairwise bootstrap significance testing."""
