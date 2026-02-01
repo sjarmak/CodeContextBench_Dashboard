@@ -166,3 +166,15 @@ Started: Fri Jan 30 23:15:14 EST 2026
   - argparse `type=Path` auto-converts string args to Path objects, reducing boilerplate
   - Using `main(argv)` parameter pattern enables testing the CLI without subprocess calls
 ---
+
+## 2026-01-31 - US-011
+- Added deprecation warning to `main()` in `runners/compare_results.py` using `warnings.warn()` with `DeprecationWarning` and `stacklevel=2`
+- Added `.. deprecated::` docstring block at the top of the file explaining the deprecation and migration path to `scripts/compare_experiments.py`
+- Added `import warnings` to imports
+- No functional changes to existing code — all original behavior preserved
+- All 109 experiment_comparator tests pass; 764 total tests pass (9 pre-existing failures in Playwright/dashboard tests)
+- Files changed: `runners/compare_results.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `stacklevel=2` in `warnings.warn()` ensures the warning points to the caller of `main()`, not the `main()` function itself
+  - Deprecation stories are minimal-touch: import `warnings`, add docstring block, add `warnings.warn()` call — no functional changes
+---

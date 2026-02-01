@@ -3,10 +3,24 @@
 
 Generates summary statistics and task-by-task comparison reports
 for evaluating agent performance across different configurations.
+
+.. deprecated::
+    This script is deprecated. Use ``scripts/compare_experiments.py`` instead,
+    which provides statistical rigor (bootstrap testing, confidence intervals,
+    effect sizes) and structured output (Markdown + JSON).
+
+    Example migration::
+
+        # Old (this script):
+        python runners/compare_results.py <baseline_dir> <treatment_dir>
+
+        # New (replacement):
+        python scripts/compare_experiments.py <baseline_dir> <treatment_dir> --format both
 """
 
 import json
 import sys
+import warnings
 from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List, Any, Tuple
@@ -239,6 +253,11 @@ def compare_results(baseline_dir: str, treatment_dir: str) -> None:
 
 def main():
     """Entry point for result comparison."""
+    warnings.warn(
+        "compare_results.py is deprecated. Use scripts/compare_experiments.py instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if len(sys.argv) < 3:
         print("Usage: compare_results.py <baseline-dir> <treatment-dir>")
         print()
