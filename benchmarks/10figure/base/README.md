@@ -1,52 +1,60 @@
 # Base Docker Image
 
-This directory contains the Dockerfile and build script for `harbor-10figure:base`, the foundational image containing the 10Figure-Codebases corpus.
+This directory contains the Dockerfile and build script for `harbor-10figure:base`, the foundational image containing the 10Figure-Codebases corpus with all 4 Phase 1 repositories.
 
-## Build Process
+## Pinned Repository Versions
+
+| Repository | Version | Shallow Clone | Approx Size |
+|------------|---------|---------------|-------------|
+| [Kubernetes](https://github.com/kubernetes/kubernetes) | v1.29.3 | `--depth 1` | ~800MB |
+| [Django](https://github.com/django/django) | 5.0.4 | `--depth 1` | ~70MB |
+| [Envoy](https://github.com/envoyproxy/envoy) | v1.29.2 | `--depth 1` | ~400MB |
+| [TensorFlow](https://github.com/tensorflow/tensorflow) | v2.16.1 | `--depth 1` | ~700MB |
+
+All repos are cloned with `--depth 1` (shallow clone) to minimize image size.
+
+## Image Contents
 
 The base image includes:
 - Ubuntu 22.04 base
-- Python 3 + dependencies from requirements.txt
+- Python 3 + dependencies
 - Git, build tools, jq
-- Full 10Figure corpus at `/10figure/`
+- All 4 repos at `/10figure/src/`:
+  - `/10figure/src/kubernetes/` (Kubernetes v1.29.3)
+  - `/10figure/src/django/` (Django 5.0.4)
+  - `/10figure/src/envoy/` (Envoy v1.29.2)
+  - `/10figure/src/tensorflow/` (TensorFlow v2.16.1)
 - Validator script at `/10figure/scripts/validate_patch.py`
 
-## Prerequisites
+## Expected Image Size
 
-Before building, ensure you have built the 10Figure-Codebases corpus:
-
-```bash
-cd ~/10Figure-Codebases
-make install
-make build-corpus  # Takes ~15-20 minutes
-```
+~6-8GB (includes all 4 repos via shallow clones + system dependencies)
 
 ## Building the Image
 
-```bash
-# Use default corpus path (~/10Figure-Codebases)
-./build.sh
+### Option 1: Auto-clone repos (no pre-built corpus needed)
 
-# Or specify custom corpus path
-CORPUS_PATH=/path/to/10Figure-Codebases ./build.sh
+```bash
+./build.sh
 ```
 
-The build process:
-1. Copies the entire 10Figure-Codebases directory (~5GB) to a temp build context
-2. Builds the Docker image with the corpus embedded
-3. Tags as `harbor-10figure:base`
+This will shallow-clone all 4 repos at their pinned versions into a temp directory and build the image.
 
-## Image Size
+### Option 2: Use pre-built corpus
 
-- Expected size: ~6-8GB (includes full corpus + dependencies)
+```bash
+CORPUS_PATH=~/10Figure-Codebases ./build.sh
+```
+
+If you already have a built corpus at `~/10Figure-Codebases` with `src/kubernetes`, `src/django`, `src/envoy`, `src/tensorflow`, the script will use it directly instead of cloning.
 
 ## Verification
 
 ```bash
-# Check corpus structure
+# Check all 4 repos are present
 docker run --rm harbor-10figure:base ls -la /10figure/src
 
-# Should show: kubernetes, envoy, django, tensorflow, etc.
+# Should show: kubernetes, django, envoy, tensorflow
 ```
 
 ## Usage in Harbor Tasks
@@ -67,6 +75,6 @@ This avoids rebuilding the corpus for every task, leveraging Docker layer cachin
 If using Podman instead of Docker:
 
 ```bash
-# Replace 'docker' with 'podman' in build.sh, or:
-podman build -t harbor-10figure:base -f Dockerfile /tmp/build-context
+# The build.sh script uses podman by default
+# Replace 'podman' with 'docker' in build.sh if needed
 ```
