@@ -7,6 +7,7 @@
 - CSV export uses `export_csv_button(df, filename, key=unique_key)` from common_components
 - Pre-existing test files `test_analysis_cost_v2.py` and `test_analysis_failure_v2.py` reference non-existent v2 modules - these are stale tests
 - Filter UI uses `render_filter_panel(view_type, loader, experiment_id, key_suffix=suffix)` pattern
+- Analysis views should be thin: render config -> Run button -> `run_and_display_*()` delegation to config module
 
 ## 2026-01-31 - US-026
 - What was implemented: Added Plotly bar charts for token distribution and agent cost breakdown to cost analysis view. Added Plotly pie chart for error category distribution and horizontal bar chart for failure pattern frequency to failure analysis view. Added CSV export alongside JSON export for both views. Added `export_csv_button` helper to common_components.
@@ -20,4 +21,16 @@
   - Plotly is available (v6.5.2) and already used in comparison.py and deep_search.py views
   - The `go.Figure()` pattern with `add_trace()` is used for stacked/grouped bar charts; `px.bar/px.pie` for simpler charts
   - `export_csv_button` needs a unique `key` parameter to avoid StreamlitDuplicateElementKey errors
+---
+
+## 2026-01-31 - US-027
+- What was implemented: Refactored time series analysis view to use the GUI-driven config pattern. The view now uses `render_timeseries_config()` for experiment selection, metric selection, and aggregation level configuration, plus a "Run Time Series Analysis" button that triggers `run_and_display_timeseries()` to render Plotly line charts with trend lines, anomaly marker scatter plots, trend data tables, and CSV export.
+- Files changed:
+  - `dashboard/views/analysis_timeseries.py` - Replaced 398-line inline implementation with 95-line config-driven view using `render_timeseries_config` and `run_and_display_timeseries` from timeseries_config.py
+  - `scripts/ralph/prd.json` - Marked US-027 as passes: true
+- **Learnings for future iterations:**
+  - The timeseries_config.py utility already had complete infrastructure (config panel, chart builders, CSV export, results rendering) - the view just needed to delegate to it
+  - The pattern for all analysis views is: (1) render config, (2) show Run button, (3) call run_and_display function - keep the view file thin
+  - Cached results pattern: store config snapshot in session state to re-render results without re-clicking the button
+  - Stale test files (test_*_v2.py) still exist and cause collection errors - run specific test files, not the whole directory
 ---
