@@ -51,3 +51,19 @@ Started: Fri Jan 30 23:15:14 EST 2026
   - `_BENCHMARK_DIR_NAMES` frozenset enables O(1) lookups when scanning path components for benchmark type inference
   - Benchmark type inference checks config.json first (more reliable), then falls back to scanning path components
 ---
+
+## 2026-01-31 - US-004
+- Added `BootstrapResult` frozen dataclass and `pairwise_bootstrap()` function to `src/analysis/experiment_comparator.py`
+- Bootstrap resamples paired differences using numpy vectorized indexing for performance
+- p-value computed as two-sided: proportion of bootstrap deltas crossing zero, multiplied by 2
+- Cohen's d computed on paired differences with `ddof=1`; returns `inf` when std=0 and mean!=0
+- Effect interpretation: negligible (<0.2), small (<0.5), medium (<0.8), large (>=0.8)
+- Added 13 new tests covering: identical rewards, large positive/negative deltas, single task, seed reproducibility, effect interpretation, CI properties, input validation
+- All 48 tests pass (35 existing + 13 new), typecheck passes
+- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - When constructing test data for Cohen's d, ensure paired differences have non-zero variance; identical differences yield std=0 and d=inf
+  - `numpy.random.default_rng(seed)` is the modern way to get reproducible RNG in numpy; avoids global state
+  - Vectorized bootstrap: `rng.integers(0, n, size=(n_resamples, n))` + fancy indexing is much faster than Python loops
+  - Two-sided p-value via `min(proportion * 2, 1.0)` matches standard bootstrap hypothesis testing
+---

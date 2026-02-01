@@ -4,7 +4,13 @@ import json
 import pytest
 from pathlib import Path
 
-from src.analysis.experiment_comparator import TaskAligner, AlignmentResult, RewardNormalizer
+from src.analysis.experiment_comparator import (
+    TaskAligner,
+    AlignmentResult,
+    RewardNormalizer,
+    BootstrapResult,
+    pairwise_bootstrap,
+)
 
 
 @pytest.fixture
@@ -386,3 +392,168 @@ class TestRewardNormalizerClamping:
     def test_clamp_below_zero(self, normalizer):
         result = normalizer.normalize(-0.2, "locobench")
         assert result == pytest.approx(0.0)
+
+
+# =============================================================================
+# Pairwise Bootstrap Tests
+# =============================================================================
+
+
+class TestBootstrapResultDataclass:
+    """BootstrapResult is a frozen dataclass with expected fields."""
+
+    def test_fields_present(self):
+        br = BootstrapResult(
+            mean_delta=0.1,
+            ci_lower=-0.05,
+            ci_upper=0.25,
+            p_value=0.04,
+            effect_size=0.3,
+            effect_interpretation="small",
+            n_resamples=1000,
+            n_tasks=10,
+        )
+        assert br.mean_delta == pytest.approx(0.1)
+        assert br.effect_interpretation == "small"
+        assert br.n_resamples == 1000
+        assert br.n_tasks == 10
+
+    def test_frozen(self):
+        br = BootstrapResult(
+            mean_delta=0.0, ci_lower=0.0, ci_upper=0.0,
+            p_value=1.0, effect_size=0.0,
+            effect_interpretation="negligible",
+            n_resamples=100, n_tasks=5,
+        )
+        with pytest.raises(AttributeError):
+            br.mean_delta = 999.0
+
+
+class TestPairwiseBootstrapIdentical:
+    """Identical rewards should produce delta=0, high p-value."""
+
+    def test_identical_rewards(self):
+        baseline = [0.5, 0.5, 0.5, 0.5, 0.5]
+        treatment = [0.5, 0.5, 0.5, 0.5, 0.5]
+        result = pairwise_bootstrap(baseline, treatment, n_resamples=1000, random_seed=42)
+
+        assert result.mean_delta == pytest.approx(0.0)
+        assert result.p_value == pytest.approx(1.0)
+        assert result.effect_interpretation == "negligible"
+        assert result.n_tasks == 5
+
+
+class TestPairwiseBootstrapLargePositiveDelta:
+    """Treatment much better than baseline -> positive delta, low p-value."""
+
+    def test_large_positive_delta(self):
+        baseline = [0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2]
+        treatment = [0.9, 0.8, 0.9, 0.8, 0.9, 0.8, 0.9, 0.8, 0.9, 0.8]
+        result = pairwise_bootstrap(baseline, treatment, n_resamples=5000, random_seed=42)
+
+        assert result.mean_delta > 0.5
+        assert result.p_value < 0.05
+        assert result.effect_size > 0.8
+        assert result.effect_interpretation == "large"
+        assert result.n_tasks == 10
+
+
+class TestPairwiseBootstrapLargeNegativeDelta:
+    """Treatment worse than baseline -> negative delta."""
+
+    def test_large_negative_delta(self):
+        baseline = [0.9, 0.8, 0.9, 0.8, 0.9, 0.8, 0.9, 0.8, 0.9, 0.8]
+        treatment = [0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2]
+        result = pairwise_bootstrap(baseline, treatment, n_resamples=5000, random_seed=42)
+
+        assert result.mean_delta < -0.5
+        assert result.p_value < 0.05
+        assert result.effect_size > 0.8  # absolute value
+        assert result.effect_interpretation == "large"
+
+
+class TestPairwiseBootstrapSingleTask:
+    """Edge case: single task pair."""
+
+    def test_single_task(self):
+        result = pairwise_bootstrap([0.3], [0.7], n_resamples=1000, random_seed=42)
+
+        assert result.mean_delta == pytest.approx(0.4)
+        assert result.n_tasks == 1
+        # With one task, bootstrap always resamples the same pair
+        assert result.p_value == pytest.approx(0.0)
+
+
+class TestPairwiseBootstrapSeedReproducibility:
+    """Same seed produces identical results."""
+
+    def test_reproducible_with_seed(self):
+        baseline = [0.3, 0.4, 0.5, 0.6, 0.7]
+        treatment = [0.35, 0.45, 0.55, 0.65, 0.75]
+
+        r1 = pairwise_bootstrap(baseline, treatment, n_resamples=2000, random_seed=123)
+        r2 = pairwise_bootstrap(baseline, treatment, n_resamples=2000, random_seed=123)
+
+        assert r1.mean_delta == pytest.approx(r2.mean_delta)
+        assert r1.ci_lower == pytest.approx(r2.ci_lower)
+        assert r1.ci_upper == pytest.approx(r2.ci_upper)
+        assert r1.p_value == pytest.approx(r2.p_value)
+        assert r1.effect_size == pytest.approx(r2.effect_size)
+
+    def test_different_seeds_may_differ(self):
+        baseline = [0.3, 0.4, 0.5, 0.6, 0.7]
+        treatment = [0.35, 0.45, 0.55, 0.65, 0.75]
+
+        r1 = pairwise_bootstrap(baseline, treatment, n_resamples=2000, random_seed=1)
+        r2 = pairwise_bootstrap(baseline, treatment, n_resamples=2000, random_seed=2)
+
+        # CIs may differ slightly with different seeds
+        # Just verify both produce valid results
+        assert r1.n_tasks == r2.n_tasks == 5
+
+
+class TestPairwiseBootstrapEffectInterpretation:
+    """Effect size interpretation thresholds."""
+
+    def test_negligible_effect(self):
+        # Small mean difference with large variance in differences -> negligible Cohen's d
+        baseline =  [0.40, 0.50, 0.60, 0.45, 0.55, 0.42, 0.58, 0.48, 0.52, 0.50]
+        treatment = [0.42, 0.48, 0.62, 0.43, 0.57, 0.44, 0.56, 0.50, 0.50, 0.52]
+        # differences: +.02, -.02, +.02, -.02, +.02, +.02, -.02, +.02, -.02, +.02
+        # mean diff = +0.004, std of diffs ~ 0.021 -> d ~ 0.19
+        result = pairwise_bootstrap(baseline, treatment, n_resamples=1000, random_seed=42)
+
+        assert abs(result.effect_size) < 0.5  # at most small
+
+
+class TestPairwiseBootstrapConfidenceInterval:
+    """Confidence interval properties."""
+
+    def test_ci_contains_mean(self):
+        baseline = [0.3, 0.4, 0.5, 0.6, 0.7]
+        treatment = [0.35, 0.45, 0.55, 0.65, 0.75]
+        result = pairwise_bootstrap(baseline, treatment, n_resamples=5000, random_seed=42)
+
+        assert result.ci_lower <= result.mean_delta <= result.ci_upper
+
+    def test_custom_confidence_level(self):
+        baseline = [0.3, 0.4, 0.5, 0.6, 0.7]
+        treatment = [0.35, 0.45, 0.55, 0.65, 0.75]
+
+        r90 = pairwise_bootstrap(baseline, treatment, confidence=0.90, n_resamples=5000, random_seed=42)
+        r99 = pairwise_bootstrap(baseline, treatment, confidence=0.99, n_resamples=5000, random_seed=42)
+
+        # 99% CI should be wider than 90% CI
+        assert (r99.ci_upper - r99.ci_lower) >= (r90.ci_upper - r90.ci_lower)
+
+
+class TestPairwiseBootstrapValidation:
+    """Input validation."""
+
+    def test_mismatched_lengths_raises(self):
+        with pytest.raises(ValueError, match="same length"):
+            pairwise_bootstrap([0.1, 0.2], [0.3])
+
+    def test_empty_lists_raises(self):
+        with pytest.raises(ValueError, match="at least one"):
+            pairwise_bootstrap([], [])

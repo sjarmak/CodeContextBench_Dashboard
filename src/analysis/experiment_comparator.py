@@ -9,9 +9,12 @@ experiment comparison pipeline with statistical rigor.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+import numpy as np
 
 
 # Normalization rules per benchmark type.
@@ -271,3 +274,127 @@ class RewardNormalizer:
                 return part
 
         return None
+
+
+@dataclass(frozen=True)
+class BootstrapResult:
+    """Result of pairwise bootstrap significance testing."""
+
+    mean_delta: float
+    ci_lower: float
+    ci_upper: float
+    p_value: float
+    effect_size: float
+    effect_interpretation: str
+    n_resamples: int
+    n_tasks: int
+
+
+def _cohens_d(differences: np.ndarray) -> float:
+    """Compute Cohen's d for paired differences.
+
+    Args:
+        differences: Array of paired differences (treatment - baseline).
+
+    Returns:
+        Cohen's d effect size (can be negative).
+    """
+    mean_diff = float(np.mean(differences))
+    std_diff = float(np.std(differences, ddof=1)) if len(differences) > 1 else 0.0
+
+    if std_diff == 0.0:
+        if mean_diff == 0.0:
+            return 0.0
+        return float("inf") if mean_diff > 0 else float("-inf")
+
+    return mean_diff / std_diff
+
+
+def _interpret_effect_size(d: float) -> str:
+    """Interpret Cohen's d using standard thresholds.
+
+    Args:
+        d: Cohen's d value.
+
+    Returns:
+        One of: negligible, small, medium, large.
+    """
+    abs_d = abs(d)
+    if abs_d < 0.2:
+        return "negligible"
+    if abs_d < 0.5:
+        return "small"
+    if abs_d < 0.8:
+        return "medium"
+    return "large"
+
+
+def pairwise_bootstrap(
+    baseline_rewards: list[float],
+    treatment_rewards: list[float],
+    n_resamples: int = 10000,
+    confidence: float = 0.95,
+    random_seed: Optional[int] = None,
+) -> BootstrapResult:
+    """Pairwise bootstrap significance test for paired reward differences.
+
+    Resamples paired differences (not independent), preserving task pairing.
+
+    Args:
+        baseline_rewards: Reward values from baseline, ordered by task.
+        treatment_rewards: Reward values from treatment, ordered by task.
+        n_resamples: Number of bootstrap resamples.
+        confidence: Confidence level for the interval (e.g. 0.95).
+        random_seed: If provided, makes results deterministic.
+
+    Returns:
+        BootstrapResult with mean delta, CI, p-value, effect size.
+
+    Raises:
+        ValueError: If inputs are empty or have different lengths.
+    """
+    if len(baseline_rewards) != len(treatment_rewards):
+        raise ValueError(
+            f"Baseline and treatment must have same length, "
+            f"got {len(baseline_rewards)} and {len(treatment_rewards)}"
+        )
+    if len(baseline_rewards) == 0:
+        raise ValueError("Reward lists must contain at least one task")
+
+    baseline_arr = np.array(baseline_rewards, dtype=np.float64)
+    treatment_arr = np.array(treatment_rewards, dtype=np.float64)
+    differences = treatment_arr - baseline_arr
+    n_tasks = len(differences)
+
+    mean_delta = float(np.mean(differences))
+    effect_size_val = _cohens_d(differences)
+    effect_interp = _interpret_effect_size(effect_size_val)
+
+    rng = np.random.default_rng(random_seed)
+    indices = rng.integers(0, n_tasks, size=(n_resamples, n_tasks))
+    bootstrap_deltas = np.mean(differences[indices], axis=1)
+
+    alpha = 1.0 - confidence
+    ci_lower = float(np.percentile(bootstrap_deltas, 100 * alpha / 2))
+    ci_upper = float(np.percentile(bootstrap_deltas, 100 * (1 - alpha / 2)))
+
+    # p-value: proportion of bootstrap deltas on the opposite side of zero from the observed mean
+    if mean_delta > 0:
+        p_value = float(np.mean(bootstrap_deltas <= 0)) * 2
+    elif mean_delta < 0:
+        p_value = float(np.mean(bootstrap_deltas >= 0)) * 2
+    else:
+        p_value = 1.0
+
+    p_value = min(p_value, 1.0)
+
+    return BootstrapResult(
+        mean_delta=mean_delta,
+        ci_lower=ci_lower,
+        ci_upper=ci_upper,
+        p_value=p_value,
+        effect_size=abs(effect_size_val) if not math.isinf(effect_size_val) else abs(effect_size_val),
+        effect_interpretation=effect_interp,
+        n_resamples=n_resamples,
+        n_tasks=n_tasks,
+    )
