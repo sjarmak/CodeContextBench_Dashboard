@@ -1,0 +1,65 @@
+task_id: cross_api_tracing_01
+type: cross_file_reasoning
+repos:
+  - kubernetes
+  - envoy
+
+description: >
+  Trace the Kubernetes appProtocol field from Service/EndpointSlice API types
+  through to Envoy's protocol selection and filter chain matching.
+
+ground_truth:
+  symbol_chain:
+    - symbol: "ServicePort.AppProtocol"
+      repo: kubernetes
+      file: "pkg/apis/core/types.go"
+      description: "AppProtocol *string field on ServicePort struct"
+
+    - symbol: "EndpointPort.AppProtocol"
+      repo: kubernetes
+      file: "staging/src/k8s.io/api/discovery/v1/types.go"
+      description: "AppProtocol *string field on EndpointPort struct"
+
+    - symbol: "ValidateQualifiedName(AppProtocol)"
+      repo: kubernetes
+      file: "pkg/apis/core/validation/validation.go"
+      description: "Validation of appProtocol field values"
+
+    - symbol: "FilterChainMatch.application_protocols"
+      repo: envoy
+      file: "api/envoy/config/listener/v3/listener_components.proto"
+      description: "ALPN-based filter chain matching field"
+
+    - symbol: "TlsInspector::onALPN"
+      repo: envoy
+      file: "source/extensions/filters/listener/tls_inspector/tls_inspector.h"
+      description: "TLS Inspector ALPN detection callback"
+
+    - symbol: "ClusterProtocolSelection"
+      repo: envoy
+      file: "api/envoy/config/cluster/v3/cluster.proto"
+      description: "Enum for HTTP/1.1 vs HTTP/2 protocol selection"
+
+    - symbol: "Cluster.protocol_selection"
+      repo: envoy
+      file: "api/envoy/config/cluster/v3/cluster.proto"
+      description: "Protocol selection field on Cluster config"
+
+  expected_keywords:
+    - "appProtocol"
+    - "AppProtocol"
+    - "application_protocols"
+    - "FilterChainMatch"
+    - "ClusterProtocolSelection"
+    - "TlsInspector"
+    - "ALPN"
+    - "ServicePort"
+    - "EndpointPort"
+    - "protocol_selection"
+
+scoring:
+  min_symbols_required: 6
+  partial_credit: true
+  keyword_weight: 0.4
+  file_ref_weight: 0.3
+  chain_completeness_weight: 0.3

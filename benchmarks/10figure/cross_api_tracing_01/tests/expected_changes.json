@@ -1,0 +1,55 @@
+{
+  "task_id": "cross_api_tracing_01",
+  "description": "Trace appProtocol field from Kubernetes ServicePort/EndpointPort to Envoy FilterChainMatch/ClusterProtocolSelection",
+  "repos": ["kubernetes", "envoy"],
+  "scoring_weights": {
+    "kubernetes": 0.5,
+    "envoy": 0.5
+  },
+  "expected_symbols": {
+    "kubernetes": [
+      {
+        "symbol": "ServicePort.AppProtocol",
+        "file": "pkg/apis/core/types.go",
+        "required": true
+      },
+      {
+        "symbol": "EndpointPort.AppProtocol",
+        "file": "staging/src/k8s.io/api/discovery/v1/types.go",
+        "required": true
+      },
+      {
+        "symbol": "ValidateQualifiedName",
+        "file": "pkg/apis/core/validation/validation.go",
+        "required": false
+      }
+    ],
+    "envoy": [
+      {
+        "symbol": "FilterChainMatch.application_protocols",
+        "file": "api/envoy/config/listener/v3/listener_components.proto",
+        "required": true
+      },
+      {
+        "symbol": "TlsInspector.onALPN",
+        "file": "source/extensions/filters/listener/tls_inspector/tls_inspector.h",
+        "required": false
+      },
+      {
+        "symbol": "ClusterProtocolSelection",
+        "file": "api/envoy/config/cluster/v3/cluster.proto",
+        "required": true
+      }
+    ]
+  },
+  "expected_keywords": [
+    "appProtocol",
+    "application_protocols",
+    "FilterChainMatch",
+    "ClusterProtocolSelection",
+    "ALPN",
+    "ServicePort",
+    "EndpointPort"
+  ],
+  "compilation_required": false
+}

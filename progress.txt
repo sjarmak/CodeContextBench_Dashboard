@@ -12,6 +12,19 @@ Started: Sat Jan 31 23:09:13 EST 2026
 - Existing 4 scored tasks are all Kubernetes-only (api_upgrade_01, bug_localization_01, cross_file_reasoning_01, refactor_rename_01)
 - Template `templates/test.sh.j2` generates test.sh scripts; expects patch at `/logs/agent/patch.diff`
 
+## 2026-01-31 - US-004
+- Created `benchmarks/10figure/cross_api_tracing_01/` task package (Kubernetes + Envoy)
+- Task traces `appProtocol` from K8s ServicePort/EndpointPort → Envoy FilterChainMatch/ClusterProtocolSelection
+- 7 ground truth symbols: ServicePort.AppProtocol, EndpointPort.AppProtocol, ValidateQualifiedName, FilterChainMatch.application_protocols, TlsInspector.onALPN, ClusterProtocolSelection, Cluster.protocol_selection
+- Scoring: 60% symbol coverage (per-repo weighted 50/50), 40% keyword coverage
+- Files: instruction.md, task.toml, task.yaml, environment/Dockerfile, tests/test.sh, tests/expected_changes.json
+- **Learnings for future iterations:**
+  - Cross-repo connection between K8s and Envoy is implicit (via control plane like Istio), not direct API coupling
+  - K8s appProtocol is in pkg/apis/core/types.go (ServicePort) and staging/.../discovery/v1/types.go (EndpointPort)
+  - Envoy protocol detection uses FilterChainMatch.application_protocols + TLS Inspector ALPN
+  - pyyaml not available in system Python 3.14; use tomllib for TOML validation
+---
+
 ## 2026-01-31 - US-008
 - Created `benchmarks/10figure/scripts/validate_patch_cross_repo.py` with `--weights` argument support
 - Wraps base `validate_patch.py` -- splits combined patch by repo, validates per-repo, computes weighted score
