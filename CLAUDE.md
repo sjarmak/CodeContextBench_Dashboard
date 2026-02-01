@@ -37,7 +37,7 @@ export ANTHROPIC_API_KEY DAYTONA_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_UR
 
 ---
 
-## Compounded Learnings (2026-01-30)
+## Compounded Learnings (2026-01-31)
 
 ### Benchmark Repo Mirroring
 
@@ -82,6 +82,10 @@ export ANTHROPIC_API_KEY DAYTONA_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_UR
 
 **Streamlit `st.session_state` cannot be modified after widget instantiation:** Use `on_click` callback pattern that sets state before widget rerender, not direct assignment after the widget is created.
 
+**Multi-round judge voting:** `EnhancedLLMJudge` uses 3-round voting for consistency with confidence scores. Tracks `oracle_alignment`, `vote_confidence`, `vote_distribution` in database. Dimensions: `ORACLE_CORRECTNESS`, `ORACLE_COMPLETENESS`, `MCP_EFFECTIVENESS`. More reliable than single evaluation pass.
+
+**LoCoBench task types require different evaluation:** Understanding/analysis tasks produce solution reports to `/logs/agent/solution.md`. Code modification tasks should produce actual code changes. Dashboard detects type by checking which files were modified in agent trace (green banner = code changes, blue = analysis).
+
 ### LoCoBench Agent Benchmark
 
 **Data structure:** Data lives in `data/output/scenarios/*.json` (8000 individual JSON files, NOT JSONL). Synthetic projects in `data/generated/` (1000 projects, NOT real GitHub repos). 8 task categories: `architectural_understanding`, `bug_investigation`, `code_comprehension`, `cross_file_refactoring`, `feature_implementation`, `integration_testing`, `multi_session_development`, `security_analysis`.
@@ -100,15 +104,19 @@ export ANTHROPIC_API_KEY DAYTONA_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_UR
 
 **MCP config file location in Harbor containers:** Must be at `/logs/agent/sessions/.mcp.json` (Harbor sets `CLAUDE_CONFIG_DIR=/logs/agent/sessions`). NOT `/app/.mcp.json` or `/root/.mcp.json`.
 
-**MCP SSL certificate failure in Docker:** Node.js `fetch()` fails with Sourcegraph endpoints inside containers due to missing CA certs. Workaround: `NODE_TLS_REJECT_UNAUTHORIZED=0` set globally via `/etc/profile` in container.
+**MCP SSL certificate failure in Docker:** Node.js `fetch()` fails with Sourcegraph endpoints inside containers due to missing CA certs. Workaround: `NODE_TLS_REJECT_UNAUTHORIZED=0` set globally via `/etc/profile` in container. Note: HTTP MCP transport does NOT support the `env` field in `.mcp.json` config -- you cannot set `NODE_TLS_REJECT_UNAUTHORIZED` there. Must set it in the process environment directly (e.g., in the agent's command execution code).
 
-**Clean A/B/C experiment design:** Single `BaselineClaudeCodeAgent` controlled by `BASELINE_MCP_TYPE` env var: `none` (pure baseline), `sourcegraph` (keyword_search, nls_search, read_file -- no deep search), `deepsearch` (deep search only).
+**Clean A/B/C experiment design:** Single `BaselineClaudeCodeAgent` controlled by `BASELINE_MCP_TYPE` env var: `none` (pure baseline), `sourcegraph` (keyword_search, nls_search, read_file -- no deep search), `deepsearch` (deep search only). For SWE-agent variants, use separate classes (`MiniSweAgentBaseline`, `MiniSweAgentSourcegraphMCP`, `MiniSweAgentDeepSearchMCP`) in `mini_swe_agent_mcp.py`.
+
+**Harbor CLI argument gotchas:** `--task-ids` does not exist (use `--task-name`). Agent import paths (e.g., `mini_swe_agent_mcp:MiniSweAgentBaseline`) are different from registered agent names (e.g., `mini-swe-agent`). Use import paths with `--agent-import-path` flag. Harbor's remote registry endpoint may return malformed JSON -- use `--path benchmarks/<name>/tasks/` instead of `--dataset` as a workaround.
 
 ### SWE-bench Debugging Patterns
 
 **QEMU segfaults on ARM Mac:** `uv tool install` and `uv run parser.py` segfault inside x86_64 Docker containers emulated via QEMU on ARM. This is why Daytona is required for all benchmarks.
 
 **Reward=0 has multiple layered causes:** Peel back one at a time: (1) Agent not installing (Python version), (2) Agent not executing (binary not found), (3) Agent changes not captured (empty submission via `git add -A` capturing debug scripts -- use `git add -u`), (4) Test.sh output not reaching Harbor (file path mismatch), (5) Parser segfaulting on ARM (QEMU).
+
+**SWE-bench test.sh file path mismatch:** test.sh writes logs to `$LOG_FILE=/tmp/tmpXXXXXX` (temp file), but Harbor expects output in `/logs/verifier/test-stdout.txt` (mounted directory). The parser adds required `START_TEST_OUTPUT`/`END_TEST_OUTPUT` markers to the temp file, never to the Harbor location. Fix: `scripts/patch_swebench_testsh.py` injects `cp "$LOG_FILE" /logs/verifier/test-stdout.txt` into all cached tasks at `~/.cache/harbor/tasks/`.
 
 **Agent execution time as smoke test:** 0.7-0.8 second execution is a clear signal the agent never ran. Normal execution is 5-12 minutes.
 
@@ -121,6 +129,8 @@ export ANTHROPIC_API_KEY DAYTONA_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_UR
 **Profile runner blocks on `subprocess.run()`:** `src/benchmark/profile_runner.py` line 405 uses blocking `subprocess.run()` in `_invoke_harbor()`, preventing background execution from dashboard. Needs same Popen fix as evaluation_runner.py.
 
 **File-based persistence for run tracking:** Use JSON metadata + log files in `.dashboard_runs/` with PID-based process monitoring (psutil). Survives dashboard restarts. Streamlit session state is lost on page refresh.
+
+**Non-blocking subprocess requires line buffering:** When using `subprocess.Popen()` for background execution, `buffering=1` (line-buffered) is required for real-time log output. Without it, output is cached and logs appear empty until the process completes. Pattern: `log_fd = open(log_file, "w", buffering=1)` then pass to `Popen(stdout=log_fd, stderr=subprocess.STDOUT)`.
 
 **Streamlit auto-refresh grey flashing:** 2-second auto-refresh causes disorienting grey flash. Use 5-second interval + user toggle + manual refresh button.
 
@@ -140,6 +150,24 @@ export ANTHROPIC_API_KEY DAYTONA_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_UR
 ### Pre-commit Hook Behavior
 
 The project's pre-commit hook checks for secret patterns. It sometimes produces false positives or fails with `error: unknown option 'cached'` (environmental issue with Claude Code wrapper intercepting `git diff`). Safe to use `--no-verify` when files have been manually verified.
+
+### Harbor Adapter Development Patterns
+
+**Tests uploaded at verification time, NOT build time:** Harbor uploads test files to containers via `docker compose cp` at verification time. Dockerfile `COPY` commands for test files will fail because tests don't exist in the build context. Only copy project files and runtime dependencies in Dockerfile.
+
+**TOML template syntax:** Task TOML templates must have valid TOML syntax -- cannot use variable placeholders like `{context_length}`. Use static placeholder values and update metadata programmatically after parsing.
+
+**LoCoBench scenario ID format:** IDs follow `{language}_{domain}_{complexity}_{num}_{task_category}_{difficulty}_{variant}`. Context file paths use `//` separator that must be normalized to `/`. Ground truth format varies: string for analysis tasks, object/dict for bug investigation.
+
+**JSONL supplements from raw JSON:** LoCoBench JSONL may be incomplete. Supplement missing fields (`context_files`, `description`, `expected_approach`) from raw scenario JSON files at load time. More flexible than regenerating the dataset.
+
+**Agent testing order:** Use nop agent first (framework validation, fast), then oracle agent (correctness verification, requires `solution/solve.sh`), then real agents (full execution, slowest). Reward=0 from nop agent is expected, not a failure.
+
+### uv Tool Isolation
+
+**`uv tool install` creates isolated Python environments** (e.g., Python 3.13) with compiled binaries incompatible with system Python (e.g., 3.11). Importing packages from a uv tool's environment into system Python causes `pydantic_core._pydantic_core` missing errors. Solution: use the tool's own Python at `~/.local/share/uv/tools/<tool_name>/bin/python`. Check site-packages at `~/.local/share/uv/tools/<tool_name>/lib/python<version>/site-packages/`.
+
+**Error diagnosis sequence for module imports:** (1) Check `python --version`, (2) Check `pip3 show <package>`, (3) For uv tools: `find ~/.local/share/uv -name <package>`, (4) Match error to cause: `tomllib` missing = Python <3.11, `pydantic_core` missing = version mismatch.
 
 ### Ralph Autonomous Agent Patterns
 
