@@ -12,6 +12,17 @@ Started: Sat Jan 31 23:09:13 EST 2026
 - Existing 4 scored tasks are all Kubernetes-only (api_upgrade_01, bug_localization_01, cross_file_reasoning_01, refactor_rename_01)
 - Template `templates/test.sh.j2` generates test.sh scripts; expects patch at `/logs/agent/patch.diff`
 
+## 2026-01-31 - US-009
+- Created `tests/smoke_test_cross_repo.py` validating all 4 cross-repo task packages
+- 80 tests covering: directory structure, required files, TOML validity, YAML readability, JSON validity, multi-repo metadata, scoring weights sum to 1.0, Dockerfile inheritance, test.sh executability
+- All 80 tests pass
+- Files changed: `tests/smoke_test_cross_repo.py`, `prd.json`
+- **Learnings for future iterations:**
+  - Use `tomllib` (Python 3.11+) for TOML parsing; `pyyaml` not available, so YAML validation is string-based
+  - Parametrized pytest fixtures allow testing all 4 tasks with one test class
+  - `stat.S_IXUSR` checks executable bit for test.sh
+---
+
 ## 2026-01-31 - US-007
 - Created `benchmarks/10figure/cross_refactor_01/` task package (Envoy + Kubernetes)
 - Task: rename gRPC health check service field from `service_name` (Envoy) / `Service` (K8s) to `grpc_service_name` / `GRPCServiceName`
