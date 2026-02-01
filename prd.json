@@ -47,8 +47,8 @@
         "Typecheck passes (N/A -- shell script template)"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-31: Jinja2 template at templates/cross_repo_test.sh.j2. Uses repo_weights variable (e.g., 'kubernetes:0.6 envoy:0.4'). Splits combined patch by repo, validates per-repo, computes weighted score."
     },
     {
       "id": "US-004",

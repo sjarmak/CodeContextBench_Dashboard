@@ -1,0 +1,205 @@
+#!/bin/bash
+# Harbor cross-repo test script template for 10Figure multi-repo patch validation
+# Validates patches spanning multiple repositories and computes weighted reward
+set -e
+set -x  # Enable verbose mode
+
+PATCH_FILE="/logs/agent/patch.diff"
+CORPUS_ROOT="{{ corpus_root | default('/10figure') }}"
+VALIDATOR="{{ validator_path | default('/10figure/scripts/validate_patch.py') }}"
+REWARD_FILE="/logs/verifier/reward.txt"
+VALIDATION_RESULT="/logs/verifier/validation_result.json"
+EXPECTED_CHANGES="/task/tests/expected_changes.json"
+
+# Repo directories and weights (from template variables)
+# Format: "repo_name:weight repo_name:weight ..."
+REPO_WEIGHTS="{{ repo_weights }}"
+
+echo "=== 10Figure Cross-Repo Patch Validation ===" >&2
+echo "Patch: $PATCH_FILE" >&2
+echo "Corpus: $CORPUS_ROOT" >&2
+echo "Repos: $REPO_WEIGHTS" >&2
+echo "" >&2
+
+# Check if patch exists
+if [ ! -f "$PATCH_FILE" ]; then
+    echo "ERROR: Patch file not found: $PATCH_FILE" >&2
+    echo "0.0" > "$REWARD_FILE"
+    echo '{"overall_score": 0.0, "error": "no patch file", "per_repo_scores": {}}' > "$VALIDATION_RESULT"
+    exit 0
+fi
+
+# Check if patch is empty
+if [ ! -s "$PATCH_FILE" ]; then
+    echo "WARNING: Patch file is empty - agent made no changes" >&2
+    echo "0.0" > "$REWARD_FILE"
+    echo '{"overall_score": 0.0, "error": "empty patch", "per_repo_scores": {}}' > "$VALIDATION_RESULT"
+    exit 0
+fi
+
+echo "Patch size: $(wc -l < "$PATCH_FILE") lines" >&2
+echo "" >&2
+
+# Create temp directory for per-repo patches
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_DIR" EXIT
+
+# Split combined patch into per-repo patches
+# Patches reference paths like src/kubernetes/... or src/django/...
+python3 -c "
+import sys
+import json
+
+patch_file = '$PATCH_FILE'
+corpus_root = '$CORPUS_ROOT'
+repo_weights_str = '$REPO_WEIGHTS'
+temp_dir = '$TEMP_DIR'
+
+# Parse repo weights
+weights = {}
+for item in repo_weights_str.split():
+    name, w = item.split(':')
+    weights[name] = float(w)
+
+# Validate weights sum to 1.0
+weight_sum = sum(weights.values())
+if abs(weight_sum - 1.0) > 0.01:
+    print(f'ERROR: Weights sum to {weight_sum}, expected 1.0', file=sys.stderr)
+    sys.exit(1)
+
+# Read patch and split by repo
+with open(patch_file) as f:
+    patch_content = f.read()
+
+repo_patches = {name: [] for name in weights}
+current_lines = []
+current_repo = None
+
+for line in patch_content.splitlines(True):
+    if line.startswith('diff --git'):
+        # Save previous chunk
+        if current_repo and current_lines:
+            repo_patches[current_repo].extend(current_lines)
+        current_lines = [line]
+        current_repo = None
+        # Detect repo from path: a/src/kubernetes/... or a/kubernetes/...
+        for repo_name in weights:
+            if f'/{repo_name}/' in line or f' {repo_name}/' in line:
+                current_repo = repo_name
+                break
+    else:
+        current_lines.append(line)
+
+# Save last chunk
+if current_repo and current_lines:
+    repo_patches[current_repo].extend(current_lines)
+
+# Write per-repo patches
+for name, lines in repo_patches.items():
+    out_path = f'{temp_dir}/{name}.patch'
+    with open(out_path, 'w') as f:
+        f.writelines(lines)
+    line_count = len(lines)
+    print(f'Repo {name}: {line_count} lines in patch', file=sys.stderr)
+
+print(json.dumps({name: len(lines) for name, lines in repo_patches.items()}))
+" 2>&1
+
+echo "" >&2
+echo "=== Per-Repo Validation ===" >&2
+
+# Run validate_patch.py per repo and compute weighted score
+python3 -c "
+import subprocess
+import json
+import sys
+import os
+
+corpus_root = '$CORPUS_ROOT'
+validator = '$VALIDATOR'
+temp_dir = '$TEMP_DIR'
+repo_weights_str = '$REPO_WEIGHTS'
+reward_file = '$REWARD_FILE'
+result_file = '$VALIDATION_RESULT'
+
+# Parse repo weights
+weights = {}
+for item in repo_weights_str.split():
+    name, w = item.split(':')
+    weights[name] = float(w)
+
+per_repo_scores = {}
+overall_score = 0.0
+
+for repo_name, weight in weights.items():
+    patch_path = f'{temp_dir}/{repo_name}.patch'
+    repo_result_path = f'{temp_dir}/{repo_name}_result.json'
+    repo_dir = f'{corpus_root}/src/{repo_name}'
+
+    print(f'--- Validating {repo_name} (weight={weight}) ---', file=sys.stderr)
+
+    if not os.path.exists(patch_path) or os.path.getsize(patch_path) == 0:
+        print(f'  No changes for {repo_name} - score 0.0', file=sys.stderr)
+        per_repo_scores[repo_name] = {
+            'score': 0.0,
+            'weight': weight,
+            'weighted_score': 0.0,
+            'error': 'no changes for this repo'
+        }
+        continue
+
+    try:
+        result = subprocess.run(
+            ['python3', validator, patch_path, '--output', repo_result_path],
+            capture_output=True,
+            text=True,
+            cwd=repo_dir,
+            timeout=120
+        )
+
+        if result.returncode == 0 and os.path.exists(repo_result_path):
+            with open(repo_result_path) as f:
+                repo_result = json.load(f)
+            score = float(repo_result.get('overall_score', 0.0))
+        else:
+            print(f'  Validator failed: {result.stderr[:200]}', file=sys.stderr)
+            score = 0.0
+    except Exception as e:
+        print(f'  Error validating {repo_name}: {e}', file=sys.stderr)
+        score = 0.0
+
+    weighted = score * weight
+    overall_score += weighted
+    per_repo_scores[repo_name] = {
+        'score': score,
+        'weight': weight,
+        'weighted_score': weighted
+    }
+    print(f'  Score: {score}, Weighted: {weighted}', file=sys.stderr)
+
+# Round to avoid floating point artifacts
+overall_score = round(overall_score, 4)
+
+# Write results
+with open(reward_file, 'w') as f:
+    f.write(str(overall_score))
+
+result_obj = {
+    'overall_score': overall_score,
+    'per_repo_scores': per_repo_scores,
+    'weights': weights
+}
+with open(result_file, 'w') as f:
+    json.dump(result_obj, f, indent=2)
+
+print(f'', file=sys.stderr)
+print(f'Overall weighted score: {overall_score}', file=sys.stderr)
+print(f'Per-repo breakdown:', file=sys.stderr)
+for name, info in per_repo_scores.items():
+    print(f'  {name}: {info[\"score\"]} * {info[\"weight\"]} = {info[\"weighted_score\"]}', file=sys.stderr)
+"
+
+echo "" >&2
+echo "=== Cross-Repo Validation Complete ===" >&2
+FINAL_REWARD=$(cat "$REWARD_FILE")
+echo "Final reward: $FINAL_REWARD" >&2

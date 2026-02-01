@@ -12,6 +12,19 @@ Started: Sat Jan 31 23:09:13 EST 2026
 - Existing 4 scored tasks are all Kubernetes-only (api_upgrade_01, bug_localization_01, cross_file_reasoning_01, refactor_rename_01)
 - Template `templates/test.sh.j2` generates test.sh scripts; expects patch at `/logs/agent/patch.diff`
 
+## 2026-01-31 - US-003
+- Created `benchmarks/10figure/templates/cross_repo_test.sh.j2` for cross-repo task validation
+- Template splits combined patch into per-repo patches, validates each with validate_patch.py, computes weighted score
+- Template variable `repo_weights` accepts "repo_name:weight repo_name:weight" format (e.g., "kubernetes:0.6 envoy:0.4")
+- Writes per-repo breakdown to `/logs/verifier/validation_result.json` and combined reward to `/logs/verifier/reward.txt`
+- Files changed: `benchmarks/10figure/templates/cross_repo_test.sh.j2`, `prd.json`
+- **Learnings for future iterations:**
+  - Patch splitting detects repo by looking for `/{repo_name}/` in diff headers (e.g., `diff --git a/src/kubernetes/...`)
+  - Weight validation ensures sum is 1.0 (with 0.01 tolerance for floating point)
+  - Per-repo validation runs validate_patch.py with `cwd` set to the repo directory
+  - Template uses inline Python scripts rather than external scripts for portability in containers
+---
+
 ## 2026-01-31 - US-002
 - Rewrote `benchmarks/10figure/base/Dockerfile` as multi-stage build (builder strips .git + copies only 4 target repos; runtime installs deps)
 - Updated `benchmarks/10figure/base/build.sh` with validation for all 4 repos and image size reporting
