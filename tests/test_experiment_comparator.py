@@ -10,8 +10,10 @@ from src.analysis.experiment_comparator import (
     RewardNormalizer,
     BootstrapResult,
     CategoryBreakdown,
+    ToolCorrelation,
     pairwise_bootstrap,
     compute_category_breakdown,
+    compute_tool_correlation,
     extract_task_category,
 )
 
@@ -800,3 +802,243 @@ class TestExtractTaskCategoryFromConfig:
         (task_dir / "config.json").write_text("not json")
 
         assert extract_task_category(task_dir) == "unknown"
+
+
+# =============================================================================
+# Tool Usage Correlation Tests
+# =============================================================================
+
+
+def _make_treatment_results(
+    tasks: list[tuple[str, int | None]],
+) -> list[dict]:
+    """Helper: create treatment results with tool call counts.
+
+    Args:
+        tasks: List of (task_id, tool_call_count) tuples. None means no tool data.
+    """
+    results = []
+    for task_id, tool_calls in tasks:
+        result_data: dict = {
+            "agent_info": {"tool_calls": tool_calls} if tool_calls is not None else {},
+            "agent_result": {},
+        }
+        results = [*results, {"task_id": task_id, "result_data": result_data}]
+    return results
+
+
+class TestToolCorrelationPositive:
+    """Test positive correlation between tool usage and reward delta."""
+
+    def test_strong_positive_correlation(self):
+        treatment = _make_treatment_results([
+            ("t1", 5), ("t2", 10), ("t3", 15), ("t4", 20), ("t5", 25),
+        ])
+        # More tool calls -> better delta (monotonic positive)
+        deltas = {"t1": 0.1, "t2": 0.2, "t3": 0.3, "t4": 0.4, "t5": 0.5}
+
+        result = compute_tool_correlation(treatment, deltas)
+
+        assert result is not None
+        assert result.spearman_rho > 0.5
+        assert result.interpretation == "strong positive"
+        assert result.n_tasks == 5
+        assert len(result.per_task) == 5
+
+
+class TestToolCorrelationNoCorrelation:
+    """Test weak/no correlation scenario."""
+
+    def test_no_clear_correlation(self):
+        treatment = _make_treatment_results([
+            ("t1", 5), ("t2", 10), ("t3", 15), ("t4", 20), ("t5", 25),
+        ])
+        # No monotonic relationship: ranks shuffle (3,1,5,2,4) vs (1,2,3,4,5)
+        deltas = {"t1": 0.3, "t2": 0.1, "t3": 0.5, "t4": 0.2, "t5": 0.4}
+
+        result = compute_tool_correlation(treatment, deltas)
+
+        assert result is not None
+        assert -0.3 <= result.spearman_rho <= 0.3
+        assert result.interpretation == "weak/no correlation"
+
+
+class TestToolCorrelationMissingToolData:
+    """Test when treatment run has no tool call data."""
+
+    def test_no_tool_data_returns_none(self):
+        treatment = _make_treatment_results([
+            ("t1", None), ("t2", None), ("t3", None),
+        ])
+        deltas = {"t1": 0.1, "t2": 0.2, "t3": 0.3}
+
+        result = compute_tool_correlation(treatment, deltas)
+
+        assert result is None
+
+    def test_partial_tool_data_below_threshold(self):
+        """Fewer than 3 tasks with tool data returns None."""
+        treatment = _make_treatment_results([
+            ("t1", 5), ("t2", None), ("t3", 15), ("t4", None),
+        ])
+        deltas = {"t1": 0.1, "t2": 0.2, "t3": 0.3, "t4": 0.4}
+
+        result = compute_tool_correlation(treatment, deltas)
+
+        assert result is None
+
+
+class TestToolCorrelationFewerThanThreeTasks:
+    """Test edge case with fewer than 3 tasks."""
+
+    def test_two_tasks_returns_none(self):
+        treatment = _make_treatment_results([("t1", 5), ("t2", 10)])
+        deltas = {"t1": 0.1, "t2": 0.2}
+
+        result = compute_tool_correlation(treatment, deltas)
+
+        assert result is None
+
+
+class TestToolCorrelationPerTaskData:
+    """Test per-task data in the result."""
+
+    def test_per_task_fields_present(self):
+        treatment = _make_treatment_results([
+            ("t1", 5), ("t2", 10), ("t3", 15),
+        ])
+        deltas = {"t1": 0.1, "t2": 0.2, "t3": 0.3}
+
+        result = compute_tool_correlation(treatment, deltas)
+
+        assert result is not None
+        for entry in result.per_task:
+            assert "task_id" in entry
+            assert "tool_calls" in entry
+            assert "reward_delta" in entry
+
+        task_ids = [e["task_id"] for e in result.per_task]
+        assert sorted(task_ids) == ["t1", "t2", "t3"]
+
+
+class TestToolCorrelationToolUsageSummary:
+    """Test extraction from tool_usage dict (alternative format)."""
+
+    def test_tool_usage_dict_format(self):
+        results = [
+            {
+                "task_id": "t1",
+                "result_data": {
+                    "agent_info": {
+                        "tool_usage": {"search": 3, "read_file": 2}
+                    },
+                    "agent_result": {},
+                },
+            },
+            {
+                "task_id": "t2",
+                "result_data": {
+                    "agent_info": {
+                        "tool_usage": {"search": 10, "read_file": 5}
+                    },
+                    "agent_result": {},
+                },
+            },
+            {
+                "task_id": "t3",
+                "result_data": {
+                    "agent_info": {
+                        "tool_usage": {"search": 20, "read_file": 10}
+                    },
+                    "agent_result": {},
+                },
+            },
+        ]
+        deltas = {"t1": 0.1, "t2": 0.3, "t3": 0.5}
+
+        result = compute_tool_correlation(results, deltas)
+
+        assert result is not None
+        assert result.n_tasks == 3
+        # t1: 5 calls, t2: 15 calls, t3: 30 calls
+        counts = {e["task_id"]: e["tool_calls"] for e in result.per_task}
+        assert counts["t1"] == 5
+        assert counts["t2"] == 15
+        assert counts["t3"] == 30
+
+
+class TestToolCorrelationNToolCallsFormat:
+    """Test extraction from agent_result.n_tool_calls field."""
+
+    def test_n_tool_calls_field(self):
+        results = [
+            {
+                "task_id": "t1",
+                "result_data": {
+                    "agent_info": {},
+                    "agent_result": {"n_tool_calls": 8},
+                },
+            },
+            {
+                "task_id": "t2",
+                "result_data": {
+                    "agent_info": {},
+                    "agent_result": {"n_tool_calls": 16},
+                },
+            },
+            {
+                "task_id": "t3",
+                "result_data": {
+                    "agent_info": {},
+                    "agent_result": {"n_tool_calls": 24},
+                },
+            },
+        ]
+        deltas = {"t1": 0.1, "t2": 0.2, "t3": 0.3}
+
+        result = compute_tool_correlation(results, deltas)
+
+        assert result is not None
+        assert result.n_tasks == 3
+
+
+class TestToolCorrelationZeroVariance:
+    """Test when all tool counts or all deltas are identical."""
+
+    def test_identical_tool_counts(self):
+        treatment = _make_treatment_results([
+            ("t1", 10), ("t2", 10), ("t3", 10),
+        ])
+        deltas = {"t1": 0.1, "t2": 0.2, "t3": 0.3}
+
+        result = compute_tool_correlation(treatment, deltas)
+
+        assert result is not None
+        assert result.spearman_rho == 0.0
+        assert result.spearman_p_value == 1.0
+        assert result.interpretation == "weak/no correlation"
+
+    def test_identical_deltas(self):
+        treatment = _make_treatment_results([
+            ("t1", 5), ("t2", 10), ("t3", 15),
+        ])
+        deltas = {"t1": 0.2, "t2": 0.2, "t3": 0.2}
+
+        result = compute_tool_correlation(treatment, deltas)
+
+        assert result is not None
+        assert result.spearman_rho == 0.0
+        assert result.spearman_p_value == 1.0
+
+
+class TestToolCorrelationFrozenDataclass:
+    """ToolCorrelation should be immutable."""
+
+    def test_frozen(self):
+        tc = ToolCorrelation(
+            spearman_rho=0.5, spearman_p_value=0.05,
+            n_tasks=10, interpretation="strong positive",
+            per_task=[],
+        )
+        with pytest.raises(AttributeError):
+            tc.spearman_rho = 0.9

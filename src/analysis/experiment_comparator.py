@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+from scipy import stats
 
 
 # Normalization rules per benchmark type.
@@ -549,4 +550,142 @@ def pairwise_bootstrap(
         effect_interpretation=effect_interp,
         n_resamples=n_resamples,
         n_tasks=n_tasks,
+    )
+
+
+@dataclass(frozen=True)
+class ToolCorrelation:
+    """Result of tool usage correlation analysis."""
+
+    spearman_rho: float
+    spearman_p_value: float
+    n_tasks: int
+    interpretation: str
+    per_task: list[dict]
+
+
+def _interpret_correlation(rho: float) -> str:
+    """Interpret Spearman rho using standard thresholds.
+
+    Args:
+        rho: Spearman rank correlation coefficient.
+
+    Returns:
+        One of: strong positive, moderate positive, weak/no correlation,
+        moderate negative, strong negative.
+    """
+    if rho > 0.5:
+        return "strong positive"
+    if rho > 0.3:
+        return "moderate positive"
+    if rho >= -0.3:
+        return "weak/no correlation"
+    if rho >= -0.5:
+        return "moderate negative"
+    return "strong negative"
+
+
+def _extract_tool_call_count(result_data: dict) -> Optional[int]:
+    """Extract tool call count from a result.json dict.
+
+    Checks agent_info for tool call counts, then falls back to
+    agent_result metadata.
+
+    Args:
+        result_data: Parsed result.json dict (already None-safe from load_result).
+
+    Returns:
+        Total tool call count, or None if not available.
+    """
+    agent_info = result_data.get("agent_info") or {}
+
+    # Check common tool call count locations
+    tool_calls = agent_info.get("tool_calls")
+    if tool_calls is not None:
+        try:
+            return int(tool_calls)
+        except (ValueError, TypeError):
+            pass
+
+    # Check for tool usage summary dict
+    tool_usage = agent_info.get("tool_usage") or {}
+    if tool_usage and isinstance(tool_usage, dict):
+        total = sum(
+            int(v) for v in tool_usage.values()
+            if v is not None
+        )
+        if total > 0:
+            return total
+
+    # Check agent_result for tool call metadata
+    agent_result = result_data.get("agent_result") or {}
+    n_tool_calls = agent_result.get("n_tool_calls")
+    if n_tool_calls is not None:
+        try:
+            return int(n_tool_calls)
+        except (ValueError, TypeError):
+            pass
+
+    return None
+
+
+def compute_tool_correlation(
+    treatment_results: list[dict],
+    reward_deltas: dict[str, float],
+) -> Optional[ToolCorrelation]:
+    """Compute Spearman rank correlation between tool call counts and reward deltas.
+
+    Args:
+        treatment_results: List of dicts with keys 'task_id' and 'result_data'
+            (parsed result.json from treatment run).
+        reward_deltas: Mapping of task_id -> reward delta (treatment - baseline).
+
+    Returns:
+        ToolCorrelation with Spearman rho, p-value, and per-task data,
+        or None if treatment run has no tool call data or fewer than 3 tasks
+        have tool data.
+    """
+    per_task: list[dict] = []
+
+    for item in treatment_results:
+        task_id = item["task_id"]
+        result_data = item.get("result_data") or {}
+        tool_count = _extract_tool_call_count(result_data)
+
+        if tool_count is not None and task_id in reward_deltas:
+            per_task = [
+                *per_task,
+                {
+                    "task_id": task_id,
+                    "tool_calls": tool_count,
+                    "reward_delta": reward_deltas[task_id],
+                },
+            ]
+
+    if len(per_task) < 3:
+        return None
+
+    tool_counts = [t["tool_calls"] for t in per_task]
+    deltas = [t["reward_delta"] for t in per_task]
+
+    # Check for zero variance — spearmanr returns NaN when all values are identical
+    if len(set(tool_counts)) < 2 or len(set(deltas)) < 2:
+        return ToolCorrelation(
+            spearman_rho=0.0,
+            spearman_p_value=1.0,
+            n_tasks=len(per_task),
+            interpretation="weak/no correlation",
+            per_task=per_task,
+        )
+
+    result = stats.spearmanr(tool_counts, deltas)
+    rho = float(result.statistic)
+    p_val = float(result.pvalue)
+
+    return ToolCorrelation(
+        spearman_rho=rho,
+        spearman_p_value=p_val,
+        n_tasks=len(per_task),
+        interpretation=_interpret_correlation(rho),
+        per_task=per_task,
     )

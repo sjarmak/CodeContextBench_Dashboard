@@ -11,6 +11,8 @@ Started: Fri Jan 30 23:15:14 EST 2026
 - Task ID resolution: prefer `config.json -> task.path -> Path(path).name` over directory name
 - Use `data.get("key") or default` pattern for Harbor result.json null fields (agent_info, verifier_result, etc.)
 - New experiment_comparator.py is in `src/analysis/` alongside the existing DB-backed `comparator.py` — filesystem-first approach per CLAUDE.md
+- Tool call counts in result.json can be in 3 locations: `agent_info.tool_calls` (int), `agent_info.tool_usage` (dict), `agent_result.n_tool_calls` (int)
+- `scipy.stats.spearmanr` returns NaN for constant inputs; always check for zero variance before calling
 
 ---
 
@@ -82,4 +84,21 @@ Started: Fri Jan 30 23:15:14 EST 2026
   - Python resolves function calls at runtime not definition time, so `_build_category_breakdown` can call `pairwise_bootstrap` even though it's defined later in the file
   - Category inference from task.path uses the segment immediately after the benchmark directory name (e.g., `benchmarks/locobench_agent/<category>/task-name`)
   - Immutable grouping pattern: `groups[cat] = [*groups[cat], item]` instead of `groups[cat].append(item)` per coding style immutability rules
+---
+
+## 2026-01-31 - US-006
+- Added `ToolCorrelation` frozen dataclass and `compute_tool_correlation()` function to `src/analysis/experiment_comparator.py`
+- Added `_interpret_correlation()` helper for Spearman rho interpretation (strong positive/moderate positive/weak-no/moderate negative/strong negative)
+- Added `_extract_tool_call_count()` helper that checks three locations: `agent_info.tool_calls`, `agent_info.tool_usage` (sum of dict values), `agent_result.n_tool_calls`
+- Uses `scipy.stats.spearmanr` for rank correlation (nonlinear relationship support)
+- Handles zero-variance edge case (all tool counts or all deltas identical) by returning rho=0.0 instead of NaN
+- Returns None when fewer than 3 tasks have tool data
+- Added 11 new tests covering: positive correlation, no correlation, missing tool data, partial data below threshold, fewer than 3 tasks, per-task data fields, tool_usage dict format, n_tool_calls format, zero variance (both directions), frozen dataclass
+- All 73 tests pass (62 existing + 11 new)
+- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `scipy.stats.spearmanr` returns NaN for constant inputs; must check for zero variance before calling
+  - Tool call count extraction must check multiple locations in result.json: agent_info.tool_calls (int), agent_info.tool_usage (dict of tool->count), agent_result.n_tool_calls (int)
+  - Spearman correlation needs at least 3 data points to be meaningful; returning None for < 3 is the right pattern
+  - When constructing "no correlation" test data, verify with actual Spearman computation -- intuitive "mixed" orderings can still produce significant correlations
 ---
