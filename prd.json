@@ -168,7 +168,7 @@
       ],
       "priority": 9,
       "passes": false,
-      "notes": ""
+      "notes": "BLOCKED: Requires Harbor CLI + Docker daemon. Podman available but Harbor not installed. Must run on Daytona VM or machine with full Harbor setup."
     },
     {
       "id": "US-011",
@@ -183,7 +183,7 @@
       ],
       "priority": 10,
       "passes": false,
-      "notes": ""
+      "notes": "BLOCKED: Depends on US-010 (nop validation). Requires Harbor CLI + Docker daemon + Sourcegraph MCP + ANTHROPIC_API_KEY."
     }
   ]
 }

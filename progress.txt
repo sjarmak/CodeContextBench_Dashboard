@@ -12,6 +12,14 @@ Started: Sat Jan 31 23:09:13 EST 2026
 - Existing 4 scored tasks are all Kubernetes-only (api_upgrade_01, bug_localization_01, cross_file_reasoning_01, refactor_rename_01)
 - Template `templates/test.sh.j2` generates test.sh scripts; expects patch at `/logs/agent/patch.diff`
 
+## 2026-01-31 - US-010 / US-011 (BLOCKED)
+- US-010 (Nop agent validation) and US-011 (Baseline vs MCP validation) require Harbor runtime infrastructure
+- BLOCKERS: Docker daemon not running, Harbor CLI not installed. Podman 5.6.2 available but insufficient.
+- These are operational validation tasks that need: Docker daemon + Harbor CLI + built base image + Daytona VM (for x86_64)
+- For US-011 additionally: ANTHROPIC_API_KEY + Sourcegraph MCP access
+- **Action needed:** Run on a Daytona VM with full Harbor setup after the base image is built
+---
+
 ## 2026-01-31 - US-009
 - Created `tests/smoke_test_cross_repo.py` validating all 4 cross-repo task packages
 - 80 tests covering: directory structure, required files, TOML validity, YAML readability, JSON validity, multi-repo metadata, scoring weights sum to 1.0, Dockerfile inheritance, test.sh executability
