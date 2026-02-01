@@ -1,0 +1,196 @@
+{
+  "project": "CodeContextBench",
+  "branchName": "ralph/unified-experiment-comparison",
+  "description": "Unified Experiment Comparison Pipeline with Statistical Rigor - Single CLI command and Python module for end-to-end experiment comparison with task alignment, reward normalization, pairwise bootstrap testing, per-category breakdown, and tool usage correlation",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add scipy to project dependencies",
+      "description": "As a developer, I need scipy listed in the project's requirements so that statistical analysis modules work without manual installation.",
+      "acceptanceCriteria": [
+        "scipy>=1.11.0 is added to dashboard/requirements.txt",
+        "scipy>=1.11.0 is added to pyproject.toml if a [project.dependencies] or [tool.poetry.dependencies] section exists",
+        "pip install -r dashboard/requirements.txt succeeds without errors",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create task alignment module",
+      "description": "As a researcher, I need to automatically match tasks across two experiment directories so that comparisons only include tasks present in both runs, with a clear report of what was excluded.",
+      "acceptanceCriteria": [
+        "New file src/analysis/experiment_comparator.py with a TaskAligner class",
+        "TaskAligner.align(baseline_dir: Path, treatment_dir: Path) returns a dataclass containing: common_tasks (list of task IDs), baseline_only (list), treatment_only (list), total_baseline, total_treatment",
+        "Task ID resolution reads config.json's task.path field when present, falling back to directory name",
+        "Handles result.json files that are missing or contain null for key fields (uses data.get('key') or default pattern)",
+        "Unit tests cover: identical task sets, disjoint task sets, partial overlap, missing config.json, null fields in result.json",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create reward normalization module",
+      "description": "As a researcher, I need rewards normalized to a 0-1 scale across benchmark types so that cross-benchmark aggregation produces valid results.",
+      "acceptanceCriteria": [
+        "RewardNormalizer class added to src/analysis/experiment_comparator.py",
+        "normalize(reward: float, benchmark_type: str) -> float returns a value in [0.0, 1.0]",
+        "Normalization rules documented as constants: LoCoBench (already 0-1, passthrough), SWE-bench (binary 0/1, passthrough), big_code_mcp (map from raw scale to 0-1 using min-max from benchmark metadata)",
+        "benchmark_type is inferred from the task directory path or config.json metadata",
+        "Unknown benchmark types raise ValueError with a descriptive message",
+        "Unit tests cover each benchmark type and the unknown-type error case",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Implement pairwise bootstrap statistical testing",
+      "description": "As a researcher, I need pairwise bootstrap significance testing with confidence intervals so I can determine whether observed reward deltas are statistically meaningful.",
+      "acceptanceCriteria": [
+        "BootstrapResult dataclass with fields: mean_delta, ci_lower, ci_upper, p_value, effect_size (Cohen's d), effect_interpretation (negligible/small/medium/large), n_resamples, n_tasks",
+        "pairwise_bootstrap(baseline_rewards: list[float], treatment_rewards: list[float], n_resamples: int = 10000, confidence: float = 0.95) -> BootstrapResult function",
+        "Bootstrap resamples paired differences (not independent), preserving task pairing",
+        "p-value computed as the proportion of bootstrap deltas that cross zero",
+        "Effect size computed as Cohen's d on the paired differences",
+        "Effect interpretation follows standard thresholds: |d| < 0.2 negligible, < 0.5 small, < 0.8 medium, >= 0.8 large",
+        "Deterministic results when random_seed parameter is provided (for testing)",
+        "Unit tests cover: identical rewards (delta=0), large positive delta, large negative delta, single-task edge case, seed reproducibility",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Implement per-category breakdown",
+      "description": "As a researcher, I need results grouped by task category (architectural_understanding, bug_investigation, etc.) so I can identify where MCP tools provide the most value.",
+      "acceptanceCriteria": [
+        "CategoryBreakdown dataclass with fields: category (str), n_tasks (int), baseline_mean (float), treatment_mean (float), mean_delta (float), bootstrap (BootstrapResult or None -- None when n_tasks < 5)",
+        "compute_category_breakdown(aligned_results: list, categories: dict[str, str]) -> list[CategoryBreakdown] function",
+        "Task category is extracted from config.json metadata or inferred from the task directory path",
+        "Categories with fewer than 5 tasks skip bootstrap (insufficient data) but still report raw means",
+        "Results sorted by absolute mean_delta descending (most impactful categories first)",
+        "An 'all' pseudo-category is included with the aggregate result",
+        "Unit tests cover: multiple categories, single-category, category with < 5 tasks, missing category metadata",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Implement tool usage correlation analysis",
+      "description": "As a researcher, I need to correlate MCP tool call counts with reward deltas per task so I can assess whether more tool usage leads to better outcomes.",
+      "acceptanceCriteria": [
+        "ToolCorrelation dataclass with fields: spearman_rho (float), spearman_p_value (float), n_tasks (int), interpretation (str), per_task (list of dicts with task_id, tool_calls, reward_delta)",
+        "compute_tool_correlation(treatment_results: list, reward_deltas: dict[str, float]) -> ToolCorrelation function",
+        "Tool call count is extracted from result.json's agent_info or the trace file's tool usage summary",
+        "Spearman rank correlation used (not Pearson) because the relationship may be nonlinear",
+        "Interpretation string generated: 'strong positive' (rho > 0.5), 'moderate positive' (0.3-0.5), 'weak/no correlation' (-0.3 to 0.3), 'moderate negative' (-0.5 to -0.3), 'strong negative' (< -0.5)",
+        "Returns None gracefully when treatment run has no tool call data (baseline-only scenario)",
+        "Unit tests cover: positive correlation, no correlation, missing tool data, fewer than 3 tasks",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Build the ExperimentComparison orchestrator",
+      "description": "As a researcher, I need a single orchestrator class that combines task alignment, normalization, bootstrap testing, category breakdown, and tool correlation into one comparison pipeline.",
+      "acceptanceCriteria": [
+        "ExperimentComparison class in src/analysis/experiment_comparator.py with method compare(baseline_dir: Path, treatment_dir: Path) -> ComparisonReport",
+        "ComparisonReport dataclass with fields: baseline_dir, treatment_dir, alignment (TaskAligner result), overall_bootstrap (BootstrapResult), category_breakdown (list[CategoryBreakdown]), tool_correlation (ToolCorrelation or None), generated_at (ISO timestamp), config (dict of parameters used)",
+        "Constructor accepts optional parameters: n_resamples (default 10000), confidence (default 0.95), random_seed (default None), min_category_size (default 5)",
+        "ComparisonReport.to_dict() -> dict for JSON serialization",
+        "ComparisonReport.to_markdown() -> str for human-readable output",
+        "Pipeline stops early with a clear error if alignment produces 0 common tasks",
+        "All null/None fields in result.json are handled defensively (no AttributeError on None)",
+        "Unit tests cover: full pipeline with mock data, zero-overlap error, single-task edge case, to_dict round-trip, to_markdown output format",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create Markdown report formatter",
+      "description": "As a researcher, I need the comparison output formatted as a Markdown report suitable for pasting into research documents or nightly reports.",
+      "acceptanceCriteria": [
+        "ComparisonReport.to_markdown() produces a complete Markdown document with sections: Summary, Overall Result, Per-Category Breakdown, Tool Usage Correlation, Excluded Tasks",
+        "Summary section includes: baseline dir, treatment dir, date, number of common tasks, number excluded",
+        "Overall Result section includes: mean delta with 95% CI, p-value, effect size with interpretation, pass/fail significance at alpha=0.05",
+        "Per-Category Breakdown section includes: table with columns: Category, N, Baseline Mean, Treatment Mean, Delta, 95% CI, Significant?",
+        "Tool Usage Correlation section includes: Spearman rho, p-value, interpretation sentence, scatter plot data reference",
+        "Excluded Tasks section includes: lists of baseline-only and treatment-only task IDs (collapsed if > 10 items)",
+        "Numbers formatted to 4 decimal places for rewards, 2 decimal places for percentages",
+        "Significance marked with asterisks: * p<0.05, ** p<0.01, *** p<0.001",
+        "Unit test verifies output contains all required section headers and table formatting",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Create JSON output formatter",
+      "description": "As a developer, I need the comparison output as a structured JSON file so the dashboard and nightly compound loop can ingest results programmatically.",
+      "acceptanceCriteria": [
+        "ComparisonReport.to_dict() returns a dict that is JSON-serializable (no Path objects, no numpy types)",
+        "JSON schema includes: version (string, '1.0.0'), generated_at (ISO 8601), config (parameters used), alignment (counts and task lists), overall (bootstrap result dict), categories (list of category dicts), tool_correlation (correlation dict or null), metadata (baseline_dir, treatment_dir as strings)",
+        "ComparisonReport.save_json(path: Path) writes the JSON file with 2-space indentation",
+        "ComparisonReport.load_json(path: Path) -> ComparisonReport class method reconstructs the report from JSON (for dashboard loading)",
+        "Round-trip test: save_json then load_json produces equivalent data",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Create CLI wrapper script",
+      "description": "As a researcher, I need a CLI command to run experiment comparisons from the terminal with configurable parameters.",
+      "acceptanceCriteria": [
+        "New file scripts/compare_experiments.py (~100 lines)",
+        "Usage: python scripts/compare_experiments.py <baseline_dir> <treatment_dir> [options]",
+        "Options: --output-dir (default: current directory), --format (markdown, json, both; default: both), --resamples (default: 10000), --confidence (default: 0.95), --seed (optional), --min-category-size (default: 5)",
+        "Uses argparse for argument parsing",
+        "Validates that both directories exist before starting comparison",
+        "Prints summary to stdout and writes full report to output files",
+        "Exit code 0 on success, 1 on error with descriptive message to stderr",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Deprecate runners/compare_results.py",
+      "description": "As a developer, I need the old comparison script deprecated with a pointer to the new module so no one accidentally uses the statistically naive version.",
+      "acceptanceCriteria": [
+        "runners/compare_results.py has a deprecation warning added at the top of main(): warnings.warn('compare_results.py is deprecated. Use scripts/compare_experiments.py instead.', DeprecationWarning, stacklevel=2)",
+        "A comment block at the top of the file explains the deprecation and points to the replacement",
+        "No functional changes to the existing code (preserving backward compatibility for any existing automation)",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

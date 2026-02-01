@@ -55,6 +55,12 @@ if "project_root" not in st.session_state:
 if "selected_experiment" not in st.session_state:
     st.session_state.selected_experiment = None
 
+# External runs directory
+EXTERNAL_RUNS_DIR = Path(os.environ.get(
+    "CCB_EXTERNAL_RUNS_DIR",
+    os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs")
+))
+
 
 def main():
     """Main dashboard entry point."""
@@ -93,30 +99,11 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
-    # Navigation items - organized by workflow
-    # Home is standalone (no section label)
+    # Navigation items - simplified sidebar
     nav_home = ["Home"]
-    
-    # Benchmarks section
-    nav_benchmarks = [
-        "Benchmark Manager",
-    ]
-    
-    # Results section
-    nav_results = [
-        "Run Results",
-    ]
-
-    # Analysis & comparison (Phase 4 Analysis Layer)
-    nav_items_analysis = [
-        "Analysis Hub",
-        "LLM Judge",
-        "Comparison Analysis",
-        "Statistical Analysis",
-        "Time-Series Analysis",
-        "Cost Analysis",
-        "Failure Analysis",
-    ]
+    nav_benchmarks = ["Benchmark Manager"]
+    nav_results = ["Run Results"]
+    nav_items_analysis = ["Analysis Hub", "LLM Judge"]
 
     def render_nav_section(items, section_label=None):
         """Render a navigation section with optional label."""
@@ -141,7 +128,7 @@ def main():
                     st.rerun()
 
     # Render navigation sections
-    render_nav_section(nav_home)  # Home without label
+    render_nav_section(nav_home)
     render_nav_section(nav_benchmarks, "Benchmarks")
     render_nav_section(nav_results, "Results")
     render_nav_section(nav_items_analysis, "Analysis")
@@ -167,70 +154,169 @@ def main():
         show_benchmark_manager()
     elif page == "Run Results":
         show_run_results()
-    # Phase 4 Analysis Layer views
     elif page == "Analysis Hub":
         show_analysis_hub()
     elif page == "LLM Judge":
         show_llm_judge()
-    elif page == "Comparison Analysis":
-        show_comparison_analysis()
-    elif page == "Statistical Analysis":
-        show_statistical_analysis()
-    elif page == "Time-Series Analysis":
-        show_timeseries_analysis()
-    elif page == "Cost Analysis":
-        show_cost_analysis()
-    elif page == "Failure Analysis":
-        show_failure_analysis()
-    # Legacy views (kept for compatibility)
-    elif page == "Comparison Table":
-        show_comparison_enhanced()
-    elif page == "Agent Comparison":
-        show_agent_comparison()
-    elif page == "Deep Search Analytics":
-        show_deep_search()
 
 
 def show_home():
-    """Home page with quick summary of benchmarks and run results."""
+    """Home page with run overview grouped by folder and quick links."""
     st.title("CodeContextBench Evaluation Platform")
-
     st.markdown("**Benchmark management and evaluation results viewer**")
     st.markdown("---")
 
-    # Available Benchmarks
-    st.subheader("Available Benchmarks")
+    # Dashboard Quick Links
+    st.subheader("Dashboard Quick Links")
+    col1, col2, col3, col4 = st.columns(4)
+
+    quick_links = [
+        (col1, "Benchmark Manager", "View and manage registered benchmarks"),
+        (col2, "Run Results", "Browse evaluation outputs from the VM"),
+        (col3, "LLM Judge", "LLM-based evaluation and rubric editing"),
+        (col4, "Analysis Hub", "Statistical, cost, and comparison analysis"),
+    ]
+
+    for col, page_name, description in quick_links:
+        with col:
+            st.markdown(f"**{page_name}**")
+            st.caption(description)
+            if st.button(f"Go to {page_name}", key=f"home_nav_{page_name}"):
+                st.session_state.current_page = page_name
+                st.rerun()
+
+    st.markdown("---")
+
+    # Recent Runs grouped by folder
+    st.subheader("Recent Runs")
+
+    from dashboard.utils.home_run_scanner import (
+        scan_runs_by_folder,
+        FOLDER_ORDER,
+        FOLDER_DESCRIPTIONS,
+    )
+
+    runs_by_folder = scan_runs_by_folder(EXTERNAL_RUNS_DIR)
+
+    # Official and experiment expanded by default, others collapsed
+    expanded_folders = {"official", "experiment"}
+
+    for folder in FOLDER_ORDER:
+        runs = runs_by_folder.get(folder, [])
+        description = FOLDER_DESCRIPTIONS.get(folder, "")
+        header = f"{folder.title()} ({len(runs)} runs) -- {description}"
+        expanded = folder in expanded_folders
+
+        with st.expander(header, expanded=expanded):
+            _render_runs_table(runs, folder)
+
+    st.markdown("---")
+
+    # Registered Benchmarks (filtered)
+    st.subheader("Registered Benchmarks")
 
     from src.benchmark.database import BenchmarkRegistry
     benchmarks = BenchmarkRegistry.list_all()
 
     if benchmarks:
-        benchmark_data = []
-        for bm in benchmarks:
-            benchmark_data.append({
+        benchmark_data = [
+            {
                 "Name": bm["name"],
                 "Tasks": bm["task_count"],
+                "Source": _benchmark_source(bm),
                 "Type": bm["adapter_type"],
-            })
-        st.dataframe(benchmark_data, use_container_width=True, hide_index=True)
+            }
+            for bm in benchmarks
+            if bm["name"] != "hello_world_test"
+        ]
+        if benchmark_data:
+            st.dataframe(
+                benchmark_data,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Source": st.column_config.LinkColumn(
+                        display_text=r"https?://github\.com/(.+)",
+                    ),
+                },
+            )
+        else:
+            st.info("No benchmarks registered (excluding test benchmarks).")
     else:
         st.info("No benchmarks registered. Use 'Add Benchmark' to register benchmarks.")
 
-    st.markdown("---")
-    
-    # Quick links
-    st.subheader("Quick Links")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("**Benchmark Management**")
-        st.markdown("- Use **Benchmark Manager** to view registered benchmarks")
-        st.markdown("- Benchmarks are updated via agent collaboration")
-    
-    with col2:
-        st.markdown("**Evaluation Results**")
-        st.markdown("- Use **Run Results** to view evaluation outputs from the VM")
-        st.markdown("- Results are loaded from `~/evals/custom_agents/agents/claudecode/runs`")
+
+def _benchmark_source(bm: dict) -> str:
+    """Return a source string for a benchmark: 'custom' or a GitHub URL."""
+    import json as _json
+
+    KNOWN_REPOS = {
+        "dibench": "https://github.com/microsoft/DI-Bench",
+        "dependeval": "https://github.com/ink7-sudo/DependEval",
+        "repoqa": "https://github.com/evalplus/repoqa",
+        "locobench_agent": "https://github.com/SalesforceAIResearch/LoCoBench-Agent",
+        "swebench_pro": "https://github.com/scaleapi/SWE-bench_Pro-os",
+    }
+
+    KNOWN_CUSTOM_REPOS = {
+        "big_code_mcp": "https://github.com/sjarmak/ccb-big-code-mcp",
+        "github_mined": "https://github.com/sjarmak/ccb-github-mined",
+        "kubernetes_docs": "https://github.com/sjarmak/ccb-kubernetes-docs",
+        "10figure": "https://github.com/sjarmak/ccb-10figure",
+    }
+
+    adapter_type = bm.get("adapter_type", "")
+
+    # Check metadata source first
+    raw_meta = bm.get("metadata")
+    meta = {}
+    if isinstance(raw_meta, str) and raw_meta:
+        try:
+            meta = _json.loads(raw_meta)
+        except (ValueError, TypeError):
+            pass
+    elif isinstance(raw_meta, dict):
+        meta = raw_meta
+
+    source = meta.get("source", "")
+    if source and "/" in source and "github" not in source.lower():
+        return f"https://github.com/{source}"
+    if source and "github.com" in source.lower():
+        return source
+
+    if adapter_type in KNOWN_REPOS:
+        return KNOWN_REPOS[adapter_type]
+
+    folder_name = bm.get("folder_name", "")
+    if folder_name in KNOWN_CUSTOM_REPOS:
+        return KNOWN_CUSTOM_REPOS[folder_name]
+
+    return "custom"
+
+
+def _render_runs_table(runs, folder):
+    """Render a dataframe of runs with View buttons."""
+    if not runs:
+        st.caption("No runs found.")
+        return
+
+    import pandas as pd
+
+    rows = []
+    for run in runs:
+        agent_short = run.agent_import_path.split(":")[-1] if ":" in run.agent_import_path else run.agent_import_path
+        model_short = run.model_name.split("/")[-1] if "/" in run.model_name else run.model_name
+        rows.append({
+            "Name": run.name,
+            "Model": model_short,
+            "Agent": agent_short,
+            "Modes": ", ".join(run.modes),
+            "Tasks": run.task_count,
+            "Date": run.timestamp,
+        })
+
+    df = pd.DataFrame(rows)
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 def show_benchmark_manager():
@@ -245,7 +331,6 @@ def show_run_results():
     show_results()
 
 
-# Phase 4 Analysis Layer view functions
 def show_analysis_hub():
     """Analysis hub entry point."""
     from views.analysis_hub import show_analysis_hub as show_hub
@@ -256,54 +341,6 @@ def show_llm_judge():
     """LLM Judge configuration and results view."""
     from views.analysis_llm_judge import show_llm_judge as show_judge
     show_judge()
-
-
-def show_comparison_analysis():
-    """Experiment comparison analysis view."""
-    from views.analysis_comparison import show_comparison_analysis as show_comp
-    show_comp()
-
-
-def show_statistical_analysis():
-    """Statistical significance analysis view."""
-    from views.analysis_statistical import show_statistical_analysis as show_stat
-    show_stat()
-
-
-def show_timeseries_analysis():
-    """Time-series trend analysis view."""
-    from views.analysis_timeseries import show_timeseries_analysis as show_ts
-    show_ts()
-
-
-def show_cost_analysis():
-    """Cost analysis view."""
-    from views.analysis_cost import show_cost_analysis as show_cost
-    show_cost()
-
-
-def show_failure_analysis():
-    """Failure pattern analysis view."""
-    from views.analysis_failure import show_failure_analysis as show_failure
-    show_failure()
-
-
-def show_comparison_enhanced():
-    """Enhanced comparison table."""
-    from views.comparison_enhanced import show_comparison_enhanced as show_enhanced
-    show_enhanced()
-
-
-def show_agent_comparison():
-    """Agent comparison charts page."""
-    from views.comparison import show_comparison_view as show_compare
-    show_compare()
-
-
-def show_deep_search():
-    """Deep Search analytics page."""
-    from views.deep_search import show_deep_search_analytics as show_ds
-    show_ds()
 
 
 if __name__ == "__main__":

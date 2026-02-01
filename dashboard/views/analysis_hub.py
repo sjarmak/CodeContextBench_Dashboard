@@ -4,6 +4,8 @@ Analysis Hub - Entry point for Phase 4 analysis components.
 Provides:
 - Auto-ingestion of results from external runs directory
 - Database connectivity status
+- Tabbed interface embedding all analysis views:
+  Overview, Comparison, Statistical, Time-Series, Cost, Failure
 - Experiment overview
 - Analysis component availability checklist
 - Quick-start workflow
@@ -26,22 +28,19 @@ EXTERNAL_RUNS_DIR = Path(os.environ.get(
 
 def auto_ingest_if_needed(db_path: Path, project_root: Path) -> tuple[bool, str]:
     """
-    Auto-ingest results from external runs directory if database is missing or empty.
-    
+    Auto-ingest results from external jobs/runs directory if database is missing or empty.
+
     Returns:
         Tuple of (success, message)
     """
     try:
-        # Import ingest components
         from src.ingest.orchestrator import IngestionOrchestrator
-        
-        # Ensure data directory exists
+
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Check if we have results to ingest
+
         if not EXTERNAL_RUNS_DIR.exists():
             return False, f"External runs directory not found: {EXTERNAL_RUNS_DIR}"
-        
+
         experiment_dirs = [
             d for d in EXTERNAL_RUNS_DIR.iterdir()
             if d.is_dir() and not d.name.startswith('.') and (
@@ -53,13 +52,12 @@ def auto_ingest_if_needed(db_path: Path, project_root: Path) -> tuple[bool, str]
 
         if not experiment_dirs:
             return False, "No experiments found in external runs directory"
-        
-        # Create orchestrator and ingest
+
         orchestrator = IngestionOrchestrator(
             db_path=db_path,
             results_dir=EXTERNAL_RUNS_DIR,
         )
-        
+
         total_results = 0
         for exp_dir in experiment_dirs:
             try:
@@ -70,34 +68,24 @@ def auto_ingest_if_needed(db_path: Path, project_root: Path) -> tuple[bool, str]
                 total_results += stats.get("results_processed", 0)
             except Exception as e:
                 st.warning(f"Failed to ingest {exp_dir.name}: {e}")
-        
+
         return True, f"Ingested {total_results} results from {len(experiment_dirs)} experiments"
-        
+
     except ImportError as e:
         return False, f"Ingest module not available: {e}"
     except Exception as e:
         return False, f"Auto-ingest failed: {e}"
 
 
-def show_analysis_hub():
-    """Display the Analysis Hub page."""
-    
-    st.title("Analysis Hub")
-    st.markdown("**Comprehensive experiment analysis with Phase 4 components**")
-    st.markdown("---")
-    
-    # Initialize analysis loader in session state
+def _init_loader() -> bool:
+    """Initialize analysis loader and database. Returns True if successful."""
     project_root = st.session_state.get("project_root", Path(__file__).parent.parent.parent)
     db_path = project_root / "data" / "metrics.db"
-    
-    # Database status section
-    st.subheader("1. Database Status")
-    
-    # Check if database exists, auto-ingest if not
+
     db_exists = db_path.exists()
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         if not db_exists:
             st.info("Database not found. Auto-ingesting results...")
@@ -107,12 +95,12 @@ def show_analysis_hub():
             else:
                 st.warning(message)
                 st.caption(f"Expected database at: {db_path}")
-                return
-        
+                return False
+
         try:
             loader = AnalysisLoader(db_path)
             st.session_state.analysis_loader = loader
-            
+
             if loader.is_healthy():
                 st.success("Yes Database Connected")
             else:
@@ -120,8 +108,8 @@ def show_analysis_hub():
         except DatabaseNotFoundError:
             st.error("No Database Not Found")
             st.caption(f"Expected at: {db_path}")
-            return
-    
+            return False
+
     with col2:
         try:
             stats = loader.get_stats()
@@ -130,16 +118,16 @@ def show_analysis_hub():
                 st.metric("Tasks Processed", task_count)
             else:
                 st.metric("Tasks Processed", "N/A")
-        except:
+        except Exception:
             st.metric("Tasks Processed", "N/A")
-    
+
     with col3:
         try:
             experiments = loader.list_experiments()
             st.metric("Experiments", len(experiments))
-        except:
+        except Exception:
             st.metric("Experiments", "N/A")
-    
+
     # Re-ingest button
     st.markdown("")
     if st.button("Re-ingest Results", help="Re-scan external runs directory and update database"):
@@ -150,17 +138,22 @@ def show_analysis_hub():
                 st.rerun()
             else:
                 st.error(message)
-    
+
     st.caption(f"Results from: {EXTERNAL_RUNS_DIR}")
-    
-    st.markdown("---")
-    
-    # Experiment overview
-    st.subheader("2. Available Experiments")
-    
+    return True
+
+
+def _render_overview_tab():
+    """Render the Overview tab with experiment list and analysis cards."""
+    project_root = st.session_state.get("project_root", Path(__file__).parent.parent.parent)
+    loader = st.session_state.get("analysis_loader")
+
+    st.subheader("Available Experiments")
+
+
     try:
         experiments = loader.list_experiments()
-        
+
         if experiments:
             exp_data = []
             for exp_id in experiments:
@@ -179,15 +172,15 @@ def show_analysis_hub():
                         "Agents": "Error",
                         "Agent List": str(e)
                     })
-            
+
             st.dataframe(exp_data, use_container_width=True, hide_index=True)
         else:
             st.info("No experiments found. Run `ccb ingest` to populate the database.")
     except Exception as e:
         st.error(f"Failed to load experiments: {e}")
-    
+
     st.markdown("---")
-    
+
     # Analysis components checklist
     st.subheader("3. Available Analysis Components")
 
@@ -236,102 +229,69 @@ def show_analysis_hub():
             if st.button(f"Open", key=f"hub_goto_{info['page'].replace(' ', '_')}"):
                 st.session_state.current_page = info["page"]
                 st.rerun()
-    
+
     st.markdown("---")
-    
-    # Quick-start workflow
-    st.subheader("4. Quick-Start Workflow")
-    
-    workflow_steps = [
-        {
-            "step": 1,
-            "title": "Select Experiment",
-            "description": "Choose an experiment from the list above",
-            "action": "Use the sidebar to select an experiment"
-        },
-        {
-            "step": 2,
-            "title": "View Comparison",
-            "description": "Compare agent performance metrics",
-            "action": "Navigate to Comparison Analysis view"
-        },
-        {
-            "step": 3,
-            "title": "Check Significance",
-            "description": "See which differences are statistically significant",
-            "action": "Review Statistical Analysis view"
-        },
-        {
-            "step": 4,
-            "title": "Track Costs",
-            "description": "Analyze API costs and efficiency",
-            "action": "Open Cost Analysis view"
-        },
-        {
-            "step": 5,
-            "title": "Review Trends",
-            "description": "Monitor improvements across experiments",
-            "action": "Check Time-Series Analysis view"
-        },
-        {
-            "step": 6,
-            "title": "Export Results",
-            "description": "Download analysis as JSON",
-            "action": "Use export button in any view"
-        }
-    ]
-    
-    for step in workflow_steps:
-        col1, col2, col3 = st.columns([1, 3, 3])
-        
-        with col1:
-            st.markdown(f"**{step['step']}.**")
-        
-        with col2:
-            st.markdown(f"**{step['title']}**")
-            st.caption(step['description'])
-        
-        with col3:
-            st.caption(f"→ {step['action']}")
-    
+
+    st.subheader("Analysis Components")
+    st.caption("Use the tabs above to configure and run each analysis type.")
+    render_analysis_card_grid(project_root=project_root, tab_mode=True)
+
+
+def show_analysis_hub():
+    """Display the Analysis Hub page with tabbed analysis views."""
+
+    st.title("Analysis Hub")
+    st.markdown("**Comprehensive experiment analysis with Phase 4 components**")
     st.markdown("---")
-    
-    # Getting started
-    st.subheader("5. Getting Started")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("**Run an Experiment**")
-        st.code(
-            "harbor run --path benchmarks/big_code_mcp/task \\\n"
-            "  --agent-import-path agents.mcp_variants:StrategicDeepSearchAgent\n"
-            "  --model anthropic/claude-haiku-4-5-20251001",
-            language="bash"
-        )
-    
-    with col2:
-        st.markdown("**Ingest Results**")
-        st.code(
-            "ccb ingest exp001",
-            language="bash"
-        )
-    
-    st.markdown("**Analyze Results**")
-    st.code(
-        "ccb analyze compare exp001\n"
-        "ccb analyze statistical exp001\n"
-        "ccb analyze cost exp001",
-        language="bash"
-    )
-    
+
+    if not _init_loader():
+        return
+
     st.markdown("---")
-    
+
+    # Tabbed interface for all analysis views
+    tab_overview, tab_comparison, tab_statistical, tab_timeseries, tab_cost, tab_failure = st.tabs([
+        "Overview",
+        "Comparison",
+        "Statistical",
+        "Time-Series",
+        "Cost",
+        "Failure",
+    ])
+
+    with tab_overview:
+        _render_overview_tab()
+
+    with tab_comparison:
+        from dashboard.views.analysis_comparison import show_comparison_analysis
+        show_comparison_analysis()
+
+    with tab_statistical:
+        from dashboard.views.analysis_statistical import show_statistical_analysis
+        show_statistical_analysis()
+
+    with tab_timeseries:
+        from dashboard.views.analysis_timeseries import show_timeseries_analysis
+        show_timeseries_analysis()
+
+    with tab_cost:
+        from dashboard.views.analysis_cost import show_cost_analysis
+        show_cost_analysis()
+
+    with tab_failure:
+        from dashboard.views.analysis_failure import show_failure_analysis
+        show_failure_analysis()
+
+    st.markdown("---")
+
     # Database management
     st.subheader("6. Database Management")
-    
+
+    project_root = st.session_state.get("project_root", Path(__file__).parent.parent.parent)
+    db_path = project_root / "data" / "metrics.db"
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         if st.button("Refresh Database Connection"):
             st.session_state.analysis_loader = None
@@ -342,23 +302,23 @@ def show_analysis_hub():
             except Exception as e:
                 st.error(f"Failed to refresh: {e}")
             st.rerun()
-    
+
     with col2:
         if st.button("Clear Result Cache"):
             if hasattr(st.session_state.analysis_loader, 'clear_cache'):
                 st.session_state.analysis_loader.clear_cache()
                 st.success("Yes Cache cleared")
-    
+
     st.markdown("---")
-    
+
     # Documentation
     st.subheader("7. Documentation")
-    
+
     st.markdown("""
     - **Phase 4 Statistical Testing**: Perform t-tests, chi-square tests, Mann-Whitney U tests
     - **Phase 4 Time-Series Analysis**: Track trends and anomalies across experiments
     - **Phase 4 Cost Analysis**: Monitor API costs and compute efficiency
-    
+
     For detailed information, see:
     - `docs/PIPELINE_OVERVIEW.md` - Complete pipeline architecture
     - `docs/ANALYSIS_LAYER.md` - Analysis component details

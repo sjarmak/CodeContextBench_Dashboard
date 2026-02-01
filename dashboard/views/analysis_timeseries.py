@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Optional, List
 import pandas as pd
 
+from dashboard.utils.timeseries_config import (
+    render_timeseries_config,
+    run_and_display_timeseries,
+    _render_timeseries_results,
+)
 from dashboard.utils.common_components import (
     display_no_data_message,
     display_error_message,
@@ -30,17 +35,18 @@ from dashboard.utils.navigation import NavigationContext
 
 
 def show_timeseries_analysis():
-    """Display time-series trend analysis view."""
-    
+    """Display GUI-driven time series analysis view."""
+
     # Initialize navigation context if not present
     if "nav_context" not in st.session_state:
         st.session_state.nav_context = NavigationContext()
-    
+
     nav_context = st.session_state.nav_context
-    
+
     # Render breadcrumb navigation
     render_breadcrumb_navigation(nav_context)
-    
+
+
     st.title("Time-Series Analysis")
     st.markdown("**Track metric changes across experiments**")
     st.markdown("---")
@@ -51,6 +57,12 @@ def show_timeseries_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
+
+    # Configuration inline (no sidebar wrapper)
+    config = render_timeseries_config(loader)
+
+    if config is None:
+        st.info("Select at least 2 experiments to begin trend analysis.")
 
     # Configuration in main area
     st.subheader("Configuration")

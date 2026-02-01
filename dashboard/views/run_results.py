@@ -47,11 +47,29 @@ EXTERNAL_ARCHIVE_DIR = Path(
 
 
 def load_external_experiments() -> list:
-    """Load experiments from default external runs directory."""
-    return load_external_experiments_from_dir(EXTERNAL_RUNS_DIR)
+    """Load experiments from default external runs directory, including subdirectories."""
+    all_experiments = []
+    known_subdirs = {"official", "experiment", "troubleshooting"}
+
+    # Scan known subdirectories first
+    for subdir_name in known_subdirs:
+        subdir = EXTERNAL_RUNS_DIR / subdir_name
+        if subdir.is_dir():
+            exps = load_external_experiments_from_dir(subdir)
+            for exp in exps:
+                exp["folder"] = subdir_name
+            all_experiments.extend(exps)
+
+    # Scan root-level experiments (uncategorized)
+    root_exps = load_external_experiments_from_dir(EXTERNAL_RUNS_DIR, skip_dirs=known_subdirs)
+    for exp in root_exps:
+        exp["folder"] = "uncategorized"
+    all_experiments.extend(root_exps)
+
+    return all_experiments
 
 
-def load_external_experiments_from_dir(runs_dir: Path) -> list:
+def load_external_experiments_from_dir(runs_dir: Path, skip_dirs: set | None = None) -> list:
     """Load experiments from a specified runs directory."""
     experiments = []
 
@@ -62,6 +80,8 @@ def load_external_experiments_from_dir(runs_dir: Path) -> list:
         runs_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
     ):
         if not exp_dir.is_dir() or exp_dir.name.startswith("."):
+            continue
+        if skip_dirs and exp_dir.name in skip_dirs:
             continue
 
         result_file = exp_dir / "result.json"
@@ -321,6 +341,85 @@ def show_run_results():
     if include_archive:
         sources.append(str(EXTERNAL_ARCHIVE_DIR))
     st.caption(f"Loading from: {', '.join(sources)}")
+
+    # --- Filters row: Folder category + Benchmark set ---
+    filter_col1, filter_col2 = st.columns(2)
+
+    # Folder category filter
+    with filter_col1:
+        folder_counts = {}
+        for exp in external_experiments:
+            folder = exp.get("folder", "uncategorized")
+            folder_counts[folder] = folder_counts.get(folder, 0) + 1
+
+        folder_all = f"All Categories ({len(external_experiments)})"
+        folder_options = [folder_all] + [
+            f"{f.title()} ({c})"
+            for f, c in sorted(folder_counts.items())
+        ]
+        selected_folder = st.selectbox("Category", folder_options, key="rr_folder_filter")
+
+    # Apply folder filter
+    if selected_folder == folder_all:
+        folder_filtered = external_experiments
+    else:
+        selected_folder_name = selected_folder.rsplit(" (", 1)[0].lower()
+        folder_filtered = [
+            exp for exp in external_experiments
+            if exp.get("folder", "uncategorized") == selected_folder_name
+        ]
+
+    # Benchmark set filter (applied on top of folder filter)
+    with filter_col2:
+        benchmark_groups = _group_experiments_by_benchmark(folder_filtered)
+
+        group_options = [
+            f"{name} ({len(exps)})" for name, exps in benchmark_groups.items()
+        ]
+        all_option = f"All Benchmarks ({len(folder_filtered)})"
+        bm_filter_options = [all_option] + group_options
+
+        selected_filter = st.selectbox("Benchmark Set", bm_filter_options, key="rr_benchmark_filter")
+
+    # Apply benchmark filter
+    if selected_filter == all_option:
+        filtered_experiments = folder_filtered
+    else:
+        selected_benchmark = selected_filter.rsplit(" (", 1)[0]
+        filtered_experiments = benchmark_groups.get(selected_benchmark, [])
+
+    if not filtered_experiments:
+        st.info("No experiments match the selected filters.")
+        return
+
+    # --- Mode toggle: Individual Review vs Paired Comparison ---
+    if "experiment_mode" not in st.session_state:
+        st.session_state["experiment_mode"] = "Individual Review"
+
+    experiment_mode = st.radio(
+        "Selection Mode",
+        ["Individual Review", "Paired Comparison"],
+        horizontal=True,
+        key="experiment_mode_radio",
+        index=0
+        if st.session_state["experiment_mode"] == "Individual Review"
+        else 1,
+    )
+    st.session_state["experiment_mode"] = experiment_mode
+
+    if experiment_mode == "Individual Review":
+        _show_individual_mode(filtered_experiments)
+    else:
+        _show_paired_mode(filtered_experiments, external_experiments)
+
+
+def _show_individual_mode(filtered_experiments: list) -> None:
+    """Standard single-run experiment selection (existing behavior)."""
+    # Experiment selector within the filtered group
+    exp_options = []
+    for exp in filtered_experiments:
+        exp_type = "Paired" if exp.get("is_paired") else "Single"
+        exp_options.append(f"{exp_type} {exp['name']}")
 
     # Experiment selector
     exp_names = [exp["name"] for exp in external_experiments]

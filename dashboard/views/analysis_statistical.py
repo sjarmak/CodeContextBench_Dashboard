@@ -14,6 +14,11 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import pandas as pd
 
+from dashboard.utils.statistical_config import (
+    render_statistical_config,
+    run_and_display_results,
+    _render_results,
+)
 from dashboard.utils.common_components import (
     experiment_selector,
     export_json_button,
@@ -32,17 +37,18 @@ from dashboard.utils.navigation import NavigationContext
 
 
 def show_statistical_analysis():
-    """Display statistical significance analysis view."""
-    
+    """Display GUI-driven statistical analysis view."""
+
     # Initialize navigation context if not present
     if "nav_context" not in st.session_state:
         st.session_state.nav_context = NavigationContext()
-    
+
     nav_context = st.session_state.nav_context
-    
+
     # Render breadcrumb navigation
     render_breadcrumb_navigation(nav_context)
-    
+
+
     st.title("Statistical Analysis")
     st.markdown("**Determine statistical significance of performance differences**")
     st.markdown("---")
@@ -53,6 +59,12 @@ def show_statistical_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
+
+    # Configuration inline (no sidebar wrapper)
+    config = render_statistical_config(loader)
+
+    if config is None:
+        st.info("Select experiments and a baseline agent to begin.")
 
     # Configuration in main area
     st.subheader("Configuration")
@@ -108,7 +120,7 @@ def show_statistical_analysis():
     # Advanced filtering in expander
     with st.expander("Advanced Filters"):
         filter_config = render_filter_panel("statistical", loader, experiment_id, key_suffix="stat")
-    
+
     # Load statistical analysis results
     try:
         statistical_result = loader.load_statistical(
@@ -219,6 +231,12 @@ def show_statistical_analysis():
     
     # Effect size analysis
     st.subheader("Effect Size Analysis")
+
+    with st.expander("Statistical Interpretation Guide"):
+        guide_alpha = config.significance_level if config else 0.05
+        st.markdown(f"""
+### Key Concepts
+        """)
 
     try:
         if statistical_result.tests:

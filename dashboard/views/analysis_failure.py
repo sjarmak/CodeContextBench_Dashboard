@@ -2,7 +2,12 @@
 Failure Analysis View - Failure pattern and category analysis.
 
 Displays:
-- Failure pattern distribution
+- Experiment selector and agent filter
+- Failure pattern detection and distribution
+- Error category pie chart
+- Failure pattern frequency table
+- Root cause summary with suggested fixes
+- CSV export
 - Category-specific failure breakdown
 - Difficulty vs failure correlation
 - Suggested fixes display
@@ -15,6 +20,11 @@ from pathlib import Path
 from typing import Optional
 import pandas as pd
 
+from dashboard.utils.failure_config import (
+    render_failure_config,
+    run_and_display_failures,
+    _render_failure_results,
+)
 from dashboard.utils.common_components import (
     experiment_selector,
     display_no_data_message,
@@ -30,17 +40,18 @@ from dashboard.utils.navigation import NavigationContext
 
 
 def show_failure_analysis():
-    """Display failure pattern analysis view."""
-    
+    """Display GUI-driven failure analysis view."""
+
     # Initialize navigation context if not present
     if "nav_context" not in st.session_state:
         st.session_state.nav_context = NavigationContext()
-    
+
     nav_context = st.session_state.nav_context
-    
+
     # Render breadcrumb navigation
     render_breadcrumb_navigation(nav_context)
-    
+
+
     st.title("Failure Analysis")
     st.markdown("**Understand failure modes and improvement opportunities**")
     st.markdown("---")
@@ -51,6 +62,21 @@ def show_failure_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
+
+    # Configuration inline (no sidebar wrapper)
+    config = render_failure_config(loader)
+
+    if config is None:
+        st.info("Select an experiment to begin.")
+        return
+
+    # Run Analysis button
+    run_clicked = st.button(
+        "Run Failure Analysis",
+        type="primary",
+        use_container_width=True,
+        key="failure_run_analysis",
+    )
 
     # Configuration in main area
     st.subheader("Configuration")

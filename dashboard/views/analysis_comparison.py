@@ -14,6 +14,11 @@ from pathlib import Path
 from typing import Optional
 import pandas as pd
 
+from dashboard.utils.comparison_config import (
+    render_comparison_config,
+    run_and_display_comparison,
+    _render_comparison_results,
+)
 from dashboard.utils.common_components import (
     experiment_selector,
     export_json_button,
@@ -31,19 +36,19 @@ from dashboard.utils.navigation import NavigationContext
 
 
 def show_comparison_analysis():
-    """Display experiment comparison analysis view."""
-    
+    """Display GUI-driven comparison analysis view."""
+
     # Initialize navigation context if not present
     if "nav_context" not in st.session_state:
         st.session_state.nav_context = NavigationContext()
-    
+
     nav_context = st.session_state.nav_context
-    
+
     # Render breadcrumb navigation
     render_breadcrumb_navigation(nav_context)
-    
+
     st.title("Agent Comparison Analysis")
-    st.markdown("**Compare agent performance metrics across tasks**")
+    st.markdown("**Configure and run comparison analysis between two runs**")
     st.markdown("---")
 
     # Initialize loader from session state
@@ -53,7 +58,22 @@ def show_comparison_analysis():
         st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
 
-    # Configuration in main area (not sidebar) for better visibility
+    # Configuration in main content area (GUI-driven)
+    config = render_comparison_config(loader)
+
+    if config is None:
+        st.info("Select baseline and variant runs above to begin.")
+        return
+
+    # Run Comparison button
+    run_clicked = st.button(
+        "Run Comparison",
+        type="primary",
+        use_container_width=True,
+        key="comparison_run_btn",
+    )
+
+    # Alternative configuration in main area (not sidebar) for better visibility
     st.subheader("Configuration")
 
     col_exp, col_agent, col_conf = st.columns(3)

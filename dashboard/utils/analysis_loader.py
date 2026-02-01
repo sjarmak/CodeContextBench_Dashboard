@@ -16,8 +16,6 @@ from src.analysis.time_series_analyzer import TimeSeriesAnalyzer, TimeSeriesAnal
 from src.analysis.cost_analyzer import CostAnalyzer, CostAnalysisResult
 from src.analysis.failure_analyzer import FailureAnalyzer, FailureAnalysisResult
 from src.analysis.ir_analyzer import IRAnalyzer, IRAnalysisResult
-from src.analysis.llm_judge_analyzer import LLMJudgeAnalyzer, LLMJudgeAnalysisResult
-from src.analysis.recommendation_engine import RecommendationEngine, RecommendationPlan
 
 
 logger = logging.getLogger(__name__)
@@ -325,91 +323,6 @@ class AnalysisLoader:
             # IR analysis may not be available for all experiments
             logger.warning(f"IR analysis not available for {experiment_id}: {e}")
             return None
-    
-    def load_judge_results(
-        self,
-        experiment_id: str,
-        baseline_agent: Optional[str] = None,
-    ) -> LLMJudgeAnalysisResult:
-        """
-        Load LLM judge analysis results.
-        
-        Args:
-            experiment_id: ID of experiment to analyze
-            baseline_agent: Baseline agent for comparison
-            
-        Returns:
-            LLMJudgeAnalysisResult with judge scores and comparisons
-            
-        Raises:
-            ExperimentNotFoundError: If judge results not available
-        """
-        cache_key = f"judge:{experiment_id}:{baseline_agent}"
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-        
-        try:
-            analyzer = LLMJudgeAnalyzer(self.db)
-            result = analyzer.analyze_judge_scores(
-                experiment_id,
-                baseline_agent=baseline_agent,
-            )
-            self._cache[cache_key] = result
-            return result
-        except Exception as e:
-            # Judge results may not be available for all experiments
-            logger.warning(f"Judge results not available for {experiment_id}: {e}")
-            return None
-    
-    def load_recommendations(
-        self,
-        experiment_id: str,
-        agent_name: str,
-    ) -> RecommendationPlan:
-        """
-        Load improvement recommendations for an agent.
-        
-        Args:
-            experiment_id: ID of experiment
-            agent_name: Agent to analyze
-            
-        Returns:
-            RecommendationPlan with prioritized recommendations
-            
-        Raises:
-            ExperimentNotFoundError: If data unavailable
-        """
-        cache_key = f"recommendations:{experiment_id}:{agent_name}"
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-        
-        try:
-            engine = RecommendationEngine()
-            
-            # Load prerequisite analyses
-            comparison = self.load_comparison(experiment_id)
-            failures = self.load_failures(experiment_id, agent_name=agent_name)
-            
-            # Try to load IR analysis (may not be available)
-            ir_analysis = None
-            try:
-                ir_analysis = self.load_ir_analysis(experiment_id)
-            except:
-                pass
-            
-            # Generate plan
-            plan = engine.generate_plan(
-                experiment_id,
-                agent_name,
-                comparison_result=comparison,
-                failure_analysis=failures,
-                ir_analysis=ir_analysis,
-            )
-            
-            self._cache[cache_key] = plan
-            return plan
-        except Exception as e:
-            raise ExperimentNotFoundError(f"Failed to load recommendations for {agent_name}: {e}")
     
     def clear_cache(self):
         """Clear result cache to force fresh loads."""

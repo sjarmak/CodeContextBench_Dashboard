@@ -2,6 +2,11 @@
 Cost Analysis View - API costs and efficiency analysis.
 
 Displays:
+- Experiment selector and baseline agent configuration
+- Token costs (input/output), execution cost per agent
+- Cost breakdown charts (Plotly bar charts)
+- Cost regressions detection table
+- CSV export
 - Total experiment cost and token summary
 - Agent cost rankings (cheap/expensive/efficient)
 - Cost per success metrics
@@ -15,6 +20,11 @@ from pathlib import Path
 from typing import Optional
 import pandas as pd
 
+from dashboard.utils.cost_config import (
+    render_cost_config,
+    run_and_display_cost,
+    _render_cost_results,
+)
 from dashboard.utils.common_components import (
     experiment_selector,
     display_no_data_message,
@@ -31,17 +41,18 @@ from dashboard.utils.navigation import NavigationContext
 
 
 def show_cost_analysis():
-    """Display cost analysis view."""
-    
+    """Display GUI-driven cost analysis view."""
+
     # Initialize navigation context if not present
     if "nav_context" not in st.session_state:
         st.session_state.nav_context = NavigationContext()
-    
+
     nav_context = st.session_state.nav_context
-    
+
     # Render breadcrumb navigation
     render_breadcrumb_navigation(nav_context)
-    
+
+
     st.title("Cost Analysis")
     st.markdown("**Analyze API costs and efficiency metrics**")
     st.markdown("---")
@@ -52,6 +63,21 @@ def show_cost_analysis():
         st.error("Analysis loader not initialized. Please visit Analysis Hub first.")
         st.info("Click on 'Analysis Hub' in the sidebar to initialize the database connection.")
         return
+
+    # Configuration inline (no sidebar wrapper)
+    config = render_cost_config(loader)
+
+    if config is None:
+        st.info("Select an experiment and baseline agent to begin.")
+        return
+
+    # Run Analysis button
+    run_clicked = st.button(
+        "Run Cost Analysis",
+        type="primary",
+        use_container_width=True,
+        key="cost_run_analysis",
+    )
 
     # Configuration in main area
     st.subheader("Configuration")
