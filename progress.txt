@@ -1,21 +1,24 @@
 # Ralph Progress Log
-Started: Fri Jan 30 23:15:14 EST 2026
+Started: Sat Jan 31 21:13:50 EST 2026
 ---
 
 ## Codebase Patterns
-- No root-level pyproject.toml exists; dependencies live in `dashboard/requirements.txt`
-- pip3 requires `--break-system-packages` on macOS (Homebrew Python, PEP 668)
-- No typechecker (mypy/pyright) is installed; typecheck criteria is met by not introducing type errors
-- Pre-commit hook blocks secrets; use `--no-verify` when files are verified clean (per CLAUDE.md)
+- Base Docker image pattern: `harbor-10figure:base` contains all repos under `/10figure/src/`, task images inherit via `FROM harbor-10figure:base`
+- Task directory structure: `instruction.md`, `task.toml`, `task.yaml`, `environment/Dockerfile`, `tests/test.sh`, `tests/expected_changes.json`
+- build.sh supports two modes: auto-clone (no CORPUS_PATH) or pre-built corpus (CORPUS_PATH=~/10Figure-Codebases)
+- Pinned versions: Kubernetes v1.29.3, Django 5.0.4, Envoy v1.29.2, TensorFlow v2.16.1
+- All repos use `--depth 1` shallow clones to minimize image size
+- 9 pre-existing test failures are E2E/playwright tests, not related to benchmark code
 
 ---
 
-## 2026-01-30 - US-001
-- Added `scipy>=1.11.0` to `dashboard/requirements.txt`
-- No root pyproject.toml exists, so no changes needed there
-- Verified `pip install -r dashboard/requirements.txt` succeeds (scipy 1.17.0 installed)
-- Files changed: `dashboard/requirements.txt`
+## 2026-01-31 - US-001
+- Implemented: Updated base/build.sh to clone all 4 repos at pinned tags with shallow clones
+- Updated base/Dockerfile to validate all 4 repos under /10figure/src/ with version comments
+- Updated base/README.md with pinned version table, image size estimates, and dual build modes
+- Files changed: benchmarks/10figure/base/build.sh, benchmarks/10figure/base/Dockerfile, benchmarks/10figure/base/README.md
 - **Learnings for future iterations:**
-  - Homebrew Python on macOS requires `--break-system-packages` flag for pip install
-  - There is no project-level pyproject.toml; all Python deps are in `dashboard/requirements.txt`
+  - build.sh previously required pre-built corpus; now supports auto-clone mode as default
+  - Dockerfile `pip install` was unconditional; made conditional with `if [ -f requirements.txt ]` for clone mode where requirements.txt may be minimal
+  - Django uses tag format `5.0.4` (no `v` prefix) unlike the other 3 repos
 ---
