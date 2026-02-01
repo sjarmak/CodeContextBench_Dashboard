@@ -1,0 +1,63 @@
+{
+  "task_id": "cross_dependency_impact_01",
+  "description": "Analyze JSON serialization incompatibilities between Django DjangoJSONEncoder and TensorFlow get_json_type",
+  "repos": ["django", "tensorflow"],
+  "scoring_weights": {
+    "django": 0.5,
+    "tensorflow": 0.5
+  },
+  "expected_symbols": {
+    "django": [
+      {
+        "symbol": "DjangoJSONEncoder",
+        "file": "django/core/serializers/json.py",
+        "required": true
+      },
+      {
+        "symbol": "JsonResponse",
+        "file": "django/http/response.py",
+        "required": true
+      },
+      {
+        "symbol": "normalize_json",
+        "file": "django/utils/json.py",
+        "required": false
+      },
+      {
+        "symbol": "Serializer",
+        "file": "django/core/serializers/json.py",
+        "required": false
+      }
+    ],
+    "tensorflow": [
+      {
+        "symbol": "get_json_type",
+        "file": "tensorflow/python/keras/saving/saved_model/json_utils.py",
+        "required": true
+      },
+      {
+        "symbol": "Encoder",
+        "file": "tensorflow/python/keras/saving/saved_model/json_utils.py",
+        "required": true
+      },
+      {
+        "symbol": "to_json",
+        "file": "tensorflow/python/keras/engine/training.py",
+        "required": false
+      }
+    ]
+  },
+  "expected_keywords": [
+    "DjangoJSONEncoder",
+    "get_json_type",
+    "JsonResponse",
+    "numpy",
+    "ndarray",
+    "TensorShape",
+    "TypeError",
+    "json_utils",
+    "tolist",
+    "item"
+  ],
+  "compilation_required": false
+}

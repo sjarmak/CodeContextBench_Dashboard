@@ -1,0 +1,89 @@
+task_id: cross_dependency_impact_01
+type: cross_file_reasoning
+repos:
+  - django
+  - tensorflow
+
+description: >
+  Analyze JSON serialization incompatibilities between Django and TensorFlow.
+  Identify types handled by each framework's JSON encoder and document what
+  happens when data flows between them.
+
+ground_truth:
+  affected_functions:
+    django:
+      - symbol: "DjangoJSONEncoder.default"
+        file: "django/core/serializers/json.py"
+        description: "Custom JSON encoder handling datetime, Decimal, UUID, Promise"
+
+      - symbol: "JsonResponse"
+        file: "django/http/response.py"
+        description: "HTTP response class using DjangoJSONEncoder"
+
+      - symbol: "normalize_json"
+        file: "django/utils/json.py"
+        description: "Strict type validation for JSON serialization"
+
+      - symbol: "Serializer"
+        file: "django/core/serializers/json.py"
+        description: "Django model serializer using DjangoJSONEncoder"
+
+    tensorflow:
+      - symbol: "get_json_type"
+        file: "tensorflow/python/keras/saving/saved_model/json_utils.py"
+        description: "Type handler for numpy arrays, scalars, TensorShape, DType, TypeSpec"
+
+      - symbol: "Encoder"
+        file: "tensorflow/python/keras/saving/saved_model/json_utils.py"
+        description: "Custom JSON encoder with tuple handling"
+
+      - symbol: "Model.to_json"
+        file: "tensorflow/python/keras/engine/training.py"
+        description: "Serialize Keras model architecture to JSON"
+
+  incompatible_types:
+    - type: "numpy.ndarray"
+      handled_by: "tensorflow"
+      fails_in: "django"
+      tf_handler: "obj.tolist()"
+      django_failure: "TypeError in DjangoJSONEncoder.default()"
+
+    - type: "numpy.float32"
+      handled_by: "tensorflow"
+      fails_in: "django"
+      tf_handler: "obj.item()"
+      django_failure: "TypeError in DjangoJSONEncoder.default()"
+
+    - type: "TensorShape"
+      handled_by: "tensorflow"
+      fails_in: "django"
+      tf_handler: "dict with class_name metadata"
+      django_failure: "TypeError in DjangoJSONEncoder.default()"
+
+    - type: "datetime.datetime"
+      handled_by: "django"
+      fails_in: "tensorflow"
+      django_handler: "isoformat() with ECMA-262"
+      tf_failure: "TypeError in get_json_type()"
+
+  expected_keywords:
+    - "DjangoJSONEncoder"
+    - "get_json_type"
+    - "JsonResponse"
+    - "normalize_json"
+    - "numpy"
+    - "ndarray"
+    - "tolist"
+    - "item"
+    - "TensorShape"
+    - "TypeError"
+    - "json_utils"
+    - "default"
+
+scoring:
+  min_functions_required: 5
+  min_types_required: 4
+  partial_credit: true
+  keyword_weight: 0.3
+  function_ref_weight: 0.4
+  type_coverage_weight: 0.3

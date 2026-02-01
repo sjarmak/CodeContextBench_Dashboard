@@ -12,6 +12,18 @@ Started: Sat Jan 31 23:09:13 EST 2026
 - Existing 4 scored tasks are all Kubernetes-only (api_upgrade_01, bug_localization_01, cross_file_reasoning_01, refactor_rename_01)
 - Template `templates/test.sh.j2` generates test.sh scripts; expects patch at `/logs/agent/patch.diff`
 
+## 2026-01-31 - US-005
+- Created `benchmarks/10figure/cross_dependency_impact_01/` task package (Django + TensorFlow)
+- Task analyzes JSON serialization incompatibilities: DjangoJSONEncoder vs TF get_json_type
+- 7 ground truth symbols (4 Django, 3 TF), 4 incompatible types (numpy.ndarray, numpy.float32, TensorShape, datetime)
+- Files: instruction.md, task.toml, task.yaml, environment/Dockerfile, tests/test.sh, tests/expected_changes.json
+- **Learnings for future iterations:**
+  - Django JSON encoder handles: datetime, date, time, timedelta, Decimal, UUID, Promise
+  - TF json_utils handles: numpy (module check + tolist/item), TensorShape, DType, TypeSpec, tuples
+  - The cross-repo connection is incompatibility-based, not API coupling
+  - DjangoJSONEncoder in django/core/serializers/json.py; TF Encoder in tensorflow/python/keras/saving/saved_model/json_utils.py
+---
+
 ## 2026-01-31 - US-004
 - Created `benchmarks/10figure/cross_api_tracing_01/` task package (Kubernetes + Envoy)
 - Task traces `appProtocol` from K8s ServicePort/EndpointPort → Envoy FilterChainMatch/ClusterProtocolSelection
