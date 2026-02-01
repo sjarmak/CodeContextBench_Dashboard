@@ -120,3 +120,22 @@ Started: Fri Jan 30 23:15:14 EST 2026
   - Significance markers follow standard convention: * p<0.05, ** p<0.01, *** p<0.001
   - `datetime.now(timezone.utc).isoformat()` produces ISO 8601 timestamps with timezone info
 ---
+
+## 2026-01-31 - US-008
+- Verified existing `to_markdown()` implementation (built in US-007) already meets all US-008 acceptance criteria
+- Added 10 new tests specifically validating US-008 Markdown report formatting requirements:
+  - Summary section fields (baseline dir, treatment dir, date, common tasks, excluded)
+  - Overall Result section fields (mean delta + CI, p-value, effect size, significance)
+  - Per-Category Breakdown table columns (Category, N, Baseline Mean, Treatment Mean, Delta, 95% CI, Significant?)
+  - Tool Usage Correlation section fields (Spearman rho, p-value, interpretation, scatter plot data reference)
+  - Excluded Tasks collapsing (inline for <=10, HTML `<details>` for >10)
+  - Number formatting (4 decimal places for rewards, p-value pattern verification)
+  - Significance markers (* p<0.05, ** p<0.01, *** p<0.001)
+  - Complete document structure (title + all 5 sections in order)
+- All 97 tests pass (87 existing + 10 new)
+- Files changed: `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - US-007 already implemented `to_markdown()` with full formatting; US-008 was primarily about test coverage validation
+  - When an acceptance criterion says "Unit test verifies X", the work may be adding targeted tests rather than new implementation
+  - `_setup_experiment_dirs` helper is reusable for creating test experiment data across all story tests
+---

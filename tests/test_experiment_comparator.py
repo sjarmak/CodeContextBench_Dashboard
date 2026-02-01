@@ -1352,6 +1352,271 @@ class TestComparisonReportFrozen:
             report.baseline_dir = "other"
 
 
+# =============================================================================
+# Markdown Report Formatter Tests (US-008)
+# =============================================================================
+
+
+class TestMarkdownReportSummarySectionFields:
+    """Summary section includes: baseline dir, treatment dir, date, common tasks, excluded."""
+
+    def test_summary_contains_all_required_fields(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        assert f"**Baseline:** {baseline}" in md
+        assert f"**Treatment:** {treatment}" in md
+        assert "**Date:**" in md
+        assert "**Common tasks:** 5" in md
+        assert "**Excluded tasks:**" in md
+
+
+class TestMarkdownReportOverallResultSection:
+    """Overall Result includes: mean delta with CI, p-value, effect size, significance."""
+
+    def test_overall_result_fields(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        assert "**Mean delta:**" in md
+        assert "95% CI:" in md
+        assert "**p-value:**" in md
+        assert "**Effect size (Cohen's d):**" in md
+        assert "**Significant at alpha=0.05:**" in md
+
+
+class TestMarkdownReportCategoryTableColumns:
+    """Per-Category Breakdown table has correct columns."""
+
+    def test_table_columns(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        # Table header should have all required columns
+        assert "Category" in md
+        assert "Baseline Mean" in md
+        assert "Treatment Mean" in md
+        assert "Delta" in md
+        assert "95% CI" in md
+        assert "Significant?" in md
+
+
+class TestMarkdownReportToolCorrelationSection:
+    """Tool Usage Correlation section fields."""
+
+    def test_tool_correlation_fields_present(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=10,
+        )
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        assert "**Spearman rho:**" in md
+        assert "**p-value:**" in md
+        assert "**Interpretation:**" in md
+        assert "**Tasks with tool data:**" in md
+        assert "scatter plot data" in md.lower()
+
+
+class TestMarkdownReportExcludedTasksCollapsing:
+    """Excluded Tasks section collapses lists > 10 items."""
+
+    def test_short_excluded_list_inline(self, tmp_path):
+        """Fewer than 10 excluded tasks appear inline."""
+        baseline = tmp_path / "baseline"
+        treatment = tmp_path / "treatment"
+
+        # Create 5 common + 3 baseline-only
+        common_tasks = [("shared-" + str(i), 0.5, 0.7) for i in range(5)]
+        baseline_dir, treatment_dir = _setup_experiment_dirs(
+            tmp_path, common_tasks,
+        )
+
+        # Add a few baseline-only tasks
+        for i in range(3):
+            b_dir = baseline_dir / f"extra-{i}__abc"
+            b_dir.mkdir(parents=True)
+            (b_dir / "config.json").write_text(
+                json.dumps({"task": {"path": f"benchmarks/locobench_agent/test/extra-{i}"}})
+            )
+            _make_result(b_dir, reward=0.5)
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        report = comparator.compare(baseline_dir, treatment_dir)
+        md = report.to_markdown()
+
+        assert "**Baseline-only:**" in md
+        # Should NOT use details/summary collapsing for <=10 items
+        assert "<details>" not in md or "Baseline-only" not in md.split("<details>")[0] if "<details>" in md else True
+
+    def test_long_excluded_list_collapsed(self, tmp_path):
+        """More than 10 excluded tasks use HTML collapsing."""
+        common_tasks = [("shared-" + str(i), 0.5, 0.7) for i in range(5)]
+        baseline_dir, treatment_dir = _setup_experiment_dirs(
+            tmp_path, common_tasks,
+        )
+
+        # Add 12 baseline-only tasks
+        for i in range(12):
+            b_dir = baseline_dir / f"extra-{i}__abc"
+            b_dir.mkdir(parents=True)
+            (b_dir / "config.json").write_text(
+                json.dumps({"task": {"path": f"benchmarks/locobench_agent/test/extra-{i}"}})
+            )
+            _make_result(b_dir, reward=0.5)
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        report = comparator.compare(baseline_dir, treatment_dir)
+        md = report.to_markdown()
+
+        assert "<details>" in md
+        assert "12 tasks" in md
+
+
+class TestMarkdownReportNumberFormatting:
+    """Numbers formatted to 4 decimal places for rewards."""
+
+    def test_four_decimal_places_for_rewards(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        # Mean delta of 0.2 should appear as 0.2000
+        assert "0.2000" in md
+        # p-value should use 4 decimal places
+        import re
+        p_value_pattern = re.compile(r"\*\*p-value:\*\* \d+\.\d{4}")
+        assert p_value_pattern.search(md)
+
+
+class TestMarkdownReportSignificanceMarkers:
+    """Significance marked with asterisks: * p<0.05, ** p<0.01, *** p<0.001."""
+
+    def test_significant_result_has_asterisks(self, tmp_path):
+        """Large delta should produce significant result with asterisks."""
+        tasks = [
+            ("t1", 0.1, 0.9),
+            ("t2", 0.2, 0.8),
+            ("t3", 0.1, 0.9),
+            ("t4", 0.2, 0.8),
+            ("t5", 0.1, 0.9),
+            ("t6", 0.2, 0.8),
+            ("t7", 0.1, 0.9),
+            ("t8", 0.2, 0.8),
+            ("t9", 0.1, 0.9),
+            ("t10", 0.2, 0.8),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=5000, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        # p-value should be very small -> triple asterisk
+        assert "***" in md
+        assert "**Significant at alpha=0.05:** Yes" in md
+
+    def test_nonsignificant_result_no_asterisks(self, tmp_path):
+        """Identical rewards should produce no significance markers."""
+        tasks = [
+            ("t1", 0.5, 0.5),
+            ("t2", 0.5, 0.5),
+            ("t3", 0.5, 0.5),
+            ("t4", 0.5, 0.5),
+            ("t5", 0.5, 0.5),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        assert "**Significant at alpha=0.05:** No" in md
+
+
+class TestMarkdownReportCompleteDocument:
+    """to_markdown() produces a complete Markdown document."""
+
+    def test_complete_document_with_all_sections(self, tmp_path):
+        """Verify the complete document structure."""
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=10,
+        )
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+        md = report.to_markdown()
+
+        # Document title
+        assert md.startswith("# Experiment Comparison Report")
+
+        # All five required sections in order
+        sections = [
+            "## Summary",
+            "## Overall Result",
+            "## Per-Category Breakdown",
+            "## Tool Usage Correlation",
+            "## Excluded Tasks",
+        ]
+        positions = [md.index(s) for s in sections]
+        assert positions == sorted(positions), "Sections should appear in order"
+
+
 class TestExperimentComparisonMissingRewards:
     """Test when common tasks have missing reward data."""
 
