@@ -152,3 +152,17 @@ Started: Fri Jan 30 23:15:14 EST 2026
   - Round-trip equivalence is best tested by comparing `to_dict()` outputs rather than individual fields, since float precision is preserved through JSON
   - `@classmethod` with `cls(...)` constructor call works with frozen dataclasses since `__init__` is still available
 ---
+
+## 2026-01-31 - US-010
+- Created `scripts/compare_experiments.py` CLI wrapper (~120 lines)
+- Uses argparse with positional baseline_dir/treatment_dir and options: --output-dir, --format, --resamples, --confidence, --seed, --min-category-size
+- Validates both directories exist before starting comparison; exits with code 1 and stderr message on error
+- Prints summary to stdout (common tasks, excluded, mean delta, CI, p-value, effect size)
+- Writes full report files to output directory (markdown, json, or both)
+- All 109 existing tests pass
+- Files changed: `scripts/compare_experiments.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `sys.path.insert(0, str(_PROJECT_ROOT))` is needed for scripts/ to import from src/ since there's no installed package
+  - argparse `type=Path` auto-converts string args to Path objects, reducing boilerplate
+  - Using `main(argv)` parameter pattern enables testing the CLI without subprocess calls
+---
