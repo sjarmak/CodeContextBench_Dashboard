@@ -1,21 +1,24 @@
 # Ralph Progress Log
-Started: Fri Jan 30 23:15:14 EST 2026
+Started: Sat Jan 31 23:09:13 EST 2026
 ---
 
 ## Codebase Patterns
-- No root-level pyproject.toml exists; dependencies live in `dashboard/requirements.txt`
-- pip3 requires `--break-system-packages` on macOS (Homebrew Python, PEP 668)
-- No typechecker (mypy/pyright) is installed; typecheck criteria is met by not introducing type errors
-- Pre-commit hook blocks secrets; use `--no-verify` when files are verified clean (per CLAUDE.md)
+- 10Figure corpus lives at `~/10Figure-Codebases/src/{repo}/` with repos: kubernetes, envoy, django, tensorflow
+- Base Docker image built via `base/build.sh`, copies entire corpus (~6-8GB) into container at `/10figure/`
+- All tasks follow structure: `instruction.md`, `task.toml`, `task.yaml`, `environment/Dockerfile`, `tests/test.sh`, `tests/expected_changes.json`
+- Validation uses `/10figure/scripts/validate_patch.py` inside the container (not in benchmark dir)
+- Task Dockerfiles inherit from `harbor-10figure:base`, specified in `task.toml` as `localhost/harbor-10figure:base`
+- sg-benchmarks org has `kubernetes--latest` mirror; django has 230 SWE-bench commit mirrors; no envoy/tensorflow mirrors yet
+- Existing 4 scored tasks are all Kubernetes-only (api_upgrade_01, bug_localization_01, cross_file_reasoning_01, refactor_rename_01)
+- Template `templates/test.sh.j2` generates test.sh scripts; expects patch at `/logs/agent/patch.diff`
 
----
-
-## 2026-01-30 - US-001
-- Added `scipy>=1.11.0` to `dashboard/requirements.txt`
-- No root pyproject.toml exists, so no changes needed there
-- Verified `pip install -r dashboard/requirements.txt` succeeds (scipy 1.17.0 installed)
-- Files changed: `dashboard/requirements.txt`
+## 2026-01-31 - US-001
+- Resolved all 4 open questions in `tasks/prd-10figure-benchmark-expansion.md`
+- Pinned commit SHAs from local 10Figure-Codebases corpus: kubernetes=ef274e86, envoy=782c6cae, django=c4e07f94, tensorflow=420baf67
+- Decisions: single combined patch, existing corpus-copy image strategy, per-repo weighted scoring
+- Files changed: `tasks/prd-10figure-benchmark-expansion.md`, `prd.json`, `progress.txt`
 - **Learnings for future iterations:**
-  - Homebrew Python on macOS requires `--break-system-packages` flag for pip install
-  - There is no project-level pyproject.toml; all Python deps are in `dashboard/requirements.txt`
+  - sg-benchmarks org only has kubernetes--latest and django SWE-bench mirrors; envoy and tensorflow need new mirrors for MCP indexing
+  - The corpus is pre-built externally (not cloned inside Docker); base image just copies it in
+  - No tags in the corpus repos (shallow/partial clones), so `git describe --tags` fails; use commit SHA directly
 ---

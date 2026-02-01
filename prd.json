@@ -1,33 +1,33 @@
 {
-  "project": "CodeContextBench",
-  "branchName": "ralph/unified-experiment-comparison",
-  "description": "Unified Experiment Comparison Pipeline with Statistical Rigor - Single CLI command and Python module for end-to-end experiment comparison with task alignment, reward normalization, pairwise bootstrap testing, per-category breakdown, and tool usage correlation",
+  "project": "CodeContextBench_Dashboard",
+  "branchName": "ralph/10figure-cross-repo-tasks",
+  "description": "10Figure Cross-Repo Benchmark Tasks - Expand the 10Figure benchmark with 4 cross-repository tasks testing Sourcegraph MCP cross-repo code intelligence value across Kubernetes, Envoy, Django, and TensorFlow",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add scipy to project dependencies",
-      "description": "As a developer, I need scipy listed in the project's requirements so that statistical analysis modules work without manual installation.",
+      "title": "Resolve open design questions in existing PRD",
+      "description": "As a benchmark developer, I want the 4 open questions in prd-10figure-benchmark-expansion.md resolved and documented so that implementation can proceed without ambiguity.",
       "acceptanceCriteria": [
-        "scipy>=1.11.0 is added to dashboard/requirements.txt",
-        "scipy>=1.11.0 is added to pyproject.toml if a [project.dependencies] or [tool.poetry.dependencies] section exists",
-        "pip install -r dashboard/requirements.txt succeeds without errors",
-        "Typecheck passes"
+        "Open Questions section in existing PRD replaced with Resolved Decisions referencing the decisions table in this document",
+        "Commit SHAs identified for all 4 repos by checking sg-benchmarks org mirrors",
+        "Decisions documented in both PRDs for traceability"
       ],
       "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "Resolved 2026-01-31: All 4 open questions resolved in prd-10figure-benchmark-expansion.md. Commit SHAs: kubernetes=ef274e86, envoy=782c6cae, django=c4e07f94, tensorflow=420baf67. Patch format: single combined. Image: existing corpus-copy. Scoring: per-repo weighted."
     },
     {
       "id": "US-002",
-      "title": "Create task alignment module",
-      "description": "As a researcher, I need to automatically match tasks across two experiment directories so that comparisons only include tasks present in both runs, with a clear report of what was excluded.",
+      "title": "Multi-stage base Dockerfile for cross-repo support",
+      "description": "As a benchmark runner, I want the base Docker image updated with a multi-stage build containing all 4 repos at pinned commits so that cross-repo tasks can execute in a single container.",
       "acceptanceCriteria": [
-        "New file src/analysis/experiment_comparator.py with a TaskAligner class",
-        "TaskAligner.align(baseline_dir: Path, treatment_dir: Path) returns a dataclass containing: common_tasks (list of task IDs), baseline_only (list), treatment_only (list), total_baseline, total_treatment",
-        "Task ID resolution reads config.json's task.path field when present, falling back to directory name",
-        "Handles result.json files that are missing or contain null for key fields (uses data.get('key') or default pattern)",
-        "Unit tests cover: identical task sets, disjoint task sets, partial overlap, missing config.json, null fields in result.json",
-        "Typecheck passes"
+        "benchmarks/10figure/base/Dockerfile uses multi-stage build (build stage with full clones, runtime stage with source trees only)",
+        "All 4 repos (Kubernetes, Django, Envoy, TensorFlow) present at /10figure/src/{repo}/",
+        "Each repo checked out at the pinned commit SHA",
+        "Runtime image size < 8GB (documented in build output)",
+        "base/build.sh updated with new repo clone commands",
+        "docker build completes without errors",
+        "Typecheck passes (N/A -- Dockerfile, shell script only)"
       ],
       "priority": 2,
       "passes": false,
@@ -35,16 +35,16 @@
     },
     {
       "id": "US-003",
-      "title": "Create reward normalization module",
-      "description": "As a researcher, I need rewards normalized to a 0-1 scale across benchmark types so that cross-benchmark aggregation produces valid results.",
+      "title": "Cross-repo test script template",
+      "description": "As a benchmark developer, I want a test script template that validates patches spanning multiple repos so that cross-repo tasks can be scored correctly.",
       "acceptanceCriteria": [
-        "RewardNormalizer class added to src/analysis/experiment_comparator.py",
-        "normalize(reward: float, benchmark_type: str) -> float returns a value in [0.0, 1.0]",
-        "Normalization rules documented as constants: LoCoBench (already 0-1, passthrough), SWE-bench (binary 0/1, passthrough), big_code_mcp (map from raw scale to 0-1 using min-max from benchmark metadata)",
-        "benchmark_type is inferred from the task directory path or config.json metadata",
-        "Unknown benchmark types raise ValueError with a descriptive message",
-        "Unit tests cover each benchmark type and the unknown-type error case",
-        "Typecheck passes"
+        "New Jinja2 template at benchmarks/10figure/templates/cross_repo_test.sh.j2",
+        "Template accepts a list of repo directories to validate against",
+        "Template applies the combined patch and runs validate_patch.py per repo",
+        "Template computes weighted reward: sum(repo_score * repo_weight) where weight = expected_changes_in_repo / total_expected_changes",
+        "Template writes single combined reward to /logs/verifier/reward.txt",
+        "Template writes per-repo breakdown to /logs/verifier/validation_result.json",
+        "Typecheck passes (N/A -- shell script template)"
       ],
       "priority": 3,
       "passes": false,
@@ -52,18 +52,17 @@
     },
     {
       "id": "US-004",
-      "title": "Implement pairwise bootstrap statistical testing",
-      "description": "As a researcher, I need pairwise bootstrap significance testing with confidence intervals so I can determine whether observed reward deltas are statistically meaningful.",
+      "title": "Task package for cross_api_tracing_01",
+      "description": "As a benchmark runner, I want the API Contract Tracing task (Kubernetes + Envoy) packaged as a Harbor-compatible task directory.",
       "acceptanceCriteria": [
-        "BootstrapResult dataclass with fields: mean_delta, ci_lower, ci_upper, p_value, effect_size (Cohen's d), effect_interpretation (negligible/small/medium/large), n_resamples, n_tasks",
-        "pairwise_bootstrap(baseline_rewards: list[float], treatment_rewards: list[float], n_resamples: int = 10000, confidence: float = 0.95) -> BootstrapResult function",
-        "Bootstrap resamples paired differences (not independent), preserving task pairing",
-        "p-value computed as the proportion of bootstrap deltas that cross zero",
-        "Effect size computed as Cohen's d on the paired differences",
-        "Effect interpretation follows standard thresholds: |d| < 0.2 negligible, < 0.5 small, < 0.8 medium, >= 0.8 large",
-        "Deterministic results when random_seed parameter is provided (for testing)",
-        "Unit tests cover: identical rewards (delta=0), large positive delta, large negative delta, single-task edge case, seed reproducibility",
-        "Typecheck passes"
+        "Directory benchmarks/10figure/cross_api_tracing_01/ created with: instruction.md, task.toml, task.yaml, environment/Dockerfile, tests/test.sh, tests/expected_changes.json",
+        "instruction.md describes the appProtocol field tracing task with clear success criteria",
+        "task.toml lists both kubernetes and envoy in repo metadata",
+        "task.yaml contains ground truth symbol chain for scoring",
+        "environment/Dockerfile inherits from harbor-10figure:base",
+        "tests/test.sh validates output against expected symbol chain in both repos",
+        "Task passes structural validation (valid TOML, valid YAML, Dockerfile builds)",
+        "Typecheck passes (N/A -- config and shell files only)"
       ],
       "priority": 4,
       "passes": false,
@@ -71,17 +70,16 @@
     },
     {
       "id": "US-005",
-      "title": "Implement per-category breakdown",
-      "description": "As a researcher, I need results grouped by task category (architectural_understanding, bug_investigation, etc.) so I can identify where MCP tools provide the most value.",
+      "title": "Task package for cross_dependency_impact_01",
+      "description": "As a benchmark runner, I want the Dependency Impact Analysis task (Django + TensorFlow) packaged as a Harbor-compatible task directory.",
       "acceptanceCriteria": [
-        "CategoryBreakdown dataclass with fields: category (str), n_tasks (int), baseline_mean (float), treatment_mean (float), mean_delta (float), bootstrap (BootstrapResult or None -- None when n_tasks < 5)",
-        "compute_category_breakdown(aligned_results: list, categories: dict[str, str]) -> list[CategoryBreakdown] function",
-        "Task category is extracted from config.json metadata or inferred from the task directory path",
-        "Categories with fewer than 5 tasks skip bootstrap (insufficient data) but still report raw means",
-        "Results sorted by absolute mean_delta descending (most impactful categories first)",
-        "An 'all' pseudo-category is included with the aggregate result",
-        "Unit tests cover: multiple categories, single-category, category with < 5 tasks, missing category metadata",
-        "Typecheck passes"
+        "Directory benchmarks/10figure/cross_dependency_impact_01/ created with standard task structure",
+        "instruction.md describes the JSON serialization impact analysis task",
+        "task.toml lists both django and tensorflow in repo metadata",
+        "task.yaml contains ground truth: affected files and functions in both repos",
+        "tests/test.sh scores completeness of identified impact sites (partial credit for subset)",
+        "Task passes structural validation",
+        "Typecheck passes (N/A -- config and shell files only)"
       ],
       "priority": 5,
       "passes": false,
@@ -89,17 +87,17 @@
     },
     {
       "id": "US-006",
-      "title": "Implement tool usage correlation analysis",
-      "description": "As a researcher, I need to correlate MCP tool call counts with reward deltas per task so I can assess whether more tool usage leads to better outcomes.",
+      "title": "Task package for cross_bug_localization_01",
+      "description": "As a benchmark runner, I want the Cross-Project Bug Localization task (Kubernetes + Django) packaged as a Harbor-compatible task directory.",
       "acceptanceCriteria": [
-        "ToolCorrelation dataclass with fields: spearman_rho (float), spearman_p_value (float), n_tasks (int), interpretation (str), per_task (list of dicts with task_id, tool_calls, reward_delta)",
-        "compute_tool_correlation(treatment_results: list, reward_deltas: dict[str, float]) -> ToolCorrelation function",
-        "Tool call count is extracted from result.json's agent_info or the trace file's tool usage summary",
-        "Spearman rank correlation used (not Pearson) because the relationship may be nonlinear",
-        "Interpretation string generated: 'strong positive' (rho > 0.5), 'moderate positive' (0.3-0.5), 'weak/no correlation' (-0.3 to 0.3), 'moderate negative' (-0.5 to -0.3), 'strong negative' (< -0.5)",
-        "Returns None gracefully when treatment run has no tool call data (baseline-only scenario)",
-        "Unit tests cover: positive correlation, no correlation, missing tool data, fewer than 3 tasks",
-        "Typecheck passes"
+        "Directory benchmarks/10figure/cross_bug_localization_01/ created with standard task structure",
+        "instruction.md describes the race condition pattern with K8s error trace",
+        "task.toml lists both kubernetes and django in repo metadata",
+        "task.yaml contains ground truth: bug locations and expected fix patterns in both repos",
+        "tests/test.sh validates patch fixes the bug in both repos using the cross-repo template",
+        "Per-repo scoring weights defined in expected_changes.json (proportional to change count)",
+        "Task passes structural validation",
+        "Typecheck passes (N/A -- config and shell files only)"
       ],
       "priority": 6,
       "passes": false,
@@ -107,18 +105,17 @@
     },
     {
       "id": "US-007",
-      "title": "Build the ExperimentComparison orchestrator",
-      "description": "As a researcher, I need a single orchestrator class that combines task alignment, normalization, bootstrap testing, category breakdown, and tool correlation into one comparison pipeline.",
+      "title": "Task package for cross_refactor_01",
+      "description": "As a benchmark runner, I want the Multi-Repo Refactor task (Envoy + Kubernetes) packaged as a Harbor-compatible task directory.",
       "acceptanceCriteria": [
-        "ExperimentComparison class in src/analysis/experiment_comparator.py with method compare(baseline_dir: Path, treatment_dir: Path) -> ComparisonReport",
-        "ComparisonReport dataclass with fields: baseline_dir, treatment_dir, alignment (TaskAligner result), overall_bootstrap (BootstrapResult), category_breakdown (list[CategoryBreakdown]), tool_correlation (ToolCorrelation or None), generated_at (ISO timestamp), config (dict of parameters used)",
-        "Constructor accepts optional parameters: n_resamples (default 10000), confidence (default 0.95), random_seed (default None), min_category_size (default 5)",
-        "ComparisonReport.to_dict() -> dict for JSON serialization",
-        "ComparisonReport.to_markdown() -> str for human-readable output",
-        "Pipeline stops early with a clear error if alignment produces 0 common tasks",
-        "All null/None fields in result.json are handled defensively (no AttributeError on None)",
-        "Unit tests cover: full pipeline with mock data, zero-overlap error, single-task edge case, to_dict round-trip, to_markdown output format",
-        "Typecheck passes"
+        "Directory benchmarks/10figure/cross_refactor_01/ created with standard task structure",
+        "instruction.md describes the protobuf field rename with clear scope",
+        "task.toml lists both envoy and kubernetes in repo metadata",
+        "task.yaml contains ground truth: all proto field references in both repos",
+        "tests/test.sh validates rename completeness across both repos using cross-repo template",
+        "Per-repo scoring weights defined (Envoy weighted higher as proto source)",
+        "Task passes structural validation",
+        "Typecheck passes (N/A -- config and shell files only)"
       ],
       "priority": 7,
       "passes": false,
@@ -126,69 +123,65 @@
     },
     {
       "id": "US-008",
-      "title": "Create Markdown report formatter",
-      "description": "As a researcher, I need the comparison output formatted as a Markdown report suitable for pasting into research documents or nightly reports.",
+      "title": "Per-repo weighted scoring in validate_patch.py",
+      "description": "As a benchmark developer, I want validate_patch.py to support per-repo weighted scoring so that cross-repo tasks produce a single reward that reflects contribution from each repo.",
       "acceptanceCriteria": [
-        "ComparisonReport.to_markdown() produces a complete Markdown document with sections: Summary, Overall Result, Per-Category Breakdown, Tool Usage Correlation, Excluded Tasks",
-        "Summary section includes: baseline dir, treatment dir, date, number of common tasks, number excluded",
-        "Overall Result section includes: mean delta with 95% CI, p-value, effect size with interpretation, pass/fail significance at alpha=0.05",
-        "Per-Category Breakdown section includes: table with columns: Category, N, Baseline Mean, Treatment Mean, Delta, 95% CI, Significant?",
-        "Tool Usage Correlation section includes: Spearman rho, p-value, interpretation sentence, scatter plot data reference",
-        "Excluded Tasks section includes: lists of baseline-only and treatment-only task IDs (collapsed if > 10 items)",
-        "Numbers formatted to 4 decimal places for rewards, 2 decimal places for percentages",
-        "Significance marked with asterisks: * p<0.05, ** p<0.01, *** p<0.001",
-        "Unit test verifies output contains all required section headers and table formatting",
-        "Typecheck passes"
+        "validate_patch.py accepts a --weights argument (JSON mapping repo name to weight, e.g., {\"kubernetes\": 0.6, \"envoy\": 0.4})",
+        "When --weights is provided, scoring is computed per-repo and combined: reward = sum(repo_reward * weight)",
+        "When --weights is omitted, behavior is unchanged (single-repo scoring)",
+        "Weights must sum to 1.0; script exits with error if they don't",
+        "Output JSON includes both overall_score and per_repo_scores fields",
+        "Typecheck passes (if Python with type hints)",
+        "Unit tests cover: single-repo fallback, two-repo weighted, weight validation error"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Same priority as US-004 since US-004-007 depend on this alongside US-003"
+    },
+    {
+      "id": "US-009",
+      "title": "Smoke test for cross-repo tasks",
+      "description": "As a benchmark developer, I want a smoke test that validates all cross-repo task packages have correct structure and build successfully.",
+      "acceptanceCriteria": [
+        "tests/smoke_test_cross_repo.py validates each cross-repo task directory",
+        "Checks: instruction.md exists and references multiple repos, task.toml is valid TOML with multi-repo metadata, task.yaml is valid YAML with ground truth, environment/Dockerfile exists and references base image, tests/test.sh exists and is executable",
+        "Checks that expected_changes.json contains entries for 2+ repos",
+        "Checks that scoring weights sum to 1.0",
+        "Script exits 0 if all checks pass, non-zero with details on failure",
+        "Typecheck passes",
+        "Can be run via python -m pytest tests/smoke_test_cross_repo.py"
       ],
       "priority": 8,
       "passes": false,
       "notes": ""
     },
     {
-      "id": "US-009",
-      "title": "Create JSON output formatter",
-      "description": "As a developer, I need the comparison output as a structured JSON file so the dashboard and nightly compound loop can ingest results programmatically.",
+      "id": "US-010",
+      "title": "Nop agent validation run",
+      "description": "As a benchmark developer, I want to run the nop agent against all 4 cross-repo tasks to verify the Harbor framework executes and scores them correctly (expected reward: 0.0).",
       "acceptanceCriteria": [
-        "ComparisonReport.to_dict() returns a dict that is JSON-serializable (no Path objects, no numpy types)",
-        "JSON schema includes: version (string, '1.0.0'), generated_at (ISO 8601), config (parameters used), alignment (counts and task lists), overall (bootstrap result dict), categories (list of category dicts), tool_correlation (correlation dict or null), metadata (baseline_dir, treatment_dir as strings)",
-        "ComparisonReport.save_json(path: Path) writes the JSON file with 2-space indentation",
-        "ComparisonReport.load_json(path: Path) -> ComparisonReport class method reconstructs the report from JSON (for dashboard loading)",
-        "Round-trip test: save_json then load_json produces equivalent data",
-        "Typecheck passes"
+        "All 4 cross-repo tasks execute via Harbor with the nop agent without errors",
+        "Each task produces reward.txt with value 0.0 (nop agent produces no output)",
+        "Each task produces validation_result.json with per-repo breakdown",
+        "No container build failures or missing file errors",
+        "Results documented in benchmarks/10figure/VALIDATION.md"
       ],
       "priority": 9,
       "passes": false,
       "notes": ""
     },
     {
-      "id": "US-010",
-      "title": "Create CLI wrapper script",
-      "description": "As a researcher, I need a CLI command to run experiment comparisons from the terminal with configurable parameters.",
+      "id": "US-011",
+      "title": "Baseline vs MCP agent validation run",
+      "description": "As a benchmark developer, I want to run both a baseline agent and an MCP agent against all 4 cross-repo tasks to verify scoring differentiates between them.",
       "acceptanceCriteria": [
-        "New file scripts/compare_experiments.py (~100 lines)",
-        "Usage: python scripts/compare_experiments.py <baseline_dir> <treatment_dir> [options]",
-        "Options: --output-dir (default: current directory), --format (markdown, json, both; default: both), --resamples (default: 10000), --confidence (default: 0.95), --seed (optional), --min-category-size (default: 5)",
-        "Uses argparse for argument parsing",
-        "Validates that both directories exist before starting comparison",
-        "Prints summary to stdout and writes full report to output files",
-        "Exit code 0 on success, 1 on error with descriptive message to stderr",
-        "Typecheck passes"
+        "Baseline agent (no MCP) run completes on all 4 cross-repo tasks",
+        "MCP agent (Sourcegraph) run completes on all 4 cross-repo tasks",
+        "MCP agent achieves higher average reward than baseline on cross-repo tasks",
+        "Per-repo scoring breakdown shows MCP advantage is larger in the non-primary repo (the one requiring cross-repo search)",
+        "Results documented with raw rewards and statistical summary"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-011",
-      "title": "Deprecate runners/compare_results.py",
-      "description": "As a developer, I need the old comparison script deprecated with a pointer to the new module so no one accidentally uses the statistically naive version.",
-      "acceptanceCriteria": [
-        "runners/compare_results.py has a deprecation warning added at the top of main(): warnings.warn('compare_results.py is deprecated. Use scripts/compare_experiments.py instead.', DeprecationWarning, stacklevel=2)",
-        "A comment block at the top of the file explains the deprecation and points to the replacement",
-        "No functional changes to the existing code (preserving backward compatibility for any existing automation)",
-        "Typecheck passes"
-      ],
-      "priority": 11,
       "passes": false,
       "notes": ""
     }
