@@ -1617,6 +1617,260 @@ class TestMarkdownReportCompleteDocument:
         assert positions == sorted(positions), "Sections should appear in order"
 
 
+# =============================================================================
+# JSON Output Formatter Tests (US-009)
+# =============================================================================
+
+
+class TestComparisonReportSaveJson:
+    """Test save_json() writes valid JSON file."""
+
+    def test_save_json_creates_file(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=10,
+        )
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        out_path = tmp_path / "report.json"
+        report.save_json(out_path)
+
+        assert out_path.is_file()
+        data = json.loads(out_path.read_text())
+        assert data["version"] == "1.0.0"
+
+    def test_save_json_two_space_indentation(self, tmp_path):
+        tasks = [("t1", 0.3, 0.5), ("t2", 0.4, 0.6), ("t3", 0.5, 0.7)]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        out_path = tmp_path / "report.json"
+        report.save_json(out_path)
+
+        content = out_path.read_text()
+        # 2-space indentation means second line starts with "  "
+        lines = content.split("\n")
+        assert lines[1].startswith("  ")
+        # Not 4-space
+        assert not lines[1].startswith("    ")
+
+
+class TestComparisonReportLoadJson:
+    """Test load_json() reconstructs report from JSON file."""
+
+    def test_load_json_reconstructs_report(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=10,
+        )
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        original = comparator.compare(baseline, treatment)
+
+        out_path = tmp_path / "report.json"
+        original.save_json(out_path)
+
+        loaded = ComparisonReport.load_json(out_path)
+
+        assert isinstance(loaded, ComparisonReport)
+        assert loaded.baseline_dir == original.baseline_dir
+        assert loaded.treatment_dir == original.treatment_dir
+        assert loaded.generated_at == original.generated_at
+
+    def test_load_json_missing_file_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            ComparisonReport.load_json(tmp_path / "nonexistent.json")
+
+    def test_load_json_invalid_json_raises(self, tmp_path):
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text("not valid json {{{")
+
+        with pytest.raises(json.JSONDecodeError):
+            ComparisonReport.load_json(bad_file)
+
+
+class TestComparisonReportJsonRoundTrip:
+    """Test save_json -> load_json produces equivalent data."""
+
+    def test_full_round_trip_with_tool_correlation(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=10,
+        )
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        original = comparator.compare(baseline, treatment)
+
+        out_path = tmp_path / "report.json"
+        original.save_json(out_path)
+        loaded = ComparisonReport.load_json(out_path)
+
+        # Compare to_dict() outputs for data equivalence
+        assert original.to_dict() == loaded.to_dict()
+
+    def test_round_trip_without_tool_correlation(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+        ]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=None,
+        )
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        original = comparator.compare(baseline, treatment)
+
+        out_path = tmp_path / "report.json"
+        original.save_json(out_path)
+        loaded = ComparisonReport.load_json(out_path)
+
+        assert loaded.tool_correlation is None
+        assert original.to_dict() == loaded.to_dict()
+
+    def test_round_trip_preserves_alignment(self, tmp_path):
+        baseline_dir = tmp_path / "baseline"
+        treatment_dir = tmp_path / "treatment"
+
+        # 3 common + 2 baseline-only
+        common = [("shared-" + str(i), 0.5, 0.7) for i in range(3)]
+        b_dir, t_dir = _setup_experiment_dirs(tmp_path, common)
+
+        for i in range(2):
+            extra = b_dir / f"extra-{i}__abc"
+            extra.mkdir(parents=True)
+            (extra / "config.json").write_text(
+                json.dumps({"task": {"path": f"benchmarks/locobench_agent/test/extra-{i}"}})
+            )
+            _make_result(extra, reward=0.5)
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        original = comparator.compare(b_dir, t_dir)
+
+        out_path = tmp_path / "report.json"
+        original.save_json(out_path)
+        loaded = ComparisonReport.load_json(out_path)
+
+        assert loaded.alignment.common_tasks == original.alignment.common_tasks
+        assert loaded.alignment.baseline_only == original.alignment.baseline_only
+        assert loaded.alignment.treatment_only == original.alignment.treatment_only
+        assert loaded.alignment.total_baseline == original.alignment.total_baseline
+
+    def test_round_trip_preserves_bootstrap_fields(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        original = comparator.compare(baseline, treatment)
+
+        out_path = tmp_path / "report.json"
+        original.save_json(out_path)
+        loaded = ComparisonReport.load_json(out_path)
+
+        ob_orig = original.overall_bootstrap
+        ob_loaded = loaded.overall_bootstrap
+
+        assert ob_loaded.mean_delta == pytest.approx(ob_orig.mean_delta)
+        assert ob_loaded.ci_lower == pytest.approx(ob_orig.ci_lower)
+        assert ob_loaded.ci_upper == pytest.approx(ob_orig.ci_upper)
+        assert ob_loaded.p_value == pytest.approx(ob_orig.p_value)
+        assert ob_loaded.effect_size == pytest.approx(ob_orig.effect_size)
+        assert ob_loaded.effect_interpretation == ob_orig.effect_interpretation
+        assert ob_loaded.n_resamples == ob_orig.n_resamples
+        assert ob_loaded.n_tasks == ob_orig.n_tasks
+
+    def test_round_trip_preserves_categories(self, tmp_path):
+        tasks = [
+            ("t1", 0.3, 0.5),
+            ("t2", 0.4, 0.6),
+            ("t3", 0.5, 0.7),
+            ("t4", 0.6, 0.8),
+            ("t5", 0.7, 0.9),
+        ]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=500, random_seed=42)
+        original = comparator.compare(baseline, treatment)
+
+        out_path = tmp_path / "report.json"
+        original.save_json(out_path)
+        loaded = ComparisonReport.load_json(out_path)
+
+        assert len(loaded.category_breakdown) == len(original.category_breakdown)
+        for orig_cat, loaded_cat in zip(
+            original.category_breakdown, loaded.category_breakdown
+        ):
+            assert loaded_cat.category == orig_cat.category
+            assert loaded_cat.n_tasks == orig_cat.n_tasks
+            assert loaded_cat.mean_delta == pytest.approx(orig_cat.mean_delta)
+
+    def test_round_trip_json_schema(self, tmp_path):
+        """Verify saved JSON has all required schema fields."""
+        tasks = [("t1", 0.3, 0.5), ("t2", 0.4, 0.6), ("t3", 0.5, 0.7)]
+        baseline, treatment = _setup_experiment_dirs(
+            tmp_path, tasks, tool_calls=10,
+        )
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        out_path = tmp_path / "report.json"
+        report.save_json(out_path)
+
+        data = json.loads(out_path.read_text())
+        assert data["version"] == "1.0.0"
+        assert "T" in data["generated_at"]  # ISO 8601 has 'T' separator
+        assert isinstance(data["config"], dict)
+        assert isinstance(data["alignment"]["common_tasks"], list)
+        assert isinstance(data["overall"]["mean_delta"], float)
+        assert isinstance(data["categories"], list)
+
+    def test_no_path_objects_in_json(self, tmp_path):
+        """Verify no Path objects leak into JSON output."""
+        tasks = [("t1", 0.3, 0.5), ("t2", 0.4, 0.6), ("t3", 0.5, 0.7)]
+        baseline, treatment = _setup_experiment_dirs(tmp_path, tasks)
+
+        comparator = ExperimentComparison(n_resamples=100, random_seed=42)
+        report = comparator.compare(baseline, treatment)
+
+        out_path = tmp_path / "report.json"
+        report.save_json(out_path)
+
+        # If this succeeds without error, no non-serializable types
+        content = out_path.read_text()
+        parsed = json.loads(content)
+        # Re-serialize to confirm everything is JSON-compatible
+        json.dumps(parsed)
+
+
 class TestExperimentComparisonMissingRewards:
     """Test when common tasks have missing reward data."""
 

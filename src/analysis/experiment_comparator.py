@@ -769,6 +769,102 @@ class ComparisonReport:
             ),
         }
 
+    def save_json(self, path: Path) -> None:
+        """Write the comparison report as a JSON file.
+
+        Args:
+            path: Output file path for the JSON report.
+        """
+        with open(path, "w") as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def load_json(cls, path: Path) -> ComparisonReport:
+        """Reconstruct a ComparisonReport from a JSON file.
+
+        Args:
+            path: Path to a JSON file previously written by save_json().
+
+        Returns:
+            Reconstructed ComparisonReport instance.
+
+        Raises:
+            FileNotFoundError: If path does not exist.
+            json.JSONDecodeError: If file is not valid JSON.
+            KeyError: If required fields are missing.
+        """
+        with open(path, "r") as f:
+            data = json.load(f)
+
+        def _bootstrap_from_dict(d: dict) -> BootstrapResult:
+            return BootstrapResult(
+                mean_delta=d["mean_delta"],
+                ci_lower=d["ci_lower"],
+                ci_upper=d["ci_upper"],
+                p_value=d["p_value"],
+                effect_size=d["effect_size"],
+                effect_interpretation=d["effect_interpretation"],
+                n_resamples=d["n_resamples"],
+                n_tasks=d["n_tasks"],
+            )
+
+        def _category_from_dict(d: dict) -> CategoryBreakdown:
+            bootstrap = (
+                _bootstrap_from_dict(d["bootstrap"])
+                if d.get("bootstrap")
+                else None
+            )
+            return CategoryBreakdown(
+                category=d["category"],
+                n_tasks=d["n_tasks"],
+                baseline_mean=d["baseline_mean"],
+                treatment_mean=d["treatment_mean"],
+                mean_delta=d["mean_delta"],
+                bootstrap=bootstrap,
+            )
+
+        def _tool_corr_from_dict(d: dict) -> ToolCorrelation:
+            return ToolCorrelation(
+                spearman_rho=d["spearman_rho"],
+                spearman_p_value=d["spearman_p_value"],
+                n_tasks=d["n_tasks"],
+                interpretation=d["interpretation"],
+                per_task=list(d["per_task"]),
+            )
+
+        alignment_data = data["alignment"]
+        alignment = AlignmentResult(
+            common_tasks=list(alignment_data["common_tasks"]),
+            baseline_only=list(alignment_data["baseline_only"]),
+            treatment_only=list(alignment_data["treatment_only"]),
+            total_baseline=alignment_data["total_baseline"],
+            total_treatment=alignment_data["total_treatment"],
+        )
+
+        overall_bootstrap = _bootstrap_from_dict(data["overall"])
+
+        category_breakdown = [
+            _category_from_dict(c) for c in data["categories"]
+        ]
+
+        tool_correlation_data = data.get("tool_correlation")
+        tool_correlation = (
+            _tool_corr_from_dict(tool_correlation_data)
+            if tool_correlation_data
+            else None
+        )
+
+        return cls(
+            baseline_dir=data["metadata"]["baseline_dir"],
+            treatment_dir=data["metadata"]["treatment_dir"],
+            alignment=alignment,
+            overall_bootstrap=overall_bootstrap,
+            category_breakdown=category_breakdown,
+            tool_correlation=tool_correlation,
+            generated_at=data["generated_at"],
+            config=data["config"],
+        )
+
     def to_markdown(self) -> str:
         """Render as a Markdown report.
 

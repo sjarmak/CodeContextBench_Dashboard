@@ -139,3 +139,16 @@ Started: Fri Jan 30 23:15:14 EST 2026
   - When an acceptance criterion says "Unit test verifies X", the work may be adding targeted tests rather than new implementation
   - `_setup_experiment_dirs` helper is reusable for creating test experiment data across all story tests
 ---
+
+## 2026-01-31 - US-009
+- Added `save_json(path)` method to `ComparisonReport` that writes JSON with 2-space indentation
+- Added `load_json(path)` class method to `ComparisonReport` that reconstructs the full report from JSON
+- `load_json` reconstructs all frozen dataclasses: `AlignmentResult`, `BootstrapResult`, `CategoryBreakdown`, `ToolCorrelation`
+- Added 12 new tests covering: file creation, 2-space indentation, reconstruction, missing file error, invalid JSON error, full round-trip with/without tool correlation, alignment preservation, bootstrap field preservation, category preservation, JSON schema verification, no Path objects in output
+- All 109 tests pass (97 existing + 12 new)
+- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `load_json` uses nested helper functions (`_bootstrap_from_dict`, `_category_from_dict`, `_tool_corr_from_dict`) to mirror the `to_dict()` serialization helpers
+  - Round-trip equivalence is best tested by comparing `to_dict()` outputs rather than individual fields, since float precision is preserved through JSON
+  - `@classmethod` with `cls(...)` constructor call works with frozen dataclasses since `__init__` is still available
+---
