@@ -1,9 +1,11 @@
 """
 CodeContextBench Evaluation Dashboard
 
-Full-featured benchmark management and evaluation platform.
+Simplified 5-view dashboard for the CodeContextBench paper.
+Views: Home, Results Explorer, Comparison, LLM Judge, Export.
 """
 
+import subprocess
 import streamlit as st
 from pathlib import Path
 import os
@@ -61,6 +63,9 @@ EXTERNAL_RUNS_DIR = Path(os.environ.get(
     os.path.expanduser("~/evals/custom_agents/agents/claudecode/runs")
 ))
 
+# Default pipeline output directory
+PIPELINE_OUTPUT_DIR = PROJECT_ROOT / "output"
+
 
 def main():
     """Main dashboard entry point."""
@@ -99,39 +104,21 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
-    # Navigation items - simplified sidebar
-    nav_home = ["Home"]
-    nav_benchmarks = ["Benchmark Manager"]
-    nav_results = ["Run Results"]
-    nav_items_analysis = ["Analysis Hub", "LLM Judge"]
+    # Navigation items - 5 views
+    nav_items = ["Home", "Results Explorer", "Comparison", "LLM Judge", "Export"]
 
-    def render_nav_section(items, section_label=None):
-        """Render a navigation section with optional label."""
-        if section_label:
+    for item in nav_items:
+        if item == st.session_state.current_page:
             st.sidebar.markdown(
-                f'<div style="padding: 8px 16px; font-size: 0.75em; '
-                f'color: #888; text-transform: uppercase; letter-spacing: 0.05em;">'
-                f'{section_label}</div>',
+                f'<div style="background-color: rgba(74, 158, 255, 0.1); '
+                f'border-left: 3px solid #4a9eff; padding: 12px 13px; '
+                f'border-bottom: 1px solid #333; font-weight: 500;">{item}</div>',
                 unsafe_allow_html=True
             )
-        for item in items:
-            if item == st.session_state.current_page:
-                st.sidebar.markdown(
-                    f'<div style="background-color: rgba(74, 158, 255, 0.1); '
-                    f'border-left: 3px solid #4a9eff; padding: 12px 13px; '
-                    f'border-bottom: 1px solid #333; font-weight: 500;">{item}</div>',
-                    unsafe_allow_html=True
-                )
-            else:
-                if st.sidebar.button(item, key=f"nav_{item}"):
-                    st.session_state.current_page = item
-                    st.rerun()
-
-    # Render navigation sections
-    render_nav_section(nav_home)
-    render_nav_section(nav_benchmarks, "Benchmarks")
-    render_nav_section(nav_results, "Results")
-    render_nav_section(nav_items_analysis, "Analysis")
+        else:
+            if st.sidebar.button(item, key=f"nav_{item}"):
+                st.session_state.current_page = item
+                st.rerun()
 
     st.sidebar.markdown("---")
     st.sidebar.caption(f"Project: {PROJECT_ROOT.name}")
@@ -150,31 +137,31 @@ def main():
     # Route to appropriate page
     if page == "Home":
         show_home()
-    elif page == "Benchmark Manager":
-        show_benchmark_manager()
-    elif page == "Run Results":
-        show_run_results()
-    elif page == "Analysis Hub":
-        show_analysis_hub()
+    elif page == "Results Explorer":
+        show_results_explorer()
+    elif page == "Comparison":
+        show_comparison()
     elif page == "LLM Judge":
         show_llm_judge()
+    elif page == "Export":
+        show_export()
 
 
 def show_home():
-    """Home page with run overview grouped by folder and quick links."""
+    """Home page with run overview grouped by folder and pipeline trigger."""
     st.title("CodeContextBench Evaluation Platform")
-    st.markdown("**Benchmark management and evaluation results viewer**")
+    st.markdown("**Analysis pipeline and evaluation results viewer**")
     st.markdown("---")
 
     # Dashboard Quick Links
-    st.subheader("Dashboard Quick Links")
+    st.subheader("Quick Links")
     col1, col2, col3, col4 = st.columns(4)
 
     quick_links = [
-        (col1, "Benchmark Manager", "View and manage registered benchmarks"),
-        (col2, "Run Results", "Browse evaluation outputs from the VM"),
-        (col3, "LLM Judge", "LLM-based evaluation and rubric editing"),
-        (col4, "Analysis Hub", "Statistical, cost, and comparison analysis"),
+        (col1, "Results Explorer", "Browse per-trial results with filtering"),
+        (col2, "Comparison", "Interactive analysis matching paper sections"),
+        (col3, "LLM Judge", "Review and re-run judge evaluations"),
+        (col4, "Export", "Download publication artifacts"),
     ]
 
     for col, page_name, description in quick_links:
@@ -184,6 +171,11 @@ def show_home():
             if st.button(f"Go to {page_name}", key=f"home_nav_{page_name}"):
                 st.session_state.current_page = page_name
                 st.rerun()
+
+    st.markdown("---")
+
+    # Run Analysis Pipeline section
+    _render_pipeline_section()
 
     st.markdown("---")
 
@@ -244,6 +236,83 @@ def show_home():
             st.info("No benchmarks registered (excluding test benchmarks).")
     else:
         st.info("No benchmarks registered. Use 'Add Benchmark' to register benchmarks.")
+
+
+def _render_pipeline_section():
+    """Render the Run Analysis Pipeline section on the Home page."""
+    st.subheader("Run Analysis Pipeline")
+
+    col_cfg, col_action = st.columns([3, 1])
+
+    with col_cfg:
+        runs_dir = st.text_input(
+            "Runs directory",
+            value=str(EXTERNAL_RUNS_DIR),
+            key="pipeline_runs_dir",
+        )
+        output_dir = st.text_input(
+            "Output directory",
+            value=str(PIPELINE_OUTPUT_DIR),
+            key="pipeline_output_dir",
+        )
+        skip_judge = st.checkbox("Skip LLM Judge step", value=True, key="pipeline_skip_judge")
+
+    with col_action:
+        st.markdown("")  # spacing
+        st.markdown("")
+        run_clicked = st.button(
+            "Run Analysis Pipeline",
+            key="pipeline_run_btn",
+            type="primary",
+        )
+
+    if run_clicked:
+        _run_pipeline(runs_dir, output_dir, skip_judge)
+
+    # Show previous pipeline output if it exists
+    output_path = Path(output_dir) if output_dir else PIPELINE_OUTPUT_DIR
+    if output_path.exists() and any(output_path.iterdir()):
+        st.success(f"Pipeline artifacts available at: `{output_path}`")
+        tables_dir = output_path / "tables"
+        figures_dir = output_path / "figures"
+        table_count = len(list(tables_dir.glob("*.tex"))) if tables_dir.exists() else 0
+        figure_count = len(list(figures_dir.glob("*.*"))) if figures_dir.exists() else 0
+        st.caption(f"{table_count} tables, {figure_count} figures")
+
+
+def _run_pipeline(runs_dir: str, output_dir: str, skip_judge: bool):
+    """Execute the analysis pipeline as a subprocess and show progress."""
+    cmd = [
+        sys.executable, "-m", "scripts.ccb_pipeline",
+        "--runs-dir", runs_dir,
+        "--output-dir", output_dir,
+    ]
+    if skip_judge:
+        cmd.append("--skip-judge")
+
+    with st.spinner("Running analysis pipeline..."):
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=str(PROJECT_ROOT),
+                timeout=300,
+            )
+            if result.returncode == 0:
+                st.success("Pipeline completed successfully.")
+                if result.stdout.strip():
+                    st.code(result.stdout, language="text")
+            else:
+                st.error("Pipeline failed.")
+                if result.stderr.strip():
+                    st.code(result.stderr, language="text")
+                if result.stdout.strip():
+                    st.code(result.stdout, language="text")
+        except subprocess.TimeoutExpired:
+            st.error("Pipeline timed out after 5 minutes.")
+        except FileNotFoundError:
+            st.error("Could not find Python executable to run pipeline.")
 
 
 def _benchmark_source(bm: dict) -> str:
@@ -319,28 +388,28 @@ def _render_runs_table(runs, folder):
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 
-def show_benchmark_manager():
-    """Benchmark manager page."""
-    from views.benchmark_manager import show_benchmark_manager as show_manager
-    show_manager()
+def show_results_explorer():
+    """Results Explorer view - placeholder until US-014."""
+    st.title("Results Explorer")
+    st.info("This view will be implemented in US-014. It will load experiment_metrics.json and provide filtering by benchmark, config, and outcome.")
 
 
-def show_run_results():
-    """Run results viewer page."""
-    from views.run_results import show_run_results as show_results
-    show_results()
-
-
-def show_analysis_hub():
-    """Analysis hub entry point."""
-    from views.analysis_hub import show_analysis_hub as show_hub
-    show_hub()
+def show_comparison():
+    """Comparison view - placeholder until US-015."""
+    st.title("Comparison Analysis")
+    st.info("This view will be implemented in US-015. It will show interactive comparison with tabs matching paper sections 4.1-4.5.")
 
 
 def show_llm_judge():
-    """LLM Judge configuration and results view."""
-    from views.analysis_llm_judge import show_llm_judge as show_judge
-    show_judge()
+    """LLM Judge view - placeholder until US-016."""
+    st.title("LLM Judge")
+    st.info("This view will be implemented in US-016. It will show judge results and allow re-running with different templates.")
+
+
+def show_export():
+    """Export view - placeholder until US-017."""
+    st.title("Export Artifacts")
+    st.info("This view will be implemented in US-017. It will list and preview publication artifacts from output/.")
 
 
 if __name__ == "__main__":
