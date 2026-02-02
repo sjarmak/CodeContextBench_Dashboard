@@ -193,3 +193,22 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - `_augment_metrics()` creates new dicts at every level (category, experiment, trial) to maintain immutability
   - Vote distribution stored as `tuple[tuple[str, int], ...]` for frozen dataclass compatibility; sorted by score string
 ---
+
+## 2026-02-02 - US-012
+- Implemented `scripts/ccb_pipeline/__main__.py` with end-to-end pipeline CLI
+- Files created: `scripts/ccb_pipeline/__main__.py`, `tests/test_main_pipeline.py`
+- Chains 4 stages in order: extract -> judge -> analyze -> publish
+- Each stage delegates to its module's `main(argv)` function with appropriate file paths
+- CLI: `python -m scripts.ccb_pipeline --runs-dir <path> --output-dir output/ [--skip-judge] [--judge-template <path>]`
+- Prints progress: "Stage N/4: ..." to stderr for each stage
+- Prints summary on completion: trials processed, configs detected, artifacts generated
+- Non-zero exit code on failure; early exit if any stage fails (subsequent stages not run)
+- `--skip-judge` and `--judge-template` flags passed through to judge.main()
+- Helper functions: `_count_trials()`, `_count_configs()`, `_count_artifacts()` for summary
+- 24 unit tests, all passing; mypy clean (pre-existing errors in cost_calculator.py, task_schema.py, orchestrator.py are unrelated)
+- **Learnings for future iterations:**
+  - Each pipeline module's `main()` accepts `argv: list[str] | None` and returns `int` (0=success, 1=failure); uniform interface makes chaining straightforward
+  - The judge module's `--output` defaults to overwriting `--input` in place, so no separate output path needed when chaining
+  - Tests use `patch("scripts.ccb_pipeline.__main__.extract")` etc. to mock module-level imports, then set `.main` on the mock to a lambda/function
+  - `_make_metrics_json()` test helper creates valid experiment_metrics.json for downstream stage mocks that need a file to exist
+---
