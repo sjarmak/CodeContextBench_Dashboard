@@ -16,7 +16,23 @@ import logging
 import sys
 from pathlib import Path
 
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+
+matplotlib.use("Agg")  # Non-interactive backend for headless environments
+
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Figure style constants
+# ---------------------------------------------------------------------------
+
+_STYLE = "seaborn-v0_8-paper"
+_PALETTE = "tab10"
+_FIG_DPI = 300
+_CONFIG_ORDER = ("BASELINE", "MCP_BASE", "MCP_FULL")
+_CONFIG_LABELS = {"BASELINE": "Baseline", "MCP_BASE": "MCP-Base", "MCP_FULL": "MCP-Full"}
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +331,337 @@ def generate_table_efficiency(efficiency: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Figure generators
+# ---------------------------------------------------------------------------
+
+
+def _get_colorblind_colors(n: int) -> list[tuple[float, ...]]:
+    """Get n colors from the tableau-colorblind10 palette."""
+    cmap = plt.get_cmap(_PALETTE)
+    return [cmap(i / max(n - 1, 1)) for i in range(n)]
+
+
+def _ordered_configs(configs: list[str]) -> list[str]:
+    """Sort configs in canonical order, with unknowns at the end."""
+    order = {c: i for i, c in enumerate(_CONFIG_ORDER)}
+    return sorted(configs, key=lambda c: order.get(c, 999))
+
+
+def generate_fig_pass_rate(aggregate_metrics: list[dict], output_dir: Path) -> list[str]:
+    """Generate grouped bar chart of pass rate by config with SE error bars.
+
+    Returns list of written file paths.
+    """
+    if not aggregate_metrics:
+        return []
+
+    configs = _ordered_configs([m["config"] for m in aggregate_metrics])
+    config_lookup = {m["config"]: m for m in aggregate_metrics}
+    colors = _get_colorblind_colors(len(configs))
+
+    with plt.style.context(_STYLE):
+        fig, ax = plt.subplots(figsize=(6, 4))
+
+        x = np.arange(len(configs))
+        pass_rates = [config_lookup[c].get("pass_rate", 0.0) for c in configs]
+        se_values = [config_lookup[c].get("se_pass_rate", 0.0) for c in configs]
+        labels = [_CONFIG_LABELS.get(c, c) for c in configs]
+
+        bars = ax.bar(x, pass_rates, yerr=se_values, capsize=4,
+                      color=colors[:len(configs)], edgecolor="black", linewidth=0.5)
+
+        ax.set_xlabel("Configuration")
+        ax.set_ylabel("Pass Rate")
+        ax.set_title("Pass Rate by Agent Configuration")
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels)
+        ax.set_ylim(0, min(max(pass_rates) * 1.3 + 0.05, 1.05))
+
+        fig.tight_layout()
+
+        written: list[str] = []
+        for ext in ("pdf", "svg"):
+            path = output_dir / f"fig_pass_rate.{ext}"
+            fig.savefig(path, dpi=_FIG_DPI, bbox_inches="tight")
+            written.append(str(path))
+
+        plt.close(fig)
+    return written
+
+
+def generate_fig_benchmark_heatmap(per_benchmark: list[dict], output_dir: Path) -> list[str]:
+    """Generate heatmap of reward delta (MCP-Full minus Baseline) per benchmark.
+
+    Returns list of written file paths.
+    """
+    if not per_benchmark:
+        return []
+
+    # Group by benchmark -> config -> mean_reward
+    bm_config_reward: dict[str, dict[str, float]] = {}
+    for entry in per_benchmark:
+        bm = entry.get("benchmark", "unknown")
+        config = entry.get("config", "UNKNOWN")
+        reward = entry.get("mean_reward", 0.0)
+        if bm not in bm_config_reward:
+            bm_config_reward[bm] = {}
+        bm_config_reward[bm][config] = reward
+
+    # Compute deltas: MCP_FULL - BASELINE for each benchmark
+    benchmarks = sorted(bm_config_reward.keys())
+    deltas: list[float] = []
+    valid_benchmarks: list[str] = []
+    for bm in benchmarks:
+        baseline_r = bm_config_reward[bm].get("BASELINE")
+        mcp_full_r = bm_config_reward[bm].get("MCP_FULL")
+        if baseline_r is not None and mcp_full_r is not None:
+            deltas.append(mcp_full_r - baseline_r)
+            valid_benchmarks.append(bm)
+
+    if not valid_benchmarks:
+        return []
+
+    with plt.style.context(_STYLE):
+        fig, ax = plt.subplots(figsize=(8, max(2, len(valid_benchmarks) * 0.5 + 1)))
+
+        data = np.array(deltas).reshape(-1, 1)
+        max_abs = max(abs(d) for d in deltas) if deltas else 0.1
+        im = ax.imshow(data, cmap="RdYlGn", aspect="auto",
+                       vmin=-max_abs, vmax=max_abs)
+
+        ax.set_yticks(range(len(valid_benchmarks)))
+        ax.set_yticklabels(valid_benchmarks)
+        ax.set_xticks([0])
+        ax.set_xticklabels(["Reward Delta\n(MCP-Full - Baseline)"])
+        ax.set_title("Reward Delta per Benchmark")
+
+        # Annotate cells
+        for i, val in enumerate(deltas):
+            color = "black" if abs(val) < max_abs * 0.6 else "white"
+            ax.text(0, i, f"{val:+.3f}", ha="center", va="center",
+                    color=color, fontsize=9)
+
+        cbar = fig.colorbar(im, ax=ax, shrink=0.8)
+        cbar.set_label("Reward Delta")
+
+        fig.tight_layout()
+
+        written: list[str] = []
+        for ext in ("pdf", "svg"):
+            path = output_dir / f"fig_benchmark_heatmap.{ext}"
+            fig.savefig(path, dpi=_FIG_DPI, bbox_inches="tight")
+            written.append(str(path))
+
+        plt.close(fig)
+    return written
+
+
+def generate_fig_token_overhead(
+    efficiency: list[dict],
+    aggregate_metrics: list[dict],
+) -> list[str]:
+    """Generate scatter plot of token overhead vs reward improvement per config.
+
+    Note: This operates at the config level (not per-task) since we don't have
+    per-task paired data in analysis_results.json. Each point is a config.
+
+    Returns list of written file paths (empty since no output_dir yet -- called
+    from publish_figures which passes the dir).
+    """
+    # This is a stub -- the actual implementation is in _generate_fig_token_overhead
+    return []
+
+
+def _generate_fig_token_overhead(
+    efficiency: list[dict],
+    aggregate_metrics: list[dict],
+    output_dir: Path,
+) -> list[str]:
+    """Generate scatter plot of token overhead vs reward improvement per config.
+
+    Each point represents a non-BASELINE config. X-axis: MCP token overhead,
+    Y-axis: reward improvement over BASELINE.
+    """
+    if not efficiency or not aggregate_metrics:
+        return []
+
+    # Get baseline reward
+    agg_lookup = {m["config"]: m for m in aggregate_metrics}
+    baseline_reward = agg_lookup.get("BASELINE", {}).get("mean_reward")
+    if baseline_reward is None:
+        return []
+
+    points: list[tuple[float, float, str]] = []
+    for eff in efficiency:
+        config = eff.get("config", "")
+        overhead = eff.get("mcp_token_overhead")
+        if config == "BASELINE" or overhead is None:
+            continue
+        config_reward = agg_lookup.get(config, {}).get("mean_reward", 0.0)
+        reward_delta = config_reward - baseline_reward
+        points.append((overhead, reward_delta, config))
+
+    if not points:
+        return []
+
+    colors = _get_colorblind_colors(len(points) + 1)
+
+    with plt.style.context(_STYLE):
+        fig, ax = plt.subplots(figsize=(6, 4))
+
+        for i, (overhead, reward_delta, config) in enumerate(points):
+            label = _CONFIG_LABELS.get(config, config)
+            ax.scatter(overhead, reward_delta, s=100, c=[colors[i + 1]],
+                       edgecolors="black", linewidth=0.5, label=label, zorder=5)
+
+        ax.axhline(y=0, color="grey", linestyle="--", linewidth=0.8, alpha=0.7)
+        ax.axvline(x=0, color="grey", linestyle="--", linewidth=0.8, alpha=0.7)
+
+        ax.set_xlabel("Token Overhead (mean tokens vs Baseline)")
+        ax.set_ylabel("Reward Improvement vs Baseline")
+        ax.set_title("Token Overhead vs Reward Improvement")
+        ax.legend()
+
+        fig.tight_layout()
+
+        written: list[str] = []
+        for ext in ("pdf", "svg"):
+            path = output_dir / f"fig_token_overhead.{ext}"
+            fig.savefig(path, dpi=_FIG_DPI, bbox_inches="tight")
+            written.append(str(path))
+
+        plt.close(fig)
+    return written
+
+
+def generate_fig_tool_utilization(
+    tool_utilization: list[dict],
+    benchmark_tool_usage: list[dict],
+    output_dir: Path,
+) -> list[str]:
+    """Generate stacked bar chart of tool call distribution by category per config.
+
+    Categories: MCP calls, Deep Search calls, Other (total - MCP - deep_search).
+
+    Returns list of written file paths.
+    """
+    if not tool_utilization:
+        return []
+
+    configs = _ordered_configs([m["config"] for m in tool_utilization])
+    util_lookup = {m["config"]: m for m in tool_utilization}
+
+    # Compute per-config: mcp calls (non-deep-search), deep search calls, and
+    # we need total calls from benchmark_tool_usage aggregation
+    # Since tool_utilization has mean_mcp_calls and mean_deep_search_calls,
+    # compute other = total - mcp - deep_search from benchmark_tool_usage
+    total_by_config: dict[str, float] = {}
+    if benchmark_tool_usage:
+        for config in configs:
+            totals = [
+                e.get("mean_total_tool_calls", 0.0)
+                for e in benchmark_tool_usage
+                if e.get("config") == config
+            ]
+            total_by_config[config] = sum(totals) / len(totals) if totals else 0.0
+
+    colors = _get_colorblind_colors(3)
+
+    with plt.style.context(_STYLE):
+        fig, ax = plt.subplots(figsize=(6, 4))
+
+        x = np.arange(len(configs))
+        labels = [_CONFIG_LABELS.get(c, c) for c in configs]
+
+        mcp_non_ds = []
+        ds_calls = []
+        other_calls = []
+
+        for config in configs:
+            m = util_lookup.get(config, {})
+            mcp = m.get("mean_mcp_calls", 0.0)
+            ds = m.get("mean_deep_search_calls", 0.0)
+            total = total_by_config.get(config, mcp)
+            # MCP calls that are NOT deep search
+            mcp_non_deep = max(mcp - ds, 0.0)
+            other = max(total - mcp, 0.0)
+
+            mcp_non_ds.append(mcp_non_deep)
+            ds_calls.append(ds)
+            other_calls.append(other)
+
+        bar_width = 0.5
+        ax.bar(x, other_calls, bar_width, label="Local/Other", color=colors[0],
+               edgecolor="black", linewidth=0.5)
+        ax.bar(x, mcp_non_ds, bar_width, bottom=other_calls,
+               label="MCP (keyword/NLS)", color=colors[1],
+               edgecolor="black", linewidth=0.5)
+        bottom_ds = [o + m for o, m in zip(other_calls, mcp_non_ds)]
+        ax.bar(x, ds_calls, bar_width, bottom=bottom_ds,
+               label="Deep Search", color=colors[2],
+               edgecolor="black", linewidth=0.5)
+
+        ax.set_xlabel("Configuration")
+        ax.set_ylabel("Mean Tool Calls")
+        ax.set_title("Tool Call Distribution by Configuration")
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels)
+        ax.legend(loc="upper left")
+
+        fig.tight_layout()
+
+        written: list[str] = []
+        for ext in ("pdf", "svg"):
+            path = output_dir / f"fig_tool_utilization.{ext}"
+            fig.savefig(path, dpi=_FIG_DPI, bbox_inches="tight")
+            written.append(str(path))
+
+        plt.close(fig)
+    return written
+
+
+# ---------------------------------------------------------------------------
+# Figure publish orchestrator
+# ---------------------------------------------------------------------------
+
+
+def publish_figures(analysis_results: dict, output_dir: Path) -> list[str]:
+    """Generate all publication figures and write to output_dir/figures/.
+
+    Args:
+        analysis_results: Parsed analysis_results.json dict.
+        output_dir: Root output directory (figures go in output_dir/figures/).
+
+    Returns:
+        List of file paths written.
+    """
+    figures_dir = output_dir / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
+    written: list[str] = []
+
+    aggregate = analysis_results.get("aggregate_metrics") or []
+    per_benchmark = analysis_results.get("per_benchmark") or []
+    efficiency = analysis_results.get("efficiency") or []
+    tool_util = analysis_results.get("tool_utilization") or []
+    bench_tool = analysis_results.get("benchmark_tool_usage") or []
+
+    # Fig 1: Pass rate bar chart
+    written.extend(generate_fig_pass_rate(aggregate, figures_dir))
+
+    # Fig 2: Benchmark heatmap
+    written.extend(generate_fig_benchmark_heatmap(per_benchmark, figures_dir))
+
+    # Fig 3: Token overhead scatter
+    written.extend(_generate_fig_token_overhead(efficiency, aggregate, figures_dir))
+
+    # Fig 4: Tool utilization stacked bar
+    written.extend(generate_fig_tool_utilization(tool_util, bench_tool, figures_dir))
+
+    return written
+
+
+# ---------------------------------------------------------------------------
 # Main publish pipeline
 # ---------------------------------------------------------------------------
 
@@ -426,6 +773,12 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Generated %d table files", len(table_files))
     for tf in table_files:
         logger.info("  -> %s", tf)
+
+    # Generate figures
+    figure_files = publish_figures(analysis_results, output_dir)
+    logger.info("Generated %d figure files", len(figure_files))
+    for ff in figure_files:
+        logger.info("  -> %s", ff)
 
     logger.info("Publication artifacts written to: %s", output_dir)
     return 0

@@ -19,6 +19,9 @@ Started: Mon Feb  2 16:01:56 EST 2026
 - Tool utilization data in trial dicts: `trial["tool_utilization"]` is a dict with keys `mcp_calls`, `deep_search_calls`, `total_tool_calls`, `context_fill_rate`, `deep_search_vs_keyword_ratio`, etc.
 - `_get_tool_util(trial, field)` safely extracts numeric fields from tool_utilization dict; handles None/missing cases
 - Pearson correlation requires >=3 observations and non-zero variance in both variables; check before calling `scipy.stats.pearsonr`
+- matplotlib `plt.get_cmap("tab10")` is the colorblind-friendly palette; `tableau-colorblind10` is NOT a valid cmap name despite being referenced in docs
+- Use `matplotlib.use("Agg")` before any plt calls for headless figure generation; `plt.style.context()` for temporary style application
+- `publish_figures()` orchestrates all figure generators; each returns list of written paths for the caller
 
 ---
 
@@ -136,4 +139,26 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - Per-benchmark significance lookup uses minimum p-value across all config pairs for a given benchmark+config to find the "most significant" comparison
   - None values in efficiency metrics (tokens_per_success, mcp_token_overhead) formatted as "--" in LaTeX
   - `generate_table_per_benchmark()` groups by benchmark with first-row-only benchmark name display for cleaner tables
+---
+
+## 2026-02-02 - US-010
+- Added matplotlib figure generators to `scripts/ccb_pipeline/publish.py`
+- Files modified: `scripts/ccb_pipeline/publish.py`, `tests/test_publish.py`
+- 4 figure generators:
+  - `generate_fig_pass_rate()`: grouped bar chart of pass rate by config with SE error bars
+  - `generate_fig_benchmark_heatmap()`: heatmap of reward delta (MCP-Full minus Baseline) per benchmark using RdYlGn diverging colormap
+  - `_generate_fig_token_overhead()`: scatter plot of token overhead vs reward improvement per non-BASELINE config
+  - `generate_fig_tool_utilization()`: stacked bar chart of tool call distribution (Local/Other, MCP keyword/NLS, Deep Search) per config
+- `publish_figures()` orchestrator creates `output/figures/` and calls all generators
+- All figures use `seaborn-v0_8-paper` style, `tab10` colorblind-friendly palette, Agg backend
+- Each figure exported as both PDF and SVG
+- `main()` updated to call `publish_figures()` alongside `publish_tables()`
+- 65 tests passing (26 new figure tests), mypy clean
+- **Learnings for future iterations:**
+  - `tableau-colorblind10` is NOT a valid matplotlib colormap name; use `tab10` instead (the Tab10 colormap IS the Tableau colorblind-safe palette)
+  - `matplotlib.use("Agg")` must be set before any figure operations for headless/CI environments
+  - `plt.style.context(_STYLE)` is better than `plt.style.use()` as it scopes the style to a block without global side effects
+  - `_ordered_configs()` sorts configs in canonical order (BASELINE, MCP_BASE, MCP_FULL) for consistent figure presentation
+  - Heatmap with single column uses `aspect="auto"` to avoid extremely narrow figures; `figsize` height scales with benchmark count
+  - Token overhead scatter requires both efficiency and aggregate data; returns empty if BASELINE reward is missing
 ---

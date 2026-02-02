@@ -1,4 +1,4 @@
-"""Tests for scripts.ccb_pipeline.publish - LaTeX table generation."""
+"""Tests for scripts.ccb_pipeline.publish - LaTeX table and figure generation."""
 
 from __future__ import annotations
 
@@ -8,12 +8,17 @@ from pathlib import Path
 import pytest
 
 from scripts.ccb_pipeline.publish import (
+    generate_fig_benchmark_heatmap,
+    generate_fig_pass_rate,
+    generate_fig_tool_utilization,
     generate_table_aggregate,
     generate_table_efficiency,
     generate_table_per_benchmark,
     generate_table_significance,
     main,
+    publish_figures,
     publish_tables,
+    _generate_fig_token_overhead,
 )
 
 
@@ -496,3 +501,279 @@ class TestCLI:
         # Can't easily test real defaults since files won't exist
         result = main(["--input", str(tmp_path / "missing.json")])
         assert result == 1
+
+    def test_successful_run_generates_figures(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "analysis_results.json"
+        results = _make_analysis_results()
+        results["tool_utilization"] = _make_tool_utilization()
+        results["benchmark_tool_usage"] = _make_benchmark_tool_usage()
+        input_file.write_text(json.dumps(results), encoding="utf-8")
+        output_dir = tmp_path / "out"
+        result = main(["--input", str(input_file), "--output-dir", str(output_dir)])
+        assert result == 0
+        assert (output_dir / "figures").is_dir()
+
+
+# ---------------------------------------------------------------------------
+# Figure fixtures
+# ---------------------------------------------------------------------------
+
+
+def _make_tool_utilization() -> list[dict]:
+    return [
+        {
+            "config": "BASELINE",
+            "n_trials": 50,
+            "mean_mcp_calls": 0.0,
+            "se_mcp_calls": 0.0,
+            "mean_deep_search_calls": 0.0,
+            "se_deep_search_calls": 0.0,
+            "mean_deep_search_vs_keyword_ratio": 0.0,
+            "mean_context_fill_rate": 0.25,
+            "se_context_fill_rate": 0.02,
+        },
+        {
+            "config": "MCP_BASE",
+            "n_trials": 50,
+            "mean_mcp_calls": 12.5,
+            "se_mcp_calls": 1.2,
+            "mean_deep_search_calls": 0.0,
+            "se_deep_search_calls": 0.0,
+            "mean_deep_search_vs_keyword_ratio": 0.0,
+            "mean_context_fill_rate": 0.45,
+            "se_context_fill_rate": 0.03,
+        },
+        {
+            "config": "MCP_FULL",
+            "n_trials": 50,
+            "mean_mcp_calls": 18.3,
+            "se_mcp_calls": 1.5,
+            "mean_deep_search_calls": 8.2,
+            "se_deep_search_calls": 0.9,
+            "mean_deep_search_vs_keyword_ratio": 0.82,
+            "mean_context_fill_rate": 0.68,
+            "se_context_fill_rate": 0.04,
+        },
+    ]
+
+
+def _make_benchmark_tool_usage() -> list[dict]:
+    return [
+        {
+            "benchmark": "locobench",
+            "config": "BASELINE",
+            "n_trials": 25,
+            "mean_mcp_calls": 0.0,
+            "mean_deep_search_calls": 0.0,
+            "mean_total_tool_calls": 15.0,
+        },
+        {
+            "benchmark": "locobench",
+            "config": "MCP_FULL",
+            "n_trials": 25,
+            "mean_mcp_calls": 18.0,
+            "mean_deep_search_calls": 8.0,
+            "mean_total_tool_calls": 30.0,
+        },
+    ]
+
+
+def _make_full_analysis_results() -> dict:
+    results = _make_analysis_results()
+    results["tool_utilization"] = _make_tool_utilization()
+    results["benchmark_tool_usage"] = _make_benchmark_tool_usage()
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Figure tests
+# ---------------------------------------------------------------------------
+
+
+class TestFigPassRate:
+    def test_generates_pdf_and_svg(self, tmp_path: Path) -> None:
+        files = generate_fig_pass_rate(_make_aggregate_metrics(), tmp_path)
+        assert len(files) == 2
+        assert any(f.endswith(".pdf") for f in files)
+        assert any(f.endswith(".svg") for f in files)
+
+    def test_files_exist_on_disk(self, tmp_path: Path) -> None:
+        files = generate_fig_pass_rate(_make_aggregate_metrics(), tmp_path)
+        for f in files:
+            assert Path(f).is_file()
+            assert Path(f).stat().st_size > 0
+
+    def test_empty_input_returns_empty(self, tmp_path: Path) -> None:
+        files = generate_fig_pass_rate([], tmp_path)
+        assert files == []
+
+    def test_single_config(self, tmp_path: Path) -> None:
+        metrics = [_make_aggregate_metrics()[0]]
+        files = generate_fig_pass_rate(metrics, tmp_path)
+        assert len(files) == 2
+
+    def test_three_configs(self, tmp_path: Path) -> None:
+        metrics = _make_aggregate_metrics() + [
+            {
+                "config": "MCP_BASE",
+                "n_trials": 50,
+                "mean_reward": 0.450,
+                "se_reward": 0.033,
+                "pass_rate": 0.430,
+                "se_pass_rate": 0.069,
+                "median_duration_seconds": 150.0,
+                "mean_input_tokens": 30000.0,
+                "mean_output_tokens": 4000.0,
+            },
+        ]
+        files = generate_fig_pass_rate(metrics, tmp_path)
+        assert len(files) == 2
+
+
+class TestFigBenchmarkHeatmap:
+    def test_generates_pdf_and_svg(self, tmp_path: Path) -> None:
+        files = generate_fig_benchmark_heatmap(_make_per_benchmark(), tmp_path)
+        assert len(files) == 2
+        assert any(f.endswith(".pdf") for f in files)
+        assert any(f.endswith(".svg") for f in files)
+
+    def test_files_exist_on_disk(self, tmp_path: Path) -> None:
+        files = generate_fig_benchmark_heatmap(_make_per_benchmark(), tmp_path)
+        for f in files:
+            assert Path(f).is_file()
+            assert Path(f).stat().st_size > 0
+
+    def test_empty_input(self, tmp_path: Path) -> None:
+        files = generate_fig_benchmark_heatmap([], tmp_path)
+        assert files == []
+
+    def test_no_baseline_returns_empty(self, tmp_path: Path) -> None:
+        """If no benchmark has both BASELINE and MCP_FULL, no heatmap."""
+        data = [
+            {"benchmark": "test", "config": "MCP_FULL", "mean_reward": 0.5},
+        ]
+        files = generate_fig_benchmark_heatmap(data, tmp_path)
+        assert files == []
+
+    def test_multiple_benchmarks(self, tmp_path: Path) -> None:
+        data = _make_per_benchmark() + [
+            {
+                "benchmark": "swe-bench-pro",
+                "config": "MCP_FULL",
+                "n_trials": 25,
+                "pass_rate": 0.640,
+                "mean_reward": 0.640,
+                "se_reward": 0.048,
+            },
+        ]
+        files = generate_fig_benchmark_heatmap(data, tmp_path)
+        assert len(files) == 2
+
+
+class TestFigTokenOverhead:
+    def test_generates_pdf_and_svg(self, tmp_path: Path) -> None:
+        files = _generate_fig_token_overhead(
+            _make_efficiency(), _make_aggregate_metrics(), tmp_path
+        )
+        assert len(files) == 2
+
+    def test_files_exist(self, tmp_path: Path) -> None:
+        files = _generate_fig_token_overhead(
+            _make_efficiency(), _make_aggregate_metrics(), tmp_path
+        )
+        for f in files:
+            assert Path(f).is_file()
+
+    def test_empty_efficiency(self, tmp_path: Path) -> None:
+        files = _generate_fig_token_overhead([], _make_aggregate_metrics(), tmp_path)
+        assert files == []
+
+    def test_empty_aggregate(self, tmp_path: Path) -> None:
+        files = _generate_fig_token_overhead(_make_efficiency(), [], tmp_path)
+        assert files == []
+
+    def test_no_baseline_reward(self, tmp_path: Path) -> None:
+        agg = [{"config": "MCP_FULL", "mean_reward": 0.5}]
+        files = _generate_fig_token_overhead(_make_efficiency(), agg, tmp_path)
+        assert files == []
+
+    def test_baseline_only(self, tmp_path: Path) -> None:
+        """Only BASELINE in efficiency means no overhead points."""
+        eff = [_make_efficiency()[0]]
+        files = _generate_fig_token_overhead(eff, _make_aggregate_metrics(), tmp_path)
+        assert files == []
+
+
+class TestFigToolUtilization:
+    def test_generates_pdf_and_svg(self, tmp_path: Path) -> None:
+        files = generate_fig_tool_utilization(
+            _make_tool_utilization(), _make_benchmark_tool_usage(), tmp_path
+        )
+        assert len(files) == 2
+
+    def test_files_exist(self, tmp_path: Path) -> None:
+        files = generate_fig_tool_utilization(
+            _make_tool_utilization(), _make_benchmark_tool_usage(), tmp_path
+        )
+        for f in files:
+            assert Path(f).is_file()
+            assert Path(f).stat().st_size > 0
+
+    def test_empty_utilization(self, tmp_path: Path) -> None:
+        files = generate_fig_tool_utilization([], [], tmp_path)
+        assert files == []
+
+    def test_no_benchmark_tool_data(self, tmp_path: Path) -> None:
+        """Should still work, using mcp_calls as total fallback."""
+        files = generate_fig_tool_utilization(_make_tool_utilization(), [], tmp_path)
+        assert len(files) == 2
+
+
+class TestPublishFigures:
+    def test_creates_figures_directory(self, tmp_path: Path) -> None:
+        results = _make_full_analysis_results()
+        publish_figures(results, tmp_path)
+        assert (tmp_path / "figures").is_dir()
+
+    def test_writes_figure_files(self, tmp_path: Path) -> None:
+        results = _make_full_analysis_results()
+        files = publish_figures(results, tmp_path)
+        # 4 figures x 2 formats = 8 files
+        assert len(files) == 8
+
+    def test_all_expected_figure_names(self, tmp_path: Path) -> None:
+        results = _make_full_analysis_results()
+        files = publish_figures(results, tmp_path)
+        names = {Path(f).name for f in files}
+        expected = {
+            "fig_pass_rate.pdf", "fig_pass_rate.svg",
+            "fig_benchmark_heatmap.pdf", "fig_benchmark_heatmap.svg",
+            "fig_token_overhead.pdf", "fig_token_overhead.svg",
+            "fig_tool_utilization.pdf", "fig_tool_utilization.svg",
+        }
+        assert names == expected
+
+    def test_empty_analysis_results(self, tmp_path: Path) -> None:
+        empty: dict = {
+            "aggregate_metrics": [],
+            "per_benchmark": [],
+            "efficiency": [],
+            "tool_utilization": [],
+            "benchmark_tool_usage": [],
+        }
+        files = publish_figures(empty, tmp_path)
+        assert len(files) == 0
+
+    def test_partial_results(self, tmp_path: Path) -> None:
+        """Only aggregate_metrics present -> only pass rate figure."""
+        partial: dict = {
+            "aggregate_metrics": _make_aggregate_metrics(),
+            "per_benchmark": [],
+            "efficiency": [],
+            "tool_utilization": [],
+            "benchmark_tool_usage": [],
+        }
+        files = publish_figures(partial, tmp_path)
+        assert len(files) == 2
+        names = {Path(f).name for f in files}
+        assert "fig_pass_rate.pdf" in names
