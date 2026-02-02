@@ -1,27 +1,29 @@
 # Ralph Progress Log
-Started: Mon Feb  2 15:22:41 EST 2026
+Started: Mon Feb  2 16:01:56 EST 2026
 
 ## Codebase Patterns
-- Real runs store `.mcp.json` in `{trial}/agent/.mcp.json` and `{trial}/agent/sessions/.mcp.json`
-- Baseline runs have NO `.mcp.json`; deepsearch runs have server with `deepsearch` in URL; sourcegraph runs have `mcp/v1` URL
-- Folder name convention: `baseline/`, `deepsearch/`, `sourcegraph/`, `sourcegraph_hybrid/` as parent directories
-- Use `@dataclass(frozen=True)` for result objects; `str, Enum` for string enums
-- Existing mypy errors in orchestrator.py and task_schema.py are pre-existing; filter with `grep` on your file
-- Tests live in `tests/` (top-level) for `src/` modules, `dashboard/tests/` for dashboard modules
-- Pre-commit hook may false-positive on secrets; use `--no-verify` when files verified clean
+- Trial directories are identified by the presence of `result.json`; this is the primary discovery criterion
+- Runs directory structure: `runs_dir / category(official|experiment|troubleshooting) / experiment / config_type / timestamp / trial_dir/`
+- Harbor result.json timing fields are top-level (`started_at`, `finished_at`), agent timing in `agent_execution` dict
+- Token counts come from `task_metrics.json` (preferred) or `result.json.agent_result.n_input_tokens` etc.
+- Reward comes from `verifier/reward.txt` (preferred) or `result.json.verifier_result.rewards.reward`
+- `dict.get(key, default)` does NOT protect against `None` values -- always use `or default` pattern
+- All pipeline dataclasses must be `frozen=True` for immutability; use tuples not lists
+- Pre-existing mypy errors in cost_calculator.py, task_schema.py, orchestrator.py are unrelated to pipeline work
+- Test fixtures use `tmp_path` and helper functions like `_make_result_json()` for building trial structures
 
 ---
 
-## 2026-02-02 - US-001
-- Implemented `src/ingest/config_detector.py` with `AgentConfig` enum and `detect_agent_config()` function
-- Created `AgentConfigResult` frozen dataclass with detection metadata (source, mcp_json_path)
-- Detection strategy: parse `.mcp.json` first (agent/ then agent/sessions/), fall back to folder name convention
-- Updated `src/ingest/__init__.py` to export new classes
-- Files changed: `src/ingest/config_detector.py` (new), `src/ingest/__init__.py`, `tests/test_config_detector.py` (new)
+## 2026-02-02 - US-003
+- Implemented `scripts/ccb_pipeline/extract.py` with `__main__` entry point
+- Created `scripts/ccb_pipeline/__init__.py` package
+- Files created: `scripts/ccb_pipeline/__init__.py`, `scripts/ccb_pipeline/extract.py`, `tests/test_extract.py`
+- Walks runs directory recursively finding trial directories (via result.json presence)
+- Extracts: reward (reward.txt > result.json), timing (agent_execution > top-level), tokens (task_metrics.json > result.json), benchmark name, config detection (US-001), tool utilization (US-002)
+- CLI: `python -m scripts.ccb_pipeline.extract --runs-dir <path> --output <path>`
+- 42 unit tests, all passing; no typecheck errors in extract.py
 - **Learnings for future iterations:**
-  - `.mcp.json` format: `{"mcpServers": {"name": {"type": "http", "url": "...", "headers": {...}}}}`
-  - Deepsearch detection: check both server name AND URL for "deepsearch" string
-  - Runs directory: `~/evals/custom_agents/agents/claudecode/runs/{official,experiment,troubleshooting}/`
-  - Structure: `{experiment_name}/{agent_variant}/{timestamp}/{trial_instance}/`
-  - `sourcegraph_hybrid` maps to MCP_BASE (has sourcegraph but not deepsearch)
+  - Benchmark name can be extracted from task_metrics.json `benchmark` field or config.json `task.path` after `benchmarks/` segment
+  - Task name resolution: result.json `task_name` field is most reliable, then config.json `task.path` leaf name, then directory name
+  - The `_find_trials()` function recursively walks until it finds result.json; this handles variable nesting depths across different experiment types
 ---
