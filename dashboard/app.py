@@ -10,8 +10,8 @@ import os
 import sys
 
 # Add project root and dashboard to Python path for imports
-PROJECT_ROOT = Path(__file__).parent.parent
-DASHBOARD_ROOT = Path(__file__).parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DASHBOARD_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(DASHBOARD_ROOT))
 

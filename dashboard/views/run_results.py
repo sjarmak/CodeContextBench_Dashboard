@@ -24,6 +24,7 @@ from benchmark.trace_parser import TraceParser
 from ingest.harbor_parser import HarborResultParser
 from ingest.trajectory_parser import TrajectoryParser
 
+from dashboard.utils.benchmark_detection import detect_benchmark_set
 from dashboard.utils.task_list import render_task_list
 
 # Singleton parser for language inference
@@ -44,6 +45,28 @@ EXTERNAL_ARCHIVE_DIR = Path(
         os.path.expanduser("~/evals/custom_agents/agents/claudecode/archive/runs"),
     )
 )
+
+
+def _group_experiments_by_benchmark(experiments: list) -> dict[str, list]:
+    """Group experiments by their detected benchmark set name.
+
+    Uses detect_benchmark_set on each experiment's path to determine the
+    benchmark (LoCoBench, SWE-Bench Pro, etc.) and returns a dict mapping
+    benchmark display names to their experiments.
+
+    Args:
+        experiments: List of experiment dicts, each with a 'path' key.
+
+    Returns:
+        Dict mapping benchmark name to list of experiments. Empty groups
+        are excluded.
+    """
+    groups: dict[str, list] = {}
+    for exp in experiments:
+        exp_path = exp.get("path", "")
+        benchmark_name = detect_benchmark_set(exp_path)
+        groups[benchmark_name] = [*groups.get(benchmark_name, []), exp]
+    return groups
 
 
 def load_external_experiments() -> list:
@@ -199,13 +222,39 @@ def _scan_paired_mode_tasks(mode_dir: Path) -> list:
                     with open(result_file) as f:
                         result = json.load(f)
 
+                    # Load task_metrics.json if available
+                    task_metrics = {}
+                    task_metrics_file = task_dir / "task_metrics.json"
+                    if task_metrics_file.exists():
+                        try:
+                            with open(task_metrics_file) as f:
+                                task_metrics = json.load(f)
+                        except Exception:
+                            pass
+
                     # Extract reward from Harbor format
                     verifier_result = result.get("verifier_result") or {}
                     rewards = verifier_result.get("rewards") or {}
                     reward = rewards.get("reward", 0.0)
 
-                    # Extract token usage
+                    # Extract token usage: prefer task_metrics
                     agent_result = result.get("agent_result") or {}
+                    input_tokens = (
+                        task_metrics.get("input_tokens")
+                        or agent_result.get("n_input_tokens")
+                        or 0
+                    )
+                    output_tokens = (
+                        task_metrics.get("output_tokens")
+                        or agent_result.get("n_output_tokens")
+                        or 0
+                    )
+                    cache_creation = (
+                        task_metrics.get("cache_creation_tokens")
+                        or agent_result.get("n_cache_tokens")
+                        or 0
+                    )
+                    cache_read = task_metrics.get("cache_read_tokens") or 0
 
                     # Timing is at top level in Harbor format (not nested in timing dict)
                     started_at = result.get("started_at", "")
@@ -221,17 +270,23 @@ def _scan_paired_mode_tasks(mode_dir: Path) -> list:
                             "task_name": task_name,
                             "trial_name": result.get("trial_name", task_dir.name),
                             "reward": reward,
-                            "status": "completed"
-                            if result.get("verifier_result")
-                            else "error",
+                            "status": task_metrics.get("status")
+                            or (
+                                "completed"
+                                if result.get("verifier_result")
+                                else "error"
+                            ),
                             "error": result.get("exception_info"),
-                            "input_tokens": agent_result.get("n_input_tokens", 0),
-                            "output_tokens": agent_result.get("n_output_tokens", 0),
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                            "cache_creation_tokens": cache_creation,
+                            "cache_read_tokens": cache_read,
                             "started_at": started_at,
                             "finished_at": finished_at,
                             "instance_dir": task_dir,
                             "result_path": str(result_file),
                             "task_language": task_language,
+                            "task_metrics": task_metrics,
                         }
                     )
                 except Exception:
@@ -267,7 +322,17 @@ def load_external_tasks(exp_dir: Path, result: dict) -> list:
             try:
                 with open(instance_result_file) as f:
                     instance_result = json.load(f)
-            except:
+            except Exception:
+                pass
+
+        # Load task_metrics.json if exists (richer metrics from completed runs)
+        task_metrics = {}
+        task_metrics_file = item / "task_metrics.json"
+        if task_metrics_file.exists():
+            try:
+                with open(task_metrics_file) as f:
+                    task_metrics = json.load(f)
+            except Exception:
                 pass
 
         # Find trace file (claude-code.txt for SWEBench agents)
@@ -288,15 +353,29 @@ def load_external_tasks(exp_dir: Path, result: dict) -> list:
         # Extract language from task name
         task_language = _harbor_parser._infer_language_from_task_id(instance_name)
 
+        # Extract token info: prefer task_metrics (has cache breakdown)
+        input_tokens = task_metrics.get("input_tokens") or 0
+        output_tokens = task_metrics.get("output_tokens") or 0
+        cache_creation = task_metrics.get("cache_creation_tokens") or 0
+        cache_read = task_metrics.get("cache_read_tokens") or 0
+
+        # Fall back to result.json agent_result if no task_metrics
+        if not input_tokens:
+            agent_result = instance_result.get("agent_result") or {}
+            input_tokens = agent_result.get("n_input_tokens") or 0
+            output_tokens = agent_result.get("n_output_tokens") or 0
+            cache_creation = agent_result.get("n_cache_tokens") or 0
+
         tasks.append(
             {
                 "task_name": instance_name,
                 "agent_name": list(evals.keys())[0] if evals else "unknown",
-                "status": "completed",
-                "reward": reward,
-                "total_tokens": instance_result.get("metrics", {}).get(
-                    "total_tokens", "N/A"
-                ),
+                "status": task_metrics.get("status") or "completed",
+                "reward": task_metrics.get("reward") if task_metrics else reward,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cache_creation_tokens": cache_creation,
+                "cache_read_tokens": cache_read,
                 "execution_time": instance_result.get("execution_time", 0),
                 "instance_dir": item,
                 "claude_file": claude_file if claude_file.exists() else None,
@@ -307,6 +386,7 @@ def load_external_tasks(exp_dir: Path, result: dict) -> list:
                 if instance_result_file.exists()
                 else None,
                 "task_language": task_language,
+                "task_metrics": task_metrics,
             }
         )
 
@@ -422,7 +502,7 @@ def _show_individual_mode(filtered_experiments: list) -> None:
         exp_options.append(f"{exp_type} {exp['name']}")
 
     # Experiment selector
-    exp_names = [exp["name"] for exp in external_experiments]
+    exp_names = [exp["name"] for exp in filtered_experiments]
 
     selected_idx = st.selectbox(
         "Select Experiment",
@@ -433,7 +513,7 @@ def _show_individual_mode(filtered_experiments: list) -> None:
     if selected_idx is None:
         return
 
-    selected_exp = external_experiments[selected_idx]
+    selected_exp = filtered_experiments[selected_idx]
 
     st.markdown("---")
 
@@ -480,6 +560,9 @@ def show_paired_experiment(exp_data):
         rewards = [t.get("reward", 0) for t in tasks if t.get("reward") is not None]
         input_tokens = sum(t.get("input_tokens") or 0 for t in tasks)
         output_tokens = sum(t.get("output_tokens") or 0 for t in tasks)
+        cache_creation = sum(t.get("cache_creation_tokens") or 0 for t in tasks)
+        cache_read = sum(t.get("cache_read_tokens") or 0 for t in tasks)
+        new_input = input_tokens - cache_creation - cache_read
 
         comparison_data.append(
             {
@@ -490,8 +573,10 @@ def show_paired_experiment(exp_data):
                 else "N/A",
                 "Min Reward": f"{min(rewards):.4f}" if rewards else "N/A",
                 "Max Reward": f"{max(rewards):.4f}" if rewards else "N/A",
-                "Input Tokens": f"{input_tokens:,}",
+                "New Input Tokens": f"{new_input:,}",
                 "Output Tokens": f"{output_tokens:,}",
+                "Cache Create": f"{cache_creation:,}",
+                "Cache Read": f"{cache_read:,}",
             }
         )
 
@@ -693,27 +778,96 @@ def show_paired_task_detail(task):
             )
 
         # Token metrics row
-        col1, col2, col3, col4 = st.columns(4)
+        input_tokens = task.get("input_tokens") or 0
+        output_tokens = task.get("output_tokens") or 0
+        cache_creation = task.get("cache_creation_tokens") or 0
+        cache_read = task.get("cache_read_tokens") or 0
+        new_input = max(input_tokens - cache_creation - cache_read, 0)
+
+        col1, col2, col3, col4, col5 = st.columns(5)
 
         with col1:
-            input_tokens = task.get("input_tokens") or 0
-            st.metric("Input Tokens", f"{input_tokens:,}")
+            st.metric("New Input Tokens", f"{new_input:,}")
 
         with col2:
-            output_tokens = task.get("output_tokens") or 0
             st.metric("Output Tokens", f"{output_tokens:,}")
 
         with col3:
+            st.metric("Cache Create", f"{cache_creation:,}")
+
+        with col4:
+            st.metric("Cache Read", f"{cache_read:,}")
+
+        with col5:
             env_setup_time = timing.get("environment_setup", 0)
             st.metric(
                 "Env Setup", f"{env_setup_time:.1f}s" if env_setup_time else "N/A"
             )
 
-        with col4:
-            agent_setup_time = timing.get("agent_setup", 0)
-            st.metric(
-                "Agent Setup", f"{agent_setup_time:.1f}s" if agent_setup_time else "N/A"
-            )
+        # Task metrics details (from task_metrics.json)
+        tm = task.get("task_metrics") or {}
+        if tm:
+            with st.expander("Task Metrics", expanded=False):
+                tm_col1, tm_col2, tm_col3, tm_col4 = st.columns(4)
+
+                with tm_col1:
+                    st.markdown("**Task Info**")
+                    st.write(f"- Benchmark: {tm.get('benchmark', 'N/A')}")
+                    st.write(f"- Config: {tm.get('config_name', 'N/A')}")
+                    st.write(f"- Language: {tm.get('language', 'N/A')}")
+                    st.write(f"- Difficulty: {tm.get('difficulty', 'N/A')}")
+                    st.write(f"- SDLC Phase: {tm.get('sdlc_phase', 'N/A')}")
+                    repo = tm.get("repo", "")
+                    if repo:
+                        st.write(f"- Repo: {repo}")
+
+                with tm_col2:
+                    st.markdown("**Timing**")
+                    wall = tm.get("wall_clock_seconds") or 0
+                    agent_exec = tm.get("agent_execution_seconds") or 0
+                    env_s = tm.get("environment_setup_seconds") or 0
+                    verifier_s = tm.get("verifier_seconds") or 0
+                    st.write(f"- Wall clock: {wall:.1f}s")
+                    st.write(f"- Agent execution: {agent_exec:.1f}s")
+                    st.write(f"- Env setup: {env_s:.1f}s")
+                    st.write(f"- Verifier: {verifier_s:.1f}s")
+
+                with tm_col3:
+                    st.markdown("**Tool Calls**")
+                    st.write(f"- Total: {tm.get('tool_calls_total', 'N/A')}")
+                    st.write(f"- Local: {tm.get('tool_calls_local', 'N/A')}")
+                    st.write(f"- MCP: {tm.get('tool_calls_mcp', 'N/A')}")
+                    mcp_ratio = tm.get("mcp_ratio")
+                    if mcp_ratio is not None:
+                        st.write(f"- MCP ratio: {mcp_ratio:.1%}")
+                    by_name = tm.get("tool_calls_by_name") or {}
+                    if by_name:
+                        st.markdown("**By tool:**")
+                        for tool, count in sorted(
+                            by_name.items(), key=lambda x: x[1], reverse=True
+                        ):
+                            st.write(f"- {tool}: {count}")
+
+                with tm_col4:
+                    st.markdown("**MCP Benefit Score**")
+                    score = tm.get("mcp_benefit_score")
+                    if score is not None:
+                        st.write(f"- Overall: {score:.4f}")
+                    breakdown = tm.get("mcp_benefit_breakdown") or {}
+                    for key, val in breakdown.items():
+                        label = key.replace("_", " ").title()
+                        st.write(f"- {label}: {val}")
+                    files_mod = tm.get("files_modified")
+                    lines_add = tm.get("lines_added")
+                    lines_rem = tm.get("lines_removed")
+                    if any(v is not None for v in [files_mod, lines_add, lines_rem]):
+                        st.markdown("**Code Changes**")
+                        if files_mod is not None:
+                            st.write(f"- Files modified: {files_mod}")
+                        if lines_add is not None:
+                            st.write(f"- Lines added: {lines_add}")
+                        if lines_rem is not None:
+                            st.write(f"- Lines removed: {lines_rem}")
 
     st.markdown("---")
 

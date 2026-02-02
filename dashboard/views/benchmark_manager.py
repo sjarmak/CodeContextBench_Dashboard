@@ -78,6 +78,74 @@ def show_benchmark_details(benchmark: dict):
     show_validation_section(benchmark)
 
 
+def _load_ccb_tasks(folder_name: str) -> list:
+    """Load CCB benchmark tasks from selected_benchmark_tasks.json."""
+    import json as _json
+
+    tasks_file = Path(__file__).parent.parent.parent / "data" / "selected_benchmark_tasks.json"
+    if not tasks_file.exists():
+        return []
+
+    try:
+        with open(tasks_file) as f:
+            data = _json.load(f)
+        return [
+            t for t in data.get("tasks", [])
+            if t.get("benchmark") == folder_name
+        ]
+    except Exception:
+        return []
+
+
+def _show_ccb_tasks(benchmark: dict):
+    """Display tasks for a CCB adapter benchmark from the task registry."""
+    import json as _json
+
+    folder_name = benchmark["folder_name"]
+    tasks = _load_ccb_tasks(folder_name)
+
+    # Show metadata
+    if benchmark.get("metadata"):
+        metadata = _json.loads(benchmark["metadata"]) if isinstance(benchmark["metadata"], str) else benchmark["metadata"]
+        if metadata.get("languages"):
+            st.write(f"**Languages:** {', '.join(metadata['languages'])}")
+        if metadata.get("sdlc_phases"):
+            st.write(f"**SDLC Phases:** {', '.join(metadata['sdlc_phases'])}")
+        if metadata.get("difficulties"):
+            st.write(f"**Difficulties:** {', '.join(metadata['difficulties'])}")
+
+    if not tasks:
+        st.warning("No tasks found in task registry for this benchmark.")
+        return
+
+    st.write(f"**Total Tasks:** {len(tasks)}")
+
+    # Build task table
+    task_data = []
+    for t in tasks:
+        task_data.append({
+            "Task ID": t.get("task_id", ""),
+            "SDLC Phase": t.get("sdlc_phase", ""),
+            "Language": t.get("language", ""),
+            "Difficulty": t.get("difficulty", ""),
+            "Repo": t.get("repo", ""),
+            "MCP Benefit": f"{t.get('mcp_benefit_score', 0):.2f}",
+        })
+
+    st.dataframe(task_data, use_container_width=True, hide_index=True)
+
+    # Show MCP benefit breakdown in expander
+    with st.expander("MCP Benefit Details"):
+        for t in tasks:
+            breakdown = t.get("mcp_breakdown", {})
+            if breakdown:
+                st.markdown(f"**{t.get('task_id', '')}** (score: {t.get('mcp_benefit_score', 0):.2f})")
+                cols = st.columns(4)
+                for i, (key, val) in enumerate(breakdown.items()):
+                    label = key.replace("_", " ").title()
+                    cols[i % 4].write(f"{label}: {val}")
+
+
 def show_tasks_section(benchmark: dict):
     """Show tasks list and task profiles."""
     st.subheader("Tasks")
@@ -130,8 +198,13 @@ def show_tasks_section(benchmark: dict):
         st.write("**Usage:** Go to 'Evaluation Runner' to select and run tasks from this dataset.")
         return
 
-    # Local benchmark - show tasks from folder
+    # CCB benchmark - load tasks from selected_benchmark_tasks.json
+    is_ccb = benchmark.get("adapter_type") == "ccb"
     benchmark_path = Path("benchmarks") / benchmark["folder_name"]
+
+    if is_ccb and not benchmark_path.exists():
+        _show_ccb_tasks(benchmark)
+        return
 
     if not benchmark_path.exists():
         st.error(f"Benchmark directory not found: {benchmark_path}")
