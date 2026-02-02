@@ -9,13 +9,19 @@ from pathlib import Path
 import pytest
 
 from scripts.ccb_pipeline.analyze import (
+    BenchmarkConfigMetrics,
+    BenchmarkSignificanceResult,
     ConfigAggregateMetrics,
     EffectSizeResult,
     PairwiseTestResult,
+    SDLCPhaseMetrics,
     _cohens_d,
     _flatten_trials,
+    _get_trial_benchmark,
+    _group_by_benchmark,
     _group_by_config,
     _interpret_cohens_d,
+    _is_mcp_improvement,
     _proportion_z_test,
     _safe_mean,
     _safe_median,
@@ -25,6 +31,9 @@ from scripts.ccb_pipeline.analyze import (
     compute_aggregate_metrics,
     compute_effect_sizes,
     compute_pairwise_tests,
+    compute_per_benchmark_metrics,
+    compute_per_benchmark_significance,
+    compute_per_sdlc_phase_metrics,
     main,
 )
 
@@ -466,3 +475,275 @@ class TestCli:
 
         data = json.loads(output_file.read_text(encoding="utf-8"))
         assert data["aggregate_metrics"] == []
+
+
+# ---------------------------------------------------------------------------
+# Per-benchmark breakdown tests (US-006)
+# ---------------------------------------------------------------------------
+
+
+class TestGetTrialBenchmark:
+    def test_uses_benchmark_field(self) -> None:
+        trial = _make_trial(benchmark="locobench")
+        assert _get_trial_benchmark(trial) == "locobench"
+
+    def test_falls_back_to_task_name(self) -> None:
+        trial = _make_trial(benchmark="")
+        trial["task_name"] = "benchmarks/swe-bench-pro/task-001"
+        assert _get_trial_benchmark(trial) == "swe-bench-pro"
+
+    def test_unknown_when_no_info(self) -> None:
+        trial = _make_trial(benchmark="")
+        trial["task_name"] = ""
+        assert _get_trial_benchmark(trial) == "unknown"
+
+
+class TestGroupByBenchmark:
+    def test_groups_correctly(self) -> None:
+        trials = [
+            _make_trial(benchmark="locobench"),
+            _make_trial(benchmark="swe-bench-pro"),
+            _make_trial(benchmark="locobench"),
+        ]
+        groups = _group_by_benchmark(trials)
+        assert len(groups["locobench"]) == 2
+        assert len(groups["swe-bench-pro"]) == 1
+
+
+class TestIsMcpImprovement:
+    def test_mcp_full_improves_over_baseline(self) -> None:
+        assert _is_mcp_improvement("BASELINE", "MCP_FULL", 0.5, 0.8) is True
+
+    def test_baseline_better_than_mcp(self) -> None:
+        assert _is_mcp_improvement("BASELINE", "MCP_FULL", 0.8, 0.5) is False
+
+    def test_mcp_full_over_mcp_base(self) -> None:
+        assert _is_mcp_improvement("MCP_BASE", "MCP_FULL", 0.5, 0.8) is True
+
+    def test_unknown_configs(self) -> None:
+        # Unknown configs default to rank 0; equal rank means config_a is "higher"
+        assert _is_mcp_improvement("UNKNOWN_A", "UNKNOWN_B", 0.7, 0.3) is True
+
+
+class TestComputePerBenchmarkMetrics:
+    def test_single_benchmark_two_configs(self) -> None:
+        trials = [
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.5, pass_fail="pass"),
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.3, pass_fail="fail"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=0.8, pass_fail="pass"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=1.0, pass_fail="pass"),
+        ]
+        result = compute_per_benchmark_metrics(trials)
+        assert len(result) == 2  # 1 benchmark x 2 configs
+
+        baseline = [r for r in result if r.config == "BASELINE"][0]
+        assert baseline.benchmark == "locobench"
+        assert baseline.n_trials == 2
+        assert baseline.pass_rate == 0.5
+        assert abs(baseline.mean_reward - 0.4) < 1e-10
+
+        mcp = [r for r in result if r.config == "MCP_FULL"][0]
+        assert mcp.pass_rate == 1.0
+        assert abs(mcp.mean_reward - 0.9) < 1e-10
+
+    def test_multiple_benchmarks(self) -> None:
+        trials = [
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=1.0),
+            _make_trial(benchmark="swe-bench-pro", agent_config="BASELINE", reward=0.5),
+        ]
+        result = compute_per_benchmark_metrics(trials)
+        benchmarks = {r.benchmark for r in result}
+        assert benchmarks == {"locobench", "swe-bench-pro"}
+
+    def test_empty_trials(self) -> None:
+        result = compute_per_benchmark_metrics([])
+        assert result == []
+
+
+class TestComputePerBenchmarkSignificance:
+    def test_significant_difference(self) -> None:
+        trials = [
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.0, pass_fail="fail"),
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.0, pass_fail="fail"),
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.0, pass_fail="fail"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=1.0, pass_fail="pass"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=1.0, pass_fail="pass"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=1.0, pass_fail="pass"),
+        ]
+        result = compute_per_benchmark_significance(trials)
+        # Should have pass_rate and reward tests
+        metrics = {r.metric for r in result}
+        assert "pass_rate" in metrics
+        assert "reward" in metrics
+
+        # MCP_FULL should show improvement
+        for r in result:
+            if r.significant:
+                assert r.mcp_improves is True
+
+    def test_no_significance_when_similar(self) -> None:
+        trials = [
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.5, pass_fail="pass"),
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.5, pass_fail="pass"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=0.5, pass_fail="pass"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=0.5, pass_fail="pass"),
+        ]
+        result = compute_per_benchmark_significance(trials)
+        for r in result:
+            assert r.mcp_improves is False
+
+    def test_multiple_benchmarks_separate(self) -> None:
+        trials = [
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.0, pass_fail="fail"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=1.0, pass_fail="pass"),
+            _make_trial(benchmark="swe-bench-pro", agent_config="BASELINE", reward=0.0, pass_fail="fail"),
+            _make_trial(benchmark="swe-bench-pro", agent_config="MCP_FULL", reward=1.0, pass_fail="pass"),
+        ]
+        result = compute_per_benchmark_significance(trials)
+        benchmarks = {r.benchmark for r in result}
+        assert "locobench" in benchmarks
+        assert "swe-bench-pro" in benchmarks
+
+    def test_single_config_no_tests(self) -> None:
+        trials = [
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.5),
+        ]
+        result = compute_per_benchmark_significance(trials)
+        assert result == []
+
+    def test_empty_trials(self) -> None:
+        result = compute_per_benchmark_significance([])
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Per-SDLC-phase breakdown tests (US-006)
+# ---------------------------------------------------------------------------
+
+
+class TestComputePerSdlcPhaseMetrics:
+    def test_single_phase(self) -> None:
+        # locobench maps to Implementation + Code Review
+        trials = [
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.5, pass_fail="pass"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=0.8, pass_fail="pass"),
+        ]
+        result = compute_per_sdlc_phase_metrics(trials)
+        phases = {r.sdlc_phase for r in result}
+        assert "Implementation" in phases
+        assert "Code Review" in phases
+
+    def test_delta_computation(self) -> None:
+        trials = [
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.4, pass_fail="fail"),
+            _make_trial(benchmark="locobench", agent_config="MCP_FULL", reward=0.8, pass_fail="pass"),
+        ]
+        result = compute_per_sdlc_phase_metrics(trials)
+
+        baseline_entries = [r for r in result if r.config == "BASELINE"]
+        mcp_entries = [r for r in result if r.config == "MCP_FULL"]
+
+        for bl in baseline_entries:
+            assert bl.mean_reward_delta is None  # No delta for baseline
+
+        for mcp in mcp_entries:
+            assert mcp.mean_reward_delta is not None
+            assert abs(mcp.mean_reward_delta - 0.4) < 1e-10  # 0.8 - 0.4
+
+    def test_trial_in_multiple_phases(self) -> None:
+        # swe-bench-pro maps to Implementation + Testing
+        trials = [
+            _make_trial(benchmark="swe-bench-pro", agent_config="BASELINE", reward=1.0, pass_fail="pass"),
+        ]
+        result = compute_per_sdlc_phase_metrics(trials)
+        phases = {r.sdlc_phase for r in result}
+        assert "Implementation" in phases
+        assert "Testing" in phases
+        # Same trial counted in both phases
+        for r in result:
+            assert r.n_trials == 1
+
+    def test_aggregation_across_benchmarks(self) -> None:
+        # Both locobench and big_code_mcp map to Implementation
+        trials = [
+            _make_trial(benchmark="locobench", agent_config="BASELINE", reward=0.5, pass_fail="pass"),
+            _make_trial(benchmark="big_code_mcp", agent_config="BASELINE", reward=0.3, pass_fail="fail"),
+        ]
+        result = compute_per_sdlc_phase_metrics(trials)
+        impl_baseline = [
+            r for r in result if r.sdlc_phase == "Implementation" and r.config == "BASELINE"
+        ]
+        assert len(impl_baseline) == 1
+        assert impl_baseline[0].n_trials == 2
+        assert abs(impl_baseline[0].mean_reward - 0.4) < 1e-10
+
+    def test_empty_trials(self) -> None:
+        result = compute_per_sdlc_phase_metrics([])
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Full analysis with per-benchmark/SDLC (US-006)
+# ---------------------------------------------------------------------------
+
+
+class TestAnalyzeWithBreakdowns:
+    def test_includes_per_benchmark_sections(self) -> None:
+        trials = [
+            _make_trial(agent_config="BASELINE", benchmark="locobench", reward=0.0, pass_fail="fail"),
+            _make_trial(agent_config="BASELINE", benchmark="locobench", reward=0.5, pass_fail="partial"),
+            _make_trial(agent_config="MCP_FULL", benchmark="locobench", reward=1.0, pass_fail="pass"),
+            _make_trial(agent_config="MCP_FULL", benchmark="locobench", reward=0.8, pass_fail="partial"),
+        ]
+        cats = _make_categories(trials)
+        result = analyze(cats)
+
+        assert "per_benchmark" in result
+        assert "per_benchmark_significance" in result
+        assert "per_sdlc_phase" in result
+
+        assert len(result["per_benchmark"]) > 0
+        assert len(result["per_sdlc_phase"]) > 0
+
+        # Verify per_benchmark structure
+        pb = result["per_benchmark"][0]
+        assert "benchmark" in pb
+        assert "config" in pb
+        assert "pass_rate" in pb
+        assert "mean_reward" in pb
+        assert "se_reward" in pb
+
+    def test_empty_returns_all_sections(self) -> None:
+        result = analyze([])
+        assert result["per_benchmark"] == []
+        assert result["per_benchmark_significance"] == []
+        assert result["per_sdlc_phase"] == []
+
+    def test_cli_output_includes_new_sections(self, tmp_path: Path) -> None:
+        trials = [
+            _make_trial(agent_config="BASELINE", benchmark="locobench", reward=0.0, pass_fail="fail"),
+            _make_trial(agent_config="BASELINE", benchmark="locobench", reward=1.0, pass_fail="pass"),
+            _make_trial(agent_config="MCP_FULL", benchmark="locobench", reward=1.0, pass_fail="pass"),
+            _make_trial(agent_config="MCP_FULL", benchmark="locobench", reward=0.5, pass_fail="partial"),
+        ]
+        input_file = tmp_path / "metrics.json"
+        input_file.write_text(json.dumps(_make_categories(trials)), encoding="utf-8")
+        output_file = tmp_path / "results.json"
+
+        result = main(["--input", str(input_file), "--output", str(output_file)])
+        assert result == 0
+
+        data = json.loads(output_file.read_text(encoding="utf-8"))
+        assert "per_benchmark" in data
+        assert "per_benchmark_significance" in data
+        assert "per_sdlc_phase" in data
+
+    def test_json_serializable_with_new_sections(self) -> None:
+        trials = [
+            _make_trial(agent_config="BASELINE", benchmark="swe-bench-pro", reward=0.0),
+            _make_trial(agent_config="BASELINE", benchmark="swe-bench-pro", reward=1.0),
+            _make_trial(agent_config="MCP_FULL", benchmark="swe-bench-pro", reward=1.0),
+            _make_trial(agent_config="MCP_FULL", benchmark="swe-bench-pro", reward=0.5),
+        ]
+        result = analyze(_make_categories(trials))
+        json.dumps(result)  # Should not raise

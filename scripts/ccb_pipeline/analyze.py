@@ -2,7 +2,8 @@
 Statistical analysis step for the CCB pipeline.
 
 Consumes experiment_metrics.json and produces analysis_results.json
-with aggregate metrics per configuration and pairwise statistical tests.
+with aggregate metrics per configuration, pairwise statistical tests,
+per-benchmark breakdowns, and per-SDLC-phase analysis.
 
 Usage:
     python -m scripts.ccb_pipeline.analyze --input experiment_metrics.json --output analysis_results.json
@@ -20,6 +21,8 @@ from itertools import combinations
 from pathlib import Path
 
 import scipy.stats
+
+from scripts.ccb_pipeline.sdlc_mapping import get_benchmark_name, get_sdlc_phases
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +69,45 @@ class EffectSizeResult:
     metric: str
     cohens_d: float
     interpretation: str  # negligible / small / medium / large
+
+
+@dataclass(frozen=True)
+class BenchmarkConfigMetrics:
+    """Per-benchmark, per-config metrics."""
+
+    benchmark: str
+    config: str
+    n_trials: int
+    pass_rate: float
+    mean_reward: float
+    se_reward: float
+
+
+@dataclass(frozen=True)
+class BenchmarkSignificanceResult:
+    """Significance test result for a benchmark between two configs."""
+
+    benchmark: str
+    config_a: str
+    config_b: str
+    metric: str
+    test_name: str
+    statistic: float
+    p_value: float
+    significant: bool
+    mcp_improves: bool  # True if MCP config has better outcome
+
+
+@dataclass(frozen=True)
+class SDLCPhaseMetrics:
+    """Per-SDLC-phase, per-config aggregated metrics."""
+
+    sdlc_phase: str
+    config: str
+    n_trials: int
+    pass_rate: float
+    mean_reward: float
+    mean_reward_delta: float | None  # delta vs BASELINE, None for BASELINE itself
 
 
 # ---------------------------------------------------------------------------
@@ -409,18 +451,250 @@ def compute_effect_sizes(
 
 
 # ---------------------------------------------------------------------------
+# Per-benchmark breakdown
+# ---------------------------------------------------------------------------
+
+
+def _get_trial_benchmark(trial: dict) -> str:
+    """Extract benchmark name from a trial dict.
+
+    Tries the 'benchmark' field first, then falls back to extracting
+    from task_name using get_benchmark_name().
+    """
+    benchmark = trial.get("benchmark") or ""
+    if benchmark and benchmark != "unknown":
+        return benchmark
+    task_name = trial.get("task_name") or ""
+    return get_benchmark_name(task_name)
+
+
+def _group_by_benchmark(trials: list[dict]) -> dict[str, list[dict]]:
+    """Group trials by benchmark name."""
+    groups: dict[str, list[dict]] = {}
+    for trial in trials:
+        benchmark = _get_trial_benchmark(trial)
+        if benchmark not in groups:
+            groups[benchmark] = []
+        groups[benchmark].append(trial)
+    return groups
+
+
+def compute_per_benchmark_metrics(
+    trials: list[dict],
+) -> list[BenchmarkConfigMetrics]:
+    """Compute per-benchmark, per-config metrics."""
+    results: list[BenchmarkConfigMetrics] = []
+    benchmark_groups = _group_by_benchmark(trials)
+
+    for benchmark in sorted(benchmark_groups.keys()):
+        config_groups = _group_by_config(benchmark_groups[benchmark])
+        for config in sorted(config_groups.keys()):
+            config_trials = config_groups[config]
+            n = len(config_trials)
+            rewards = [
+                t["reward"] for t in config_trials if t.get("reward") is not None
+            ]
+            pass_count = sum(
+                1 for t in config_trials if t.get("pass_fail") == "pass"
+            )
+            pass_rate = pass_count / n if n > 0 else 0.0
+
+            results.append(
+                BenchmarkConfigMetrics(
+                    benchmark=benchmark,
+                    config=config,
+                    n_trials=n,
+                    pass_rate=pass_rate,
+                    mean_reward=_safe_mean(rewards),
+                    se_reward=_safe_se(rewards),
+                )
+            )
+
+    return results
+
+
+def compute_per_benchmark_significance(
+    trials: list[dict],
+) -> list[BenchmarkSignificanceResult]:
+    """Run pairwise significance tests per benchmark."""
+    results: list[BenchmarkSignificanceResult] = []
+    benchmark_groups = _group_by_benchmark(trials)
+
+    for benchmark in sorted(benchmark_groups.keys()):
+        config_groups = _group_by_config(benchmark_groups[benchmark])
+        configs = sorted(config_groups.keys())
+
+        for config_a, config_b in combinations(configs, 2):
+            trials_a = config_groups[config_a]
+            trials_b = config_groups[config_b]
+
+            # Pass rate z-test
+            n_a = len(trials_a)
+            n_b = len(trials_b)
+            pass_a = sum(1 for t in trials_a if t.get("pass_fail") == "pass")
+            pass_b = sum(1 for t in trials_b if t.get("pass_fail") == "pass")
+
+            if n_a > 0 and n_b > 0:
+                z_stat, z_p = _proportion_z_test(pass_a, n_a, pass_b, n_b)
+                rate_a = pass_a / n_a
+                rate_b = pass_b / n_b
+                mcp_improves = _is_mcp_improvement(
+                    config_a, config_b, rate_a, rate_b
+                )
+                is_sig = bool(z_p < 0.05)
+                results.append(
+                    BenchmarkSignificanceResult(
+                        benchmark=benchmark,
+                        config_a=config_a,
+                        config_b=config_b,
+                        metric="pass_rate",
+                        test_name="proportion_z_test",
+                        statistic=float(z_stat),
+                        p_value=float(z_p),
+                        significant=is_sig,
+                        mcp_improves=bool(mcp_improves and is_sig),
+                    )
+                )
+
+            # Reward t-test
+            rewards_a = [
+                t["reward"] for t in trials_a if t.get("reward") is not None
+            ]
+            rewards_b = [
+                t["reward"] for t in trials_b if t.get("reward") is not None
+            ]
+
+            if len(rewards_a) >= 2 and len(rewards_b) >= 2:
+                stat, p_val = scipy.stats.ttest_ind(
+                    rewards_a, rewards_b, equal_var=False
+                )
+                mean_a = _safe_mean(rewards_a)
+                mean_b = _safe_mean(rewards_b)
+                mcp_improves = _is_mcp_improvement(
+                    config_a, config_b, mean_a, mean_b
+                )
+                is_sig = bool(float(p_val) < 0.05)
+                results.append(
+                    BenchmarkSignificanceResult(
+                        benchmark=benchmark,
+                        config_a=config_a,
+                        config_b=config_b,
+                        metric="reward",
+                        test_name="welch_t_test",
+                        statistic=float(stat),
+                        p_value=float(p_val),
+                        significant=is_sig,
+                        mcp_improves=bool(mcp_improves and is_sig),
+                    )
+                )
+
+    return results
+
+
+def _is_mcp_improvement(
+    config_a: str, config_b: str, value_a: float, value_b: float
+) -> bool:
+    """Determine if the MCP config shows improvement over BASELINE.
+
+    When comparing two MCP configs, returns True if the 'higher' MCP
+    config (MCP_FULL > MCP_BASE) has a better value.
+    """
+    mcp_order = {"BASELINE": 0, "MCP_BASE": 1, "MCP_FULL": 2}
+    rank_a = mcp_order.get(config_a, 0)
+    rank_b = mcp_order.get(config_b, 0)
+
+    if rank_b > rank_a:
+        # config_b is the more advanced MCP config
+        return value_b > value_a
+    # config_a is the more advanced MCP config
+    return value_a > value_b
+
+
+# ---------------------------------------------------------------------------
+# Per-SDLC-phase breakdown
+# ---------------------------------------------------------------------------
+
+
+def compute_per_sdlc_phase_metrics(
+    trials: list[dict],
+) -> list[SDLCPhaseMetrics]:
+    """Compute per-SDLC-phase, per-config aggregated metrics.
+
+    A trial can belong to multiple SDLC phases (e.g. "Implementation" and "Testing").
+    """
+    # Build phase -> config -> trials mapping
+    phase_config_trials: dict[str, dict[str, list[dict]]] = {}
+
+    for trial in trials:
+        benchmark = _get_trial_benchmark(trial)
+        phases = get_sdlc_phases(benchmark)
+        config = trial.get("agent_config", "UNKNOWN")
+
+        for phase in phases:
+            if phase not in phase_config_trials:
+                phase_config_trials[phase] = {}
+            if config not in phase_config_trials[phase]:
+                phase_config_trials[phase][config] = []
+            phase_config_trials[phase][config].append(trial)
+
+    # Compute baseline mean reward per phase for delta calculation
+    baseline_mean_by_phase: dict[str, float] = {}
+    for phase, config_trials in phase_config_trials.items():
+        if "BASELINE" in config_trials:
+            bl_rewards = [
+                t["reward"]
+                for t in config_trials["BASELINE"]
+                if t.get("reward") is not None
+            ]
+            baseline_mean_by_phase[phase] = _safe_mean(bl_rewards)
+
+    results: list[SDLCPhaseMetrics] = []
+
+    for phase in sorted(phase_config_trials.keys()):
+        for config in sorted(phase_config_trials[phase].keys()):
+            phase_trials = phase_config_trials[phase][config]
+            n = len(phase_trials)
+            rewards = [
+                t["reward"] for t in phase_trials if t.get("reward") is not None
+            ]
+            pass_count = sum(
+                1 for t in phase_trials if t.get("pass_fail") == "pass"
+            )
+            pass_rate = pass_count / n if n > 0 else 0.0
+            mean_reward = _safe_mean(rewards)
+
+            delta: float | None = None
+            if config != "BASELINE" and phase in baseline_mean_by_phase:
+                delta = mean_reward - baseline_mean_by_phase[phase]
+
+            results.append(
+                SDLCPhaseMetrics(
+                    sdlc_phase=phase,
+                    config=config,
+                    n_trials=n,
+                    pass_rate=pass_rate,
+                    mean_reward=mean_reward,
+                    mean_reward_delta=delta,
+                )
+            )
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Main analysis pipeline
 # ---------------------------------------------------------------------------
 
 
 def analyze(categories: list[dict]) -> dict:
-    """Run the full aggregate + pairwise analysis.
+    """Run the full aggregate + pairwise + per-benchmark + per-SDLC analysis.
 
     Args:
         categories: The experiment_metrics.json structure (list of category dicts).
 
     Returns:
-        Analysis results dict with aggregate_metrics, pairwise_tests, effect_sizes.
+        Analysis results dict with aggregate_metrics, pairwise_tests,
+        effect_sizes, per_benchmark, and per_sdlc_phase sections.
     """
     all_trials = _flatten_trials(categories)
 
@@ -430,6 +704,9 @@ def analyze(categories: list[dict]) -> dict:
             "aggregate_metrics": [],
             "pairwise_tests": [],
             "effect_sizes": [],
+            "per_benchmark": [],
+            "per_benchmark_significance": [],
+            "per_sdlc_phase": [],
         }
 
     config_groups = _group_by_config(all_trials)
@@ -437,11 +714,17 @@ def analyze(categories: list[dict]) -> dict:
     aggregate = compute_aggregate_metrics(config_groups)
     pairwise = compute_pairwise_tests(config_groups)
     effect_sizes = compute_effect_sizes(config_groups)
+    per_benchmark = compute_per_benchmark_metrics(all_trials)
+    per_benchmark_sig = compute_per_benchmark_significance(all_trials)
+    per_sdlc = compute_per_sdlc_phase_metrics(all_trials)
 
     return {
         "aggregate_metrics": [asdict(m) for m in aggregate],
         "pairwise_tests": [asdict(t) for t in pairwise],
         "effect_sizes": [asdict(e) for e in effect_sizes],
+        "per_benchmark": [asdict(b) for b in per_benchmark],
+        "per_benchmark_significance": [asdict(s) for s in per_benchmark_sig],
+        "per_sdlc_phase": [asdict(p) for p in per_sdlc],
     }
 
 
@@ -500,6 +783,8 @@ def main(argv: list[str] | None = None) -> int:
     n_agg = len(results["aggregate_metrics"])
     n_tests = len(results["pairwise_tests"])
     n_effects = len(results["effect_sizes"])
+    n_benchmarks = len(results["per_benchmark"])
+    n_phases = len(results["per_sdlc_phase"])
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
@@ -508,10 +793,13 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     logger.info(
-        "Analysis complete: %d configs, %d pairwise tests, %d effect sizes -> %s",
+        "Analysis complete: %d configs, %d pairwise tests, %d effect sizes, "
+        "%d benchmark entries, %d SDLC phase entries -> %s",
         n_agg,
         n_tests,
         n_effects,
+        n_benchmarks,
+        n_phases,
         output_path,
     )
 

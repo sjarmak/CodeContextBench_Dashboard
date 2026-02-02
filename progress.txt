@@ -13,6 +13,9 @@ Started: Mon Feb  2 16:01:56 EST 2026
 - Test fixtures use `tmp_path` and helper functions like `_make_result_json()` for building trial structures
 - `analyze._flatten_trials()` converts nested categories/experiments/trials to flat list; reuse in downstream steps
 - Statistical tests: Welch's t-test for continuous, proportion z-test for rates; Cohen's d for effect sizes
+- numpy bools (`np.True_`) fail `is True` assertions; always wrap with `bool()` when constructing frozen dataclasses from scipy/numpy results
+- Variable name shadowing causes mypy errors in nested loops; use distinct names (e.g., `phase_trials` vs `config_trials`)
+- `_group_by_benchmark()` and `_get_trial_benchmark()` are reusable helpers for any per-benchmark analysis step
 
 ---
 
@@ -59,4 +62,21 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - Cohen's d uses pooled standard deviation; interpretation thresholds: 0.2 small, 0.5 medium, 0.8 large
   - scipy may warn about precision loss with nearly-identical data; this is expected in tests with synthetic data
   - The `_flatten_trials()` helper is reusable for any step that needs to iterate all trials regardless of category/experiment nesting
+---
+
+## 2026-02-02 - US-006
+- Added per-benchmark and per-SDLC-phase breakdown to `scripts/ccb_pipeline/analyze.py`
+- Files modified: `scripts/ccb_pipeline/analyze.py`, `tests/test_analyze.py`
+- New dataclasses: `BenchmarkConfigMetrics`, `BenchmarkSignificanceResult`, `SDLCPhaseMetrics`
+- New functions: `_get_trial_benchmark()`, `_group_by_benchmark()`, `compute_per_benchmark_metrics()`, `compute_per_benchmark_significance()`, `_is_mcp_improvement()`, `compute_per_sdlc_phase_metrics()`
+- Per-benchmark: computes pass rate and mean reward per config per benchmark, runs pairwise significance tests (z-test for pass rate, Welch's t-test for reward) per benchmark
+- Per-SDLC-phase: maps benchmarks to SDLC phases via `get_sdlc_phases()`, aggregates trials across benchmarks sharing a phase, computes reward delta vs BASELINE
+- Flags `mcp_improves=True` only when both significant (p<0.05) AND the MCP config outperforms
+- Results added to analysis_results.json under `per_benchmark`, `per_benchmark_significance`, `per_sdlc_phase` sections
+- 71 tests passing (25 new), mypy clean
+- **Learnings for future iterations:**
+  - numpy bools (`np.True_`) fail Python `is True` checks; always `bool()` wrap values from scipy/numpy before storing in frozen dataclasses
+  - Variable name shadowing across loop scopes causes mypy type confusion; use distinct names in nested for-loops
+  - Trials can map to multiple SDLC phases (e.g., swe-bench-pro -> Implementation + Testing); the phase grouping correctly counts them in each phase
+  - `_is_mcp_improvement()` uses an ordinal ranking (BASELINE=0, MCP_BASE=1, MCP_FULL=2) to determine which config is "better"
 ---
