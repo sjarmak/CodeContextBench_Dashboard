@@ -391,9 +391,9 @@ def _unique_values(
 # --- Status badge ---
 
 _STATUS_BADGES = {
-    "pass": ":green[Pass]",
-    "fail": ":gray[Fail]",
-    "error": ":gray[Error]",
+    "pass": "Pass",
+    "fail": "Fail",
+    "error": "Error",
 }
 
 
@@ -633,10 +633,8 @@ def render_task_list(
             table_rows = _build_table_rows(filtered)
 
         if table_rows:
-            # Cap height: show all rows up to 30, then use scrollbar (vertical only)
-            row_count = min(len(table_rows), 30)
-            table_height = 35 + 35 * row_count + 10
-            st.dataframe(table_rows, use_container_width=True, hide_index=True, height=table_height)
+            # Match table height to filter sidebar (~400px) so they align
+            st.dataframe(table_rows, use_container_width=True, hide_index=True, height=400)
         else:
             st.info("No tasks match the current filters.")
 
