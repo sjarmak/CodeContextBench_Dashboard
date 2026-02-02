@@ -27,3 +27,16 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - Task name resolution: result.json `task_name` field is most reliable, then config.json `task.path` leaf name, then directory name
   - The `_find_trials()` function recursively walks until it finds result.json; this handles variable nesting depths across different experiment types
 ---
+
+## 2026-02-02 - US-004
+- Implemented `scripts/ccb_pipeline/sdlc_mapping.py` with benchmark-to-SDLC phase mapping
+- Files created: `scripts/ccb_pipeline/sdlc_mapping.py`, `tests/test_sdlc_mapping.py`
+- `BENCHMARK_SDLC_MAP` dict covers all Table 2 benchmarks plus project-specific ones (big_code_mcp, github_mined, tac_mcp_value)
+- `get_sdlc_phases()` uses fuzzy substring matching, sorted by pattern length descending for specificity
+- `get_benchmark_name()` extracts benchmark from task paths by finding segment after "benchmarks/"
+- 36 unit tests, all passing; mypy clean
+- **Learnings for future iterations:**
+  - Fuzzy matching sorted by pattern length descending ensures "swe-bench-pro" matches before "swe-bench"
+  - `PurePosixPath` from pathlib handles cross-platform path parsing without OS dependency
+  - SDLC phases stored as tuples in the map for immutability; `get_sdlc_phases()` returns a new list each call
+---
