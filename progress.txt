@@ -16,6 +16,9 @@ Started: Mon Feb  2 16:01:56 EST 2026
 - numpy bools (`np.True_`) fail `is True` assertions; always wrap with `bool()` when constructing frozen dataclasses from scipy/numpy results
 - Variable name shadowing causes mypy errors in nested loops; use distinct names (e.g., `phase_trials` vs `config_trials`)
 - `_group_by_benchmark()` and `_get_trial_benchmark()` are reusable helpers for any per-benchmark analysis step
+- Tool utilization data in trial dicts: `trial["tool_utilization"]` is a dict with keys `mcp_calls`, `deep_search_calls`, `total_tool_calls`, `context_fill_rate`, `deep_search_vs_keyword_ratio`, etc.
+- `_get_tool_util(trial, field)` safely extracts numeric fields from tool_utilization dict; handles None/missing cases
+- Pearson correlation requires >=3 observations and non-zero variance in both variables; check before calling `scipy.stats.pearsonr`
 
 ---
 
@@ -94,4 +97,21 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - `tokens_per_success` uses total tokens (input + output) divided by pass count; cached tokens are informational only (subset of input)
   - MCP token overhead is computed as delta of mean totals, not delta of totals, to normalize for different trial counts
   - The `or 0` pattern for token fields handles both missing keys and None values from dict.get()
+---
+
+## 2026-02-02 - US-008
+- Added tool utilization analysis to `scripts/ccb_pipeline/analyze.py`
+- Files modified: `scripts/ccb_pipeline/analyze.py`, `tests/test_analyze.py`
+- New dataclasses: `ToolUtilizationConfigMetrics`, `ToolRewardCorrelation`, `BenchmarkToolUsage` (all frozen)
+- New functions: `_get_tool_util()`, `compute_tool_utilization_config_metrics()`, `compute_tool_reward_correlation()`, `compute_benchmark_tool_usage()`
+- Per-config: mean MCP calls (with SE), mean Deep Search calls (with SE), mean Deep Search vs keyword ratio, mean context fill rate (with SE)
+- Pearson r correlation between MCP tool call count and task reward (requires >=3 observations, non-zero variance)
+- Per-benchmark tool usage: groups by benchmark and config, computes mean MCP/Deep Search/total tool calls
+- Results added to analysis_results.json under `tool_utilization`, `tool_reward_correlation`, `benchmark_tool_usage` sections
+- 115 tests passing (26 new), mypy clean
+- **Learnings for future iterations:**
+  - Tool utilization data lives in `trial["tool_utilization"]` dict; use `_get_tool_util()` helper for safe extraction
+  - `scipy.stats.pearsonr` requires non-zero variance in both variables; must check `len(set(values)) >= 2` before calling
+  - Correlation analysis needs >= 3 observations; with fewer, results are meaningless
+  - Reused `_group_by_benchmark()` and `_group_by_config()` for benchmark tool usage grouping
 ---

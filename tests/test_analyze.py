@@ -11,13 +11,17 @@ import pytest
 from scripts.ccb_pipeline.analyze import (
     BenchmarkConfigMetrics,
     BenchmarkSignificanceResult,
+    BenchmarkToolUsage,
     ConfigAggregateMetrics,
     EffectSizeResult,
     EfficiencyMetrics,
     PairwiseTestResult,
     SDLCPhaseMetrics,
+    ToolRewardCorrelation,
+    ToolUtilizationConfigMetrics,
     _cohens_d,
     _flatten_trials,
+    _get_tool_util,
     _get_trial_benchmark,
     _group_by_benchmark,
     _group_by_config,
@@ -30,12 +34,15 @@ from scripts.ccb_pipeline.analyze import (
     _se_proportion,
     analyze,
     compute_aggregate_metrics,
+    compute_benchmark_tool_usage,
     compute_effect_sizes,
     compute_efficiency_metrics,
     compute_pairwise_tests,
     compute_per_benchmark_metrics,
     compute_per_benchmark_significance,
     compute_per_sdlc_phase_metrics,
+    compute_tool_reward_correlation,
+    compute_tool_utilization_config_metrics,
     main,
 )
 
@@ -56,6 +63,7 @@ def _make_trial(
     cached_tokens: int = 200,
     task_name: str = "task-001",
     benchmark: str = "big_code_mcp",
+    tool_utilization: dict | None = None,
 ) -> dict:
     return {
         "trial_id": "trial-001",
@@ -68,7 +76,7 @@ def _make_trial(
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cached_tokens": cached_tokens,
-        "tool_utilization": {},
+        "tool_utilization": tool_utilization if tool_utilization is not None else {},
     }
 
 
@@ -975,3 +983,361 @@ class TestAnalyzeWithEfficiency:
         ]
         result = analyze(_make_categories(trials))
         json.dumps(result)  # Should not raise
+
+
+# ---------------------------------------------------------------------------
+# Tool utilization analysis tests (US-008)
+# ---------------------------------------------------------------------------
+
+
+def _make_tool_util(
+    *,
+    mcp_calls: int = 0,
+    deep_search_calls: int = 0,
+    local_calls: int = 10,
+    other_calls: int = 0,
+    total_tool_calls: int = 10,
+    keyword_search_count: int = 0,
+    nls_search_count: int = 0,
+    deep_search_query_count: int = 0,
+    deep_search_vs_keyword_ratio: float = 0.0,
+    context_fill_rate: float = 0.5,
+) -> dict:
+    return {
+        "mcp_calls": mcp_calls,
+        "deep_search_calls": deep_search_calls,
+        "local_calls": local_calls,
+        "other_calls": other_calls,
+        "total_tool_calls": total_tool_calls,
+        "keyword_search_count": keyword_search_count,
+        "nls_search_count": nls_search_count,
+        "deep_search_query_count": deep_search_query_count,
+        "deep_search_vs_keyword_ratio": deep_search_vs_keyword_ratio,
+        "context_fill_rate": context_fill_rate,
+    }
+
+
+class TestGetToolUtil:
+    def test_extracts_field(self) -> None:
+        trial = _make_trial(tool_utilization=_make_tool_util(mcp_calls=5))
+        assert _get_tool_util(trial, "mcp_calls") == 5.0
+
+    def test_missing_tool_utilization(self) -> None:
+        trial = {"reward": 1.0}
+        assert _get_tool_util(trial, "mcp_calls") == 0.0
+
+    def test_none_tool_utilization(self) -> None:
+        trial = {"tool_utilization": None}
+        assert _get_tool_util(trial, "mcp_calls") == 0.0
+
+    def test_none_field_value(self) -> None:
+        trial = _make_trial(tool_utilization={"mcp_calls": None})
+        assert _get_tool_util(trial, "mcp_calls") == 0.0
+
+    def test_missing_field(self) -> None:
+        trial = _make_trial(tool_utilization={})
+        assert _get_tool_util(trial, "nonexistent") == 0.0
+
+
+class TestComputeToolUtilizationConfigMetrics:
+    def test_single_config_no_tools(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(tool_utilization=_make_tool_util()),
+                _make_trial(tool_utilization=_make_tool_util()),
+            ]
+        }
+        result = compute_tool_utilization_config_metrics(groups)
+        assert len(result) == 1
+        assert result[0].config == "BASELINE"
+        assert result[0].n_trials == 2
+        assert result[0].mean_mcp_calls == 0.0
+        assert result[0].mean_deep_search_calls == 0.0
+
+    def test_mcp_config_with_tools(self) -> None:
+        groups = {
+            "MCP_FULL": [
+                _make_trial(
+                    tool_utilization=_make_tool_util(
+                        mcp_calls=10, deep_search_calls=5,
+                        deep_search_vs_keyword_ratio=2.5, context_fill_rate=0.8,
+                    )
+                ),
+                _make_trial(
+                    tool_utilization=_make_tool_util(
+                        mcp_calls=20, deep_search_calls=15,
+                        deep_search_vs_keyword_ratio=3.0, context_fill_rate=1.2,
+                    )
+                ),
+            ]
+        }
+        result = compute_tool_utilization_config_metrics(groups)
+        assert len(result) == 1
+        m = result[0]
+        assert m.config == "MCP_FULL"
+        assert m.mean_mcp_calls == 15.0
+        assert m.mean_deep_search_calls == 10.0
+        assert abs(m.mean_deep_search_vs_keyword_ratio - 2.75) < 1e-10
+        assert abs(m.mean_context_fill_rate - 1.0) < 1e-10
+
+    def test_multiple_configs_sorted(self) -> None:
+        groups = {
+            "MCP_FULL": [_make_trial(tool_utilization=_make_tool_util())],
+            "BASELINE": [_make_trial(tool_utilization=_make_tool_util())],
+            "MCP_BASE": [_make_trial(tool_utilization=_make_tool_util())],
+        }
+        result = compute_tool_utilization_config_metrics(groups)
+        assert [r.config for r in result] == ["BASELINE", "MCP_BASE", "MCP_FULL"]
+
+    def test_standard_errors_with_variance(self) -> None:
+        groups = {
+            "MCP_FULL": [
+                _make_trial(tool_utilization=_make_tool_util(mcp_calls=2, context_fill_rate=0.3)),
+                _make_trial(tool_utilization=_make_tool_util(mcp_calls=10, context_fill_rate=0.9)),
+            ]
+        }
+        result = compute_tool_utilization_config_metrics(groups)
+        m = result[0]
+        assert m.se_mcp_calls > 0
+        assert m.se_context_fill_rate > 0
+
+    def test_empty_tool_utilization_dicts(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(tool_utilization={}),
+                _make_trial(tool_utilization={}),
+            ]
+        }
+        result = compute_tool_utilization_config_metrics(groups)
+        assert result[0].mean_mcp_calls == 0.0
+        assert result[0].mean_context_fill_rate == 0.0
+
+
+class TestComputeToolRewardCorrelation:
+    def test_positive_correlation(self) -> None:
+        trials = [
+            _make_trial(reward=0.0, tool_utilization=_make_tool_util(mcp_calls=0)),
+            _make_trial(reward=0.5, tool_utilization=_make_tool_util(mcp_calls=5)),
+            _make_trial(reward=1.0, tool_utilization=_make_tool_util(mcp_calls=10)),
+            _make_trial(reward=0.8, tool_utilization=_make_tool_util(mcp_calls=8)),
+        ]
+        result = compute_tool_reward_correlation(trials)
+        assert len(result) == 1
+        assert result[0].metric == "mcp_calls_vs_reward"
+        assert result[0].pearson_r > 0.9  # Strong positive correlation
+        assert result[0].n_observations == 4
+
+    def test_insufficient_data(self) -> None:
+        trials = [
+            _make_trial(reward=1.0, tool_utilization=_make_tool_util(mcp_calls=5)),
+            _make_trial(reward=0.0, tool_utilization=_make_tool_util(mcp_calls=0)),
+        ]
+        result = compute_tool_reward_correlation(trials)
+        assert result == []  # Need >= 3 observations
+
+    def test_none_rewards_excluded(self) -> None:
+        trials = [
+            _make_trial(reward=None, tool_utilization=_make_tool_util(mcp_calls=10)),
+            _make_trial(reward=0.0, tool_utilization=_make_tool_util(mcp_calls=0)),
+            _make_trial(reward=0.5, tool_utilization=_make_tool_util(mcp_calls=5)),
+            _make_trial(reward=1.0, tool_utilization=_make_tool_util(mcp_calls=10)),
+        ]
+        result = compute_tool_reward_correlation(trials)
+        assert len(result) == 1
+        assert result[0].n_observations == 3  # Excludes None reward
+
+    def test_zero_variance_returns_empty(self) -> None:
+        # All same MCP calls -> zero variance -> no correlation
+        trials = [
+            _make_trial(reward=0.0, tool_utilization=_make_tool_util(mcp_calls=5)),
+            _make_trial(reward=0.5, tool_utilization=_make_tool_util(mcp_calls=5)),
+            _make_trial(reward=1.0, tool_utilization=_make_tool_util(mcp_calls=5)),
+        ]
+        result = compute_tool_reward_correlation(trials)
+        assert result == []
+
+    def test_no_tool_utilization(self) -> None:
+        trials = [
+            _make_trial(reward=0.0),
+            _make_trial(reward=0.5),
+            _make_trial(reward=1.0),
+        ]
+        # All mcp_calls default to 0 -> zero variance
+        result = compute_tool_reward_correlation(trials)
+        assert result == []
+
+    def test_empty_trials(self) -> None:
+        result = compute_tool_reward_correlation([])
+        assert result == []
+
+
+class TestComputeBenchmarkToolUsage:
+    def test_single_benchmark(self) -> None:
+        trials = [
+            _make_trial(
+                benchmark="locobench", agent_config="BASELINE",
+                tool_utilization=_make_tool_util(mcp_calls=0, deep_search_calls=0, total_tool_calls=10),
+            ),
+            _make_trial(
+                benchmark="locobench", agent_config="MCP_FULL",
+                tool_utilization=_make_tool_util(mcp_calls=15, deep_search_calls=8, total_tool_calls=30),
+            ),
+        ]
+        result = compute_benchmark_tool_usage(trials)
+        assert len(result) == 2
+
+        baseline = [r for r in result if r.config == "BASELINE"][0]
+        assert baseline.benchmark == "locobench"
+        assert baseline.mean_mcp_calls == 0.0
+        assert baseline.mean_total_tool_calls == 10.0
+
+        mcp = [r for r in result if r.config == "MCP_FULL"][0]
+        assert mcp.mean_mcp_calls == 15.0
+        assert mcp.mean_deep_search_calls == 8.0
+
+    def test_multiple_benchmarks(self) -> None:
+        trials = [
+            _make_trial(
+                benchmark="locobench", agent_config="MCP_FULL",
+                tool_utilization=_make_tool_util(mcp_calls=10),
+            ),
+            _make_trial(
+                benchmark="swe-bench-pro", agent_config="MCP_FULL",
+                tool_utilization=_make_tool_util(mcp_calls=20),
+            ),
+        ]
+        result = compute_benchmark_tool_usage(trials)
+        benchmarks = {r.benchmark for r in result}
+        assert benchmarks == {"locobench", "swe-bench-pro"}
+
+    def test_aggregation_within_benchmark(self) -> None:
+        trials = [
+            _make_trial(
+                benchmark="locobench", agent_config="MCP_FULL",
+                tool_utilization=_make_tool_util(mcp_calls=10, total_tool_calls=20),
+            ),
+            _make_trial(
+                benchmark="locobench", agent_config="MCP_FULL",
+                tool_utilization=_make_tool_util(mcp_calls=20, total_tool_calls=40),
+            ),
+        ]
+        result = compute_benchmark_tool_usage(trials)
+        assert len(result) == 1
+        assert result[0].n_trials == 2
+        assert result[0].mean_mcp_calls == 15.0
+        assert result[0].mean_total_tool_calls == 30.0
+
+    def test_empty_trials(self) -> None:
+        result = compute_benchmark_tool_usage([])
+        assert result == []
+
+
+class TestAnalyzeWithToolUtilization:
+    def test_tool_utilization_sections_present(self) -> None:
+        trials = [
+            _make_trial(
+                agent_config="BASELINE", reward=0.5, pass_fail="pass",
+                tool_utilization=_make_tool_util(mcp_calls=0),
+            ),
+            _make_trial(
+                agent_config="MCP_FULL", reward=0.8, pass_fail="pass",
+                tool_utilization=_make_tool_util(mcp_calls=10),
+            ),
+        ]
+        result = analyze(_make_categories(trials))
+        assert "tool_utilization" in result
+        assert "tool_reward_correlation" in result
+        assert "benchmark_tool_usage" in result
+        assert len(result["tool_utilization"]) == 2  # 2 configs
+
+    def test_tool_utilization_structure(self) -> None:
+        trials = [
+            _make_trial(
+                agent_config="BASELINE",
+                tool_utilization=_make_tool_util(mcp_calls=0, context_fill_rate=0.3),
+            ),
+        ]
+        result = analyze(_make_categories(trials))
+        tu = result["tool_utilization"][0]
+        assert "config" in tu
+        assert "mean_mcp_calls" in tu
+        assert "se_mcp_calls" in tu
+        assert "mean_deep_search_calls" in tu
+        assert "mean_deep_search_vs_keyword_ratio" in tu
+        assert "mean_context_fill_rate" in tu
+        assert "se_context_fill_rate" in tu
+
+    def test_empty_returns_tool_utilization_sections(self) -> None:
+        result = analyze([])
+        assert result["tool_utilization"] == []
+        assert result["tool_reward_correlation"] == []
+        assert result["benchmark_tool_usage"] == []
+
+    def test_benchmark_tool_usage_structure(self) -> None:
+        trials = [
+            _make_trial(
+                agent_config="MCP_FULL", benchmark="locobench",
+                tool_utilization=_make_tool_util(mcp_calls=10, deep_search_calls=5, total_tool_calls=25),
+            ),
+        ]
+        result = analyze(_make_categories(trials))
+        btu = result["benchmark_tool_usage"][0]
+        assert "benchmark" in btu
+        assert "config" in btu
+        assert "mean_mcp_calls" in btu
+        assert "mean_deep_search_calls" in btu
+        assert "mean_total_tool_calls" in btu
+
+    def test_json_serializable_with_tool_utilization(self) -> None:
+        trials = [
+            _make_trial(
+                agent_config="BASELINE", reward=0.0,
+                tool_utilization=_make_tool_util(mcp_calls=0),
+            ),
+            _make_trial(
+                agent_config="BASELINE", reward=0.5,
+                tool_utilization=_make_tool_util(mcp_calls=0),
+            ),
+            _make_trial(
+                agent_config="MCP_FULL", reward=1.0,
+                tool_utilization=_make_tool_util(mcp_calls=15),
+            ),
+            _make_trial(
+                agent_config="MCP_FULL", reward=0.8,
+                tool_utilization=_make_tool_util(mcp_calls=10),
+            ),
+        ]
+        result = analyze(_make_categories(trials))
+        json.dumps(result)  # Should not raise
+
+    def test_cli_output_includes_tool_utilization(self, tmp_path: Path) -> None:
+        trials = [
+            _make_trial(
+                agent_config="BASELINE", reward=0.0, pass_fail="fail",
+                tool_utilization=_make_tool_util(mcp_calls=0),
+            ),
+            _make_trial(
+                agent_config="BASELINE", reward=1.0, pass_fail="pass",
+                tool_utilization=_make_tool_util(mcp_calls=0),
+            ),
+            _make_trial(
+                agent_config="MCP_FULL", reward=1.0, pass_fail="pass",
+                tool_utilization=_make_tool_util(mcp_calls=20),
+            ),
+            _make_trial(
+                agent_config="MCP_FULL", reward=0.5, pass_fail="partial",
+                tool_utilization=_make_tool_util(mcp_calls=10),
+            ),
+        ]
+        input_file = tmp_path / "metrics.json"
+        input_file.write_text(json.dumps(_make_categories(trials)), encoding="utf-8")
+        output_file = tmp_path / "results.json"
+
+        result = main(["--input", str(input_file), "--output", str(output_file)])
+        assert result == 0
+
+        data = json.loads(output_file.read_text(encoding="utf-8"))
+        assert "tool_utilization" in data
+        assert "tool_reward_correlation" in data
+        assert "benchmark_tool_usage" in data
+        assert len(data["tool_utilization"]) == 2

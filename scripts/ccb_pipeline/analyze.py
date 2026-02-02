@@ -130,6 +130,44 @@ class EfficiencyMetrics:
     mcp_token_overhead: float | None  # delta vs BASELINE mean tokens, None for BASELINE
 
 
+@dataclass(frozen=True)
+class ToolUtilizationConfigMetrics:
+    """Tool utilization metrics aggregated for a single config."""
+
+    config: str
+    n_trials: int
+    mean_mcp_calls: float
+    se_mcp_calls: float
+    mean_deep_search_calls: float
+    se_deep_search_calls: float
+    mean_deep_search_vs_keyword_ratio: float
+    mean_context_fill_rate: float
+    se_context_fill_rate: float
+
+
+@dataclass(frozen=True)
+class ToolRewardCorrelation:
+    """Correlation between MCP tool call count and task reward."""
+
+    metric: str  # e.g. "mcp_calls_vs_reward"
+    pearson_r: float
+    p_value: float
+    n_observations: int
+    significant: bool  # p < 0.05
+
+
+@dataclass(frozen=True)
+class BenchmarkToolUsage:
+    """Tool usage aggregated per benchmark, per config."""
+
+    benchmark: str
+    config: str
+    n_trials: int
+    mean_mcp_calls: float
+    mean_deep_search_calls: float
+    mean_total_tool_calls: float
+
+
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
@@ -790,19 +828,145 @@ def compute_per_sdlc_phase_metrics(
 
 
 # ---------------------------------------------------------------------------
+# Tool utilization analysis
+# ---------------------------------------------------------------------------
+
+
+def _get_tool_util(trial: dict, field: str) -> float:
+    """Safely extract a numeric field from a trial's tool_utilization dict."""
+    util = trial.get("tool_utilization") or {}
+    val = util.get(field, 0)
+    if val is None:
+        return 0.0
+    return float(val)
+
+
+def compute_tool_utilization_config_metrics(
+    config_groups: dict[str, list[dict]],
+) -> list[ToolUtilizationConfigMetrics]:
+    """Compute per-config tool utilization metrics.
+
+    Computes mean MCP calls, mean Deep Search calls, Deep Search vs keyword ratio,
+    and context window fill rate per configuration.
+    """
+    results: list[ToolUtilizationConfigMetrics] = []
+
+    for config in sorted(config_groups.keys()):
+        trials = config_groups[config]
+        n = len(trials)
+
+        mcp_vals = [_get_tool_util(t, "mcp_calls") for t in trials]
+        ds_vals = [_get_tool_util(t, "deep_search_calls") for t in trials]
+        ratio_vals = [_get_tool_util(t, "deep_search_vs_keyword_ratio") for t in trials]
+        fill_vals = [_get_tool_util(t, "context_fill_rate") for t in trials]
+
+        results.append(
+            ToolUtilizationConfigMetrics(
+                config=config,
+                n_trials=n,
+                mean_mcp_calls=_safe_mean(mcp_vals),
+                se_mcp_calls=_safe_se(mcp_vals),
+                mean_deep_search_calls=_safe_mean(ds_vals),
+                se_deep_search_calls=_safe_se(ds_vals),
+                mean_deep_search_vs_keyword_ratio=_safe_mean(ratio_vals),
+                mean_context_fill_rate=_safe_mean(fill_vals),
+                se_context_fill_rate=_safe_se(fill_vals),
+            )
+        )
+
+    return results
+
+
+def compute_tool_reward_correlation(
+    trials: list[dict],
+) -> list[ToolRewardCorrelation]:
+    """Compute Pearson correlation between MCP tool call count and task reward.
+
+    Only includes trials with non-None reward and tool_utilization data.
+    """
+    # Filter to trials with both reward and tool utilization
+    valid_pairs: list[tuple[float, float]] = []
+    for trial in trials:
+        reward = trial.get("reward")
+        if reward is None:
+            continue
+        mcp_calls = _get_tool_util(trial, "mcp_calls")
+        valid_pairs.append((mcp_calls, float(reward)))
+
+    results: list[ToolRewardCorrelation] = []
+
+    if len(valid_pairs) < 3:
+        # Need at least 3 observations for meaningful correlation
+        return results
+
+    mcp_values = [p[0] for p in valid_pairs]
+    reward_values = [p[1] for p in valid_pairs]
+
+    # Check for zero variance (Pearson r is undefined)
+    if len(set(mcp_values)) < 2 or len(set(reward_values)) < 2:
+        return results
+
+    r_stat, p_val = scipy.stats.pearsonr(mcp_values, reward_values)
+
+    results.append(
+        ToolRewardCorrelation(
+            metric="mcp_calls_vs_reward",
+            pearson_r=float(r_stat),
+            p_value=float(p_val),
+            n_observations=len(valid_pairs),
+            significant=bool(float(p_val) < 0.05),
+        )
+    )
+
+    return results
+
+
+def compute_benchmark_tool_usage(
+    trials: list[dict],
+) -> list[BenchmarkToolUsage]:
+    """Group tool usage by benchmark and config to identify where MCP is most/least used."""
+    benchmark_groups = _group_by_benchmark(trials)
+    results: list[BenchmarkToolUsage] = []
+
+    for benchmark in sorted(benchmark_groups.keys()):
+        config_groups = _group_by_config(benchmark_groups[benchmark])
+        for config in sorted(config_groups.keys()):
+            config_trials = config_groups[config]
+            n = len(config_trials)
+
+            mcp_vals = [_get_tool_util(t, "mcp_calls") for t in config_trials]
+            ds_vals = [_get_tool_util(t, "deep_search_calls") for t in config_trials]
+            total_vals = [_get_tool_util(t, "total_tool_calls") for t in config_trials]
+
+            results.append(
+                BenchmarkToolUsage(
+                    benchmark=benchmark,
+                    config=config,
+                    n_trials=n,
+                    mean_mcp_calls=_safe_mean(mcp_vals),
+                    mean_deep_search_calls=_safe_mean(ds_vals),
+                    mean_total_tool_calls=_safe_mean(total_vals),
+                )
+            )
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Main analysis pipeline
 # ---------------------------------------------------------------------------
 
 
 def analyze(categories: list[dict]) -> dict:
-    """Run the full aggregate + pairwise + per-benchmark + per-SDLC analysis.
+    """Run the full aggregate + pairwise + per-benchmark + per-SDLC + tool utilization analysis.
 
     Args:
         categories: The experiment_metrics.json structure (list of category dicts).
 
     Returns:
         Analysis results dict with aggregate_metrics, pairwise_tests,
-        effect_sizes, per_benchmark, and per_sdlc_phase sections.
+        effect_sizes, per_benchmark, per_sdlc_phase, efficiency,
+        tool_utilization, tool_reward_correlation, and benchmark_tool_usage sections.
     """
     all_trials = _flatten_trials(categories)
 
@@ -816,6 +980,9 @@ def analyze(categories: list[dict]) -> dict:
             "per_benchmark_significance": [],
             "per_sdlc_phase": [],
             "efficiency": [],
+            "tool_utilization": [],
+            "tool_reward_correlation": [],
+            "benchmark_tool_usage": [],
         }
 
     config_groups = _group_by_config(all_trials)
@@ -827,6 +994,9 @@ def analyze(categories: list[dict]) -> dict:
     per_benchmark_sig = compute_per_benchmark_significance(all_trials)
     per_sdlc = compute_per_sdlc_phase_metrics(all_trials)
     efficiency = compute_efficiency_metrics(config_groups)
+    tool_util = compute_tool_utilization_config_metrics(config_groups)
+    tool_corr = compute_tool_reward_correlation(all_trials)
+    bench_tool = compute_benchmark_tool_usage(all_trials)
 
     return {
         "aggregate_metrics": [asdict(m) for m in aggregate],
@@ -836,6 +1006,9 @@ def analyze(categories: list[dict]) -> dict:
         "per_benchmark_significance": [asdict(s) for s in per_benchmark_sig],
         "per_sdlc_phase": [asdict(p) for p in per_sdlc],
         "efficiency": [asdict(e) for e in efficiency],
+        "tool_utilization": [asdict(u) for u in tool_util],
+        "tool_reward_correlation": [asdict(c) for c in tool_corr],
+        "benchmark_tool_usage": [asdict(b) for b in bench_tool],
     }
 
 
@@ -897,6 +1070,9 @@ def main(argv: list[str] | None = None) -> int:
     n_benchmarks = len(results["per_benchmark"])
     n_phases = len(results["per_sdlc_phase"])
     n_efficiency = len(results["efficiency"])
+    n_tool_util = len(results["tool_utilization"])
+    n_tool_corr = len(results["tool_reward_correlation"])
+    n_bench_tool = len(results["benchmark_tool_usage"])
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
@@ -906,13 +1082,17 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info(
         "Analysis complete: %d configs, %d pairwise tests, %d effect sizes, "
-        "%d benchmark entries, %d SDLC phase entries, %d efficiency entries -> %s",
+        "%d benchmark entries, %d SDLC phase entries, %d efficiency entries, "
+        "%d tool utilization entries, %d tool correlations, %d benchmark tool entries -> %s",
         n_agg,
         n_tests,
         n_effects,
         n_benchmarks,
         n_phases,
         n_efficiency,
+        n_tool_util,
+        n_tool_corr,
+        n_bench_tool,
         output_path,
     )
 
