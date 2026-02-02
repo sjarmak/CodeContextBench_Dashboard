@@ -555,6 +555,7 @@ def show_paired_experiment(exp_data):
     st.subheader("Mode Comparison")
 
     comparison_data = []
+    detail_data = []
     for mode_name, mode_data in modes.items():
         tasks = mode_data["tasks"]
         rewards = [t.get("reward", 0) for t in tasks if t.get("reward") is not None]
@@ -571,16 +572,25 @@ def show_paired_experiment(exp_data):
                 "Mean Reward": f"{sum(rewards) / len(rewards):.4f}"
                 if rewards
                 else "N/A",
+                "New Input": f"{new_input:,}",
+                "Output": f"{output_tokens:,}",
+            }
+        )
+        detail_data.append(
+            {
+                "Mode": mode_name,
                 "Min Reward": f"{min(rewards):.4f}" if rewards else "N/A",
                 "Max Reward": f"{max(rewards):.4f}" if rewards else "N/A",
-                "New Input Tokens": f"{new_input:,}",
-                "Output Tokens": f"{output_tokens:,}",
                 "Cache Create": f"{cache_creation:,}",
                 "Cache Read": f"{cache_read:,}",
             }
         )
 
-    st.dataframe(comparison_data, use_container_width=True, hide_index=True)
+    table_height = 35 + 35 * len(comparison_data) + 10
+    st.dataframe(comparison_data, use_container_width=True, hide_index=True, height=table_height)
+
+    with st.expander("Token Cache and Reward Details"):
+        st.dataframe(detail_data, use_container_width=True, hide_index=True, height=table_height)
 
     st.markdown("---")
 

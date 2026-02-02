@@ -503,13 +503,27 @@ def _render_sort_controls(key_prefix: str) -> tuple[str, bool]:
     return sort_key or "Name", descending
 
 
+def _shorten_task_id(task_id: str) -> str:
+    """Shorten a task ID for table display.
+
+    SWE-bench IDs like 'instance_ansible__ansible-4c5ce5a1...' become 'ansible/ansible'.
+    Other IDs are truncated to 40 chars.
+    """
+    match = SWEBENCH_PATTERN.match(task_id)
+    if match:
+        return f"{match.group('org')}/{match.group('repo')}"
+    if len(task_id) > 40:
+        return task_id[:40]
+    return task_id
+
+
 def _build_table_rows(tasks: list[NormalizedTask]) -> list[dict]:
     """Build display table rows from normalized tasks."""
     return [
         {
-            "Task ID": t.task_id[:50],
+            "Task": _shorten_task_id(t.task_id),
             "Status": _status_badge(t.status),
-            "Language": t.language,
+            "Lang": t.language,
             "Duration": _format_duration(t.duration_seconds),
             "Tokens": _format_tokens(t.token_count),
             "Reward": _format_reward(t.reward),
@@ -539,14 +553,12 @@ def _build_paired_table_rows(
 
         rows.append(
             {
-                "Task ID": task_id[:50],
-                "Baseline Status": _status_badge(b_task.status) if b_task else "N/A",
-                "Variant Status": _status_badge(v_task.status) if v_task else "N/A",
-                "Baseline Reward": _format_reward(b_task.reward) if b_task else "N/A",
-                "Variant Reward": _format_reward(v_task.reward) if v_task else "N/A",
-                "Language": (b_task or v_task).language if (b_task or v_task) else "N/A",
-                "Duration (B)": _format_duration(b_task.duration_seconds) if b_task else "N/A",
-                "Duration (V)": _format_duration(v_task.duration_seconds) if v_task else "N/A",
+                "Task": _shorten_task_id(task_id),
+                "Base": _status_badge(b_task.status) if b_task else "N/A",
+                "Var": _status_badge(v_task.status) if v_task else "N/A",
+                "B Reward": _format_reward(b_task.reward) if b_task else "N/A",
+                "V Reward": _format_reward(v_task.reward) if v_task else "N/A",
+                "Lang": (b_task or v_task).language if (b_task or v_task) else "N/A",
             }
         )
 
@@ -621,7 +633,10 @@ def render_task_list(
             table_rows = _build_table_rows(filtered)
 
         if table_rows:
-            st.dataframe(table_rows, use_container_width=True, hide_index=True)
+            # Cap height: show all rows up to 30, then use scrollbar (vertical only)
+            row_count = min(len(table_rows), 30)
+            table_height = 35 + 35 * row_count + 10
+            st.dataframe(table_rows, use_container_width=True, hide_index=True, height=table_height)
         else:
             st.info("No tasks match the current filters.")
 

@@ -30,6 +30,7 @@ from dashboard.utils.task_list import (
     _format_duration,
     _format_reward,
     _format_tokens,
+    _shorten_task_id,
     _unique_values,
     filter_tasks,
     normalize_task,
@@ -55,7 +56,7 @@ class TestParseTaskMetadata:
         result = parse_task_metadata(
             "typescript_api_simple_042_refactor_easy_v2"
         )
-        assert result.language == "Typescript"
+        assert result.language == "TypeScript"
         assert result.task_type == "Refactor"
         assert result.difficulty == "Easy"
 
@@ -440,9 +441,9 @@ class TestBuildTableRows:
         rows = _build_table_rows(tasks)
         assert len(rows) == 1
         row = rows[0]
-        assert row["Task ID"] == "test_task"
+        assert row["Task"] == "test_task"
         assert "Pass" in row["Status"]
-        assert row["Language"] == "Python"
+        assert row["Lang"] == "Python"
         assert row["Duration"] == "2m 0s"
         assert row["Tokens"] == "5.0k"
         assert row["Reward"] == "0.8500"
@@ -452,7 +453,30 @@ class TestBuildTableRows:
         rows = _build_table_rows(
             [normalize_task({"task_name": long_id, "status": "completed", "reward": 1.0})]
         )
-        assert len(rows[0]["Task ID"]) == 50
+        assert len(rows[0]["Task"]) == 40
+
+
+# --- _shorten_task_id tests ---
+
+
+class TestShortenTaskId:
+    def test_swebench_id(self):
+        task_id = "instance_ansible__ansible-4c5ce5a1a9e79a845aff4978cfeb72a0d4ecf7d6"
+        assert _shorten_task_id(task_id) == "ansible/ansible"
+
+    def test_swebench_with_double_underscore(self):
+        task_id = "instance_protonmail__webclients-abc123def456"
+        assert _shorten_task_id(task_id) == "protonmail/webclients"
+
+    def test_short_id_unchanged(self):
+        assert _shorten_task_id("my_task") == "my_task"
+
+    def test_long_non_swebench_id_truncated(self):
+        long_id = "a" * 50
+        assert len(_shorten_task_id(long_id)) == 40
+
+    def test_empty_string(self):
+        assert _shorten_task_id("") == ""
 
 
 # --- _build_paired_table_rows tests ---
@@ -468,8 +492,8 @@ class TestBuildPairedTableRows:
         ]
         rows = _build_paired_table_rows(baseline, variant)
         assert len(rows) == 1
-        assert "Pass" in rows[0]["Baseline Status"]
-        assert "Fail" in rows[0]["Variant Status"]
+        assert "Pass" in rows[0]["Base"]
+        assert "Fail" in rows[0]["Var"]
 
     def test_disjoint_tasks(self):
         baseline = [
@@ -481,14 +505,14 @@ class TestBuildPairedTableRows:
         rows = _build_paired_table_rows(baseline, variant)
         assert len(rows) == 2
         # task_a only in baseline
-        row_a = next(r for r in rows if r["Task ID"] == "task_a")
-        assert "Pass" in row_a["Baseline Status"]
-        assert row_a["Variant Status"] == "N/A"
+        row_a = next(r for r in rows if r["Task"] == "task_a")
+        assert "Pass" in row_a["Base"]
+        assert row_a["Var"] == "N/A"
 
         # task_b only in variant
-        row_b = next(r for r in rows if r["Task ID"] == "task_b")
-        assert row_b["Baseline Status"] == "N/A"
-        assert "Fail" in row_b["Variant Status"]
+        row_b = next(r for r in rows if r["Task"] == "task_b")
+        assert row_b["Base"] == "N/A"
+        assert "Fail" in row_b["Var"]
 
     def test_empty_inputs(self):
         rows = _build_paired_table_rows([], [])
