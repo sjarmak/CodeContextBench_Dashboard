@@ -212,3 +212,20 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - Tests use `patch("scripts.ccb_pipeline.__main__.extract")` etc. to mock module-level imports, then set `.main` on the mock to a lambda/function
   - `_make_metrics_json()` test helper creates valid experiment_metrics.json for downstream stage mocks that need a file to exist
 ---
+
+## 2026-02-02 - US-013
+- Simplified dashboard app.py from old navigation (Home, Benchmark Manager, Run Results, Analysis Hub, LLM Judge) to 5 views: Home, Results Explorer, Comparison, LLM Judge, Export
+- Removed imports and routing for: benchmark_manager, deep_search, analysis_hub, analysis_ir, analysis_failure, analysis_cost, analysis_statistical, analysis_timeseries, analysis_comparison
+- Existing view files NOT deleted (just unlinked from navigation)
+- Added "Run Analysis Pipeline" button on Home page that triggers `scripts.ccb_pipeline` via subprocess
+- Pipeline section shows: runs directory input, output directory input, skip-judge checkbox, run button
+- Shows pipeline progress with st.spinner, output path and artifact counts when complete
+- Quick links updated to match new 5-view navigation
+- Files modified: `dashboard/app.py`
+- mypy clean (no new errors in app.py); pipeline tests pass
+- **Learnings for future iterations:**
+  - Placeholder views (US-014 through US-017) are defined inline in app.py; they'll be replaced with imports from `dashboard/views/` as each story is implemented
+  - `subprocess.run()` with `capture_output=True` and `timeout=300` is the pattern for running pipeline from dashboard; stderr shows progress stages, stdout shows summary
+  - `PIPELINE_OUTPUT_DIR = PROJECT_ROOT / "output"` is the default output location used by both CLI and dashboard
+  - Navigation simplified from section-based (render_nav_section with labels) to flat list of 5 items
+---
