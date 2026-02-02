@@ -296,3 +296,24 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - Side-by-side comparison groups by task_name and shows only tasks with multiple configs for meaningful comparison
   - Template discovery uses `glob("*.json")` on `configs/judge_templates/`; display name is the stem (filename without extension)
 ---
+
+## 2026-02-02 - US-017
+- Implemented `dashboard/views/export_view.py` as the Export Artifacts view
+- Updated `dashboard/app.py` to import and delegate to the new view module instead of placeholder
+- Files created: `dashboard/views/export_view.py`, `tests/test_export_view.py`
+- Files modified: `dashboard/app.py`
+- Lists files in `output/tables/` and `output/figures/` with file size and modification time
+- Inline preview for figures: `st.image` for SVG/PNG, caption for PDF (not supported natively in Streamlit)
+- Inline preview for `.tex` files rendered in `st.code` block with `latex` syntax highlighting
+- Download button per file using `st.download_button` with correct MIME types
+- Download All button creates in-memory ZIP archive of `output/` and serves it via `st.download_button`
+- Shows "No artifacts found -- run the pipeline first" if output/ is empty or missing
+- Summary line shows total artifact count broken down by tables and figures
+- 23 unit tests, all passing; mypy clean
+- **Learnings for future iterations:**
+  - `zipfile.ZipFile` with `io.BytesIO` buffer creates in-memory ZIP without temp files; use `path.relative_to(output_dir)` for correct archive structure
+  - `_human_size()` utility formats byte counts for display; thresholds at 1024 and 1024*1024
+  - SVG files can be previewed via `st.image(svg_content_string)` directly; PNG/JPG use `st.image(str(path))`
+  - MIME type mapping for download buttons: `.tex` -> `application/x-latex`, `.svg` -> `image/svg+xml`
+  - View delegation pattern from app.py: `from dashboard.views.export_view import show_export_view as _show; _show()`
+---

@@ -407,9 +407,9 @@ def show_llm_judge():
 
 
 def show_export():
-    """Export view - placeholder until US-017."""
-    st.title("Export Artifacts")
-    st.info("This view will be implemented in US-017. It will list and preview publication artifacts from output/.")
+    """Export view - loads from dashboard/views/export_view.py."""
+    from dashboard.views.export_view import show_export_view as _show
+    _show()
 
 
 if __name__ == "__main__":
