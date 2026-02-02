@@ -114,4 +114,26 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - `scipy.stats.pearsonr` requires non-zero variance in both variables; must check `len(set(values)) >= 2` before calling
   - Correlation analysis needs >= 3 observations; with fewer, results are meaningless
   - Reused `_group_by_benchmark()` and `_group_by_config()` for benchmark tool usage grouping
+- LaTeX tables use booktabs formatting (toprule/midrule/bottomrule); each generator returns a string, `publish_tables()` orchestrates writing
+- `_fmt_int()` with comma separators for token counts; `_fmt_pvalue()` uses `$< 0.001$` for very small p-values
+- Significance markers: `*` p<0.05, `**` p<0.01, `***` p<0.001; per-benchmark table uses minimum p-value across pairs for a config
+- `_config_display()` maps enum names to paper-friendly display names (BASELINE->Baseline, MCP_BASE->MCP-Base, MCP_FULL->MCP-Full)
+---
+
+## 2026-02-02 - US-009
+- Implemented `scripts/ccb_pipeline/publish.py` with `__main__` entry point
+- Files created: `scripts/ccb_pipeline/publish.py`, `tests/test_publish.py`
+- Generates 4 LaTeX tables from analysis_results.json:
+  - `table_aggregate.tex`: config | pass rate (with SE) | mean reward (with SE) | median duration | mean tokens
+  - `table_per_benchmark.tex`: benchmark | config | n | pass rate | mean reward (with SE) | significance marker
+  - `table_significance.tex`: pair | metric | p-value | Cohen's d | sig marker | interpretation
+  - `table_efficiency.tex`: config | mean input tokens (with SE) | mean output tokens (with SE) | tokens/success | I/O ratio | MCP overhead
+- All tables use booktabs formatting, proper LaTeX escaping, and comma-separated integers
+- CLI: `python -m scripts.ccb_pipeline.publish --input analysis_results.json --output-dir output/`
+- 39 unit tests, all passing; mypy clean
+- **Learnings for future iterations:**
+  - `publish_tables()` returns list of written file paths for caller to inspect; skips tables when input section is empty
+  - Per-benchmark significance lookup uses minimum p-value across all config pairs for a given benchmark+config to find the "most significant" comparison
+  - None values in efficiency metrics (tokens_per_success, mcp_token_overhead) formatted as "--" in LaTeX
+  - `generate_table_per_benchmark()` groups by benchmark with first-row-only benchmark name display for cleaner tables
 ---
