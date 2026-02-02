@@ -229,3 +229,23 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - `PIPELINE_OUTPUT_DIR = PROJECT_ROOT / "output"` is the default output location used by both CLI and dashboard
   - Navigation simplified from section-based (render_nav_section with labels) to flat list of 5 items
 ---
+
+## 2026-02-02 - US-014
+- Implemented `dashboard/views/results_explorer.py` as the Results Explorer view
+- Updated `dashboard/app.py` to import and delegate to the new view module instead of the placeholder
+- Files created: `dashboard/views/results_explorer.py`, `tests/test_results_explorer.py`
+- Loads `experiment_metrics.json` from `output/` directory
+- Flattens nested categories/experiments/trials structure into flat trial list
+- Filter bar in columns: benchmark multiselect, config multiselect, outcome multiselect
+- Results table shows: task, benchmark, config, reward, duration, input tokens, output tokens, judge score (if available)
+- Click row to expand via `st.expander`: shows tool call summary (total, MCP, deep search, context fill rate), tool call breakdown table, and metadata
+- CSV export button for filtered results via `st.download_button`
+- Summary metrics row: total trials, benchmarks, configs, pass rate
+- 19 unit tests, all passing; mypy clean
+- **Learnings for future iterations:**
+  - `_flatten_trials()` pattern is reused from analyze.py but adapted for the dashboard (adds run_category and experiment_id to each trial dict)
+  - Judge scores can appear in multiple formats: numeric, dict with `dimensions`, dict with `score` key; `_extract_judge_score()` handles all cases
+  - Streamlit `st.expander` in a loop creates one expander per trial; use descriptive labels for quick scanning
+  - The view delegates from `app.py` via `from dashboard.views.results_explorer import show_results_explorer as _show; _show()` pattern to keep app.py minimal
+  - `_DEFAULT_OUTPUT_DIR` is `PROJECT_ROOT / "output"` matching the pipeline's default output location
+---

@@ -389,9 +389,9 @@ def _render_runs_table(runs, folder):
 
 
 def show_results_explorer():
-    """Results Explorer view - placeholder until US-014."""
-    st.title("Results Explorer")
-    st.info("This view will be implemented in US-014. It will load experiment_metrics.json and provide filtering by benchmark, config, and outcome.")
+    """Results Explorer view - loads from dashboard/views/results_explorer.py."""
+    from dashboard.views.results_explorer import show_results_explorer as _show
+    _show()
 
 
 def show_comparison():
