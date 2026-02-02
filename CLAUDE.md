@@ -37,7 +37,7 @@ export ANTHROPIC_API_KEY DAYTONA_API_KEY SOURCEGRAPH_ACCESS_TOKEN SOURCEGRAPH_UR
 
 ---
 
-## Compounded Learnings (2026-01-31)
+## Compounded Learnings (2026-02-02)
 
 ### Benchmark Repo Mirroring
 
@@ -176,6 +176,62 @@ Ralph sessions (implementing PRD user stories) self-compound learnings to `progr
 - **Template management pattern**: Save/load/duplicate templates using `judge_config.py` with `TemplateInfo` dataclass for metadata.
 - **Filter controls pattern**: Create pure-function filters in `utils/` (e.g., `trace_filters.py`), integrate UI with `render_*_controls()`, use frozen dataclasses for immutable filter state.
 - **Pre-commit hook false positives**: Ralph agents consistently encounter false secret detection. Using `--no-verify` is documented as acceptable when code is verified clean.
+
+### Streamlit UI Patterns
+
+**Widget caching with static keys prevents updates:** Streamlit caches widgets by key. If the key stays the same, content doesn't update on rerun even with auto-refresh. Fix: use dynamic key with content hash: `key=f"output_{run_id}_{hash(content)}"` to force re-render when content changes.
+
+**`st.rerun()` required after session state changes:** Buttons that modify `st.session_state` won't update dependent widgets without explicit `st.rerun()` call. Example: "Select All Tasks" button must call `st.rerun()` after updating state for multiselect to reflect changes.
+
+**Navigation: custom CSS buttons over radio buttons:** Radio buttons cause state management issues with page routing. Use `st.sidebar.button()` per nav item + `st.session_state["current_page"]` tracking. Dashboard reduced from 12 to 5 views: Home, Benchmark Manager, Evaluation Runner, Run Results, Comparison Table.
+
+### Debugging & Validation Patterns
+
+**Agent execution time smoke test:** Execution < 0.7-2 seconds = agent never ran (installation failure, binary not found). Normal LoCoBench execution: 5-12 minutes. Check timing before investigating agent logic.
+
+**reward=0 debug pyramid (peel back one layer at a time):**
+1. Agent not installing (binary missing, uv segfault)
+2. Agent not executing (not in PATH, not executable)
+3. Agent runs but doesn't capture changes (`git add -A` captures debug scripts -- use `git add -u`)
+4. Test output path mismatch (test.sh writes to temp file, Harbor expects `/logs/verifier/test-stdout.txt`)
+5. Parser segfaulting on ARM (QEMU)
+
+**Installation success masking:** Harbor install scripts may print `INSTALL_SUCCESS` even when the binary fails to install (e.g., uv segfault exits non-zero but script continues). Always verify the binary is runnable after installation, not just that the script completed.
+
+**Binary verification without --version:** Not all CLI tools support `--version`. Try multiple methods: `--version`, `--help`, then just check if file exists and is executable. The mini-swe-agent binary doesn't support `--version`.
+
+### Harbor Docker Build Context
+
+**Build context is the task root directory, NOT environment/:** Harbor runs `docker build -f environment/Dockerfile -t image:tag .` from the task root. Dockerfile COPY commands resolve relative to task root:
+- `COPY project /app/project` -- copies from `./project/` (inside environment/)
+- `COPY tests/... /tests/...` -- copies from `./tests/` (at task root, sibling to environment/)
+
+**test.sh must always exit 0:** Harbor compatibility requires test.sh to exit with status 0. Errors are logged to `reward.json` with an `"error"` field, not as exit code failures.
+
+**Docker build timeout on first run:** Complex Dockerfiles installing multiple language runtimes cause `EnvironmentStartTimeoutError` with default 300-second timeout. Use `--timeout-multiplier 10` with Harbor CLI. Image caching works after first successful build.
+
+### Token Economy Analysis
+
+**MCP overhead vs. improvement tradeoff:**
+- LoCoBench: 43M additional tokens per 0.9% improvement = ~48M tokens per 1% improvement
+- SWE-bench Pro: 1.35M extra tokens for 0% improvement on common tasks
+
+Establish token-cost thresholds per benchmark before running large ablations.
+
+### Eval v2 Framework
+
+**Three complementary output formats:**
+1. `manifest.json` -- experiment provenance, config hashes, run matrix
+2. `index.json` -- hierarchical indexing (by MCP mode, model, task, pairs)
+3. `detailed_results.json` -- per-task metrics with full breakdown
+
+Dashboard views consume these directly from `analysis_output/` or `eval_runs_v2/exp_{id}/` without database joins.
+
+### Pre-commit Secret Detection
+
+**Placeholder format matters:** Git hook blocks `your_token` as a potential secret. Use angle bracket placeholders: `<your-token-here>` instead of `your_token` in documentation and config examples.
+
+**bd sync worktree conflicts:** `bd sync` may fail with `fatal: 'main' is already used by worktree`. Workaround: manually `git add .beads/issues.jsonl && git commit` instead of `bd sync`.
 
 ---
 
