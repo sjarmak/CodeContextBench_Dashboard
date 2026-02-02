@@ -38,7 +38,9 @@ def show_benchmark_list():
         })
 
     df = pd.DataFrame(data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    # Calculate height to fit all rows without scrolling (35px header + 35px per row + padding)
+    table_height = 35 + 35 * len(data) + 10
+    st.dataframe(df, use_container_width=True, hide_index=True, height=table_height)
 
     # Selector
     selected_name = st.selectbox(
