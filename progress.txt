@@ -22,6 +22,11 @@ Started: Mon Feb  2 16:01:56 EST 2026
 - matplotlib `plt.get_cmap("tab10")` is the colorblind-friendly palette; `tableau-colorblind10` is NOT a valid cmap name despite being referenced in docs
 - Use `matplotlib.use("Agg")` before any plt calls for headless figure generation; `plt.style.context()` for temporary style application
 - `publish_figures()` orchestrates all figure generators; each returns list of written paths for the caller
+- `judge._call_judge_llm()` uses retry with exponential backoff; returns fallback error dict on failure, never raises
+- `judge._parse_json_response()` handles markdown fences and embedded JSON objects; reusable for any LLM JSON extraction
+- `judge._augment_metrics()` builds new category/experiment/trial dicts (immutable pattern); adds `judge_scores` field to each trial
+- `anthropic` import is lazy (inside `run_judge()`); mock with `patch.object(anthropic, "Anthropic")` in tests
+- Solution text priority: `agent/solution.md` > `agent/claude-code.txt` (JSONL assistant messages) > `submission/diff.patch`
 
 ---
 
@@ -161,4 +166,30 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - `_ordered_configs()` sorts configs in canonical order (BASELINE, MCP_BASE, MCP_FULL) for consistent figure presentation
   - Heatmap with single column uses `aspect="auto"` to avoid extremely narrow figures; `figsize` height scales with benchmark count
   - Token overhead scatter requires both efficiency and aggregate data; returns empty if BASELINE reward is missing
+---
+
+## 2026-02-02 - US-011
+- Implemented `scripts/ccb_pipeline/judge.py` with `__main__` entry point
+- Files created: `scripts/ccb_pipeline/judge.py`, `tests/test_judge.py`
+- LLM judge pipeline with 3-round voting ensemble using Anthropic API
+- Frozen dataclasses: `JudgeVote`, `DimensionScore`, `TrialJudgeResult`
+- Key functions:
+  - `run_judge()`: orchestrates evaluation across all trials, returns augmented categories with `judge_scores` per trial
+  - `evaluate_trial()`: evaluates a single trial across selected dimensions
+  - `_evaluate_dimension()`: multi-model voting for a single dimension
+  - `_call_judge_llm()`: API call with retry + exponential backoff
+  - `_select_dimensions()`: rubric selection by benchmark type or custom template
+  - `_load_solution_text()`: loads agent output from solution.md, claude-code.txt, or patch files
+  - `_augment_metrics()`: immutable augmentation of categories with judge scores
+- Default rubric by benchmark: swe -> correctness+code_quality, locobench -> correctness+completeness+code_quality, default -> correctness+completeness
+- CLI: `python -m scripts.ccb_pipeline.judge --input experiment_metrics.json --runs-dir <path> [--skip-judge] [--judge-template <path>] [--rounds N]`
+- Handles API errors gracefully: retry with backoff, log failures, continue to next task
+- 65 unit tests, all passing; mypy clean
+- **Learnings for future iterations:**
+  - Anthropic import is lazy (inside `run_judge()`) to avoid import errors when API key not needed (e.g., `--skip-judge`)
+  - Mock pattern for lazy imports: `import anthropic; patch.object(anthropic, "Anthropic")` rather than `patch("module._anthropic")`
+  - `_parse_json_response()` handles markdown fences, embedded JSON, and returns safe fallback dict; reusable for any LLM JSON output
+  - Solution text loading priority: solution.md > claude-code.txt JSONL > diff.patch; each truncated to 20K chars
+  - `_augment_metrics()` creates new dicts at every level (category, experiment, trial) to maintain immutability
+  - Vote distribution stored as `tuple[tuple[str, int], ...]` for frozen dataclass compatibility; sorted by score string
 ---
