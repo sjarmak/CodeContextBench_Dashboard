@@ -25,6 +25,8 @@ Started: Mon Feb  2 16:01:56 EST 2026
 - `judge._call_judge_llm()` uses retry with exponential backoff; returns fallback error dict on failure, never raises
 - `judge._parse_json_response()` handles markdown fences and embedded JSON objects; reusable for any LLM JSON extraction
 - `judge._augment_metrics()` builds new category/experiment/trial dicts (immutable pattern); adds `judge_scores` field to each trial
+- Plotly `fig.to_image()` requires `kaleido` package; mock in tests with `@patch("plotly.graph_objects.Figure.to_image", return_value=b"fake-png")`
+- `px.colors.qualitative.T10` is Plotly's colorblind-safe palette (equivalent to matplotlib `tab10`)
 - `anthropic` import is lazy (inside `run_judge()`); mock with `patch.object(anthropic, "Anthropic")` in tests
 - Solution text priority: `agent/solution.md` > `agent/claude-code.txt` (JSONL assistant messages) > `submission/diff.patch`
 
@@ -248,4 +250,27 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - Streamlit `st.expander` in a loop creates one expander per trial; use descriptive labels for quick scanning
   - The view delegates from `app.py` via `from dashboard.views.results_explorer import show_results_explorer as _show; _show()` pattern to keep app.py minimal
   - `_DEFAULT_OUTPUT_DIR` is `PROJECT_ROOT / "output"` matching the pipeline's default output location
+---
+
+## 2026-02-02 - US-015
+- Implemented `dashboard/views/comparison_analysis.py` as the Comparison Analysis view with 5 tabs matching paper sections 4.1-4.5
+- Updated `dashboard/app.py` to import and delegate to the new view module instead of placeholder
+- Files created: `dashboard/views/comparison_analysis.py`, `tests/test_comparison_analysis.py`
+- Files modified: `dashboard/app.py`
+- Loads `analysis_results.json` from `output/` directory
+- 5 tabs:
+  - Aggregate (4.1): metrics table with config rows, Plotly bar chart of pass rates with SE error bars
+  - Per-Benchmark (4.2): per-benchmark table with significance markers, heatmap of reward delta (MCP-Full minus Baseline)
+  - Config Sensitivity (4.3): pairwise test results table, effect size table and bar chart visualization
+  - Efficiency (4.4): token consumption table, token distribution bar chart, tokens-per-success comparison
+  - Tool Utilization (4.5): stacked bar chart of tool call distribution, metrics table, correlation display, per-benchmark tool usage table
+- Export buttons (PNG for charts via Plotly `to_image`, CSV for tables) on each tab
+- 23 unit tests, all passing; mypy clean
+- **Learnings for future iterations:**
+  - Plotly `fig.to_image()` requires `kaleido` package; in tests mock with `@patch("plotly.graph_objects.Figure.to_image", return_value=b"fake-png")`
+  - `fig.to_image()` parameter evaluation is eager in Python, so even with mocked `st.download_button`, the `data=` argument evaluates before the mock receives it
+  - `px.colors.qualitative.T10` is Plotly's Tableau 10 colorblind-safe palette, equivalent to matplotlib's `tab10`
+  - `px.imshow()` with `color_continuous_midpoint=0` and `RdYlGn` diverging colorscale works well for reward delta heatmaps
+  - Significance lookup pattern: build `(benchmark, config) -> min p-value` dict from `per_benchmark_significance` for marking significance in tables
+  - View delegation pattern from app.py: `from dashboard.views.comparison_analysis import show_comparison_analysis as _show; _show()`
 ---

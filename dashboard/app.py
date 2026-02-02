@@ -395,9 +395,9 @@ def show_results_explorer():
 
 
 def show_comparison():
-    """Comparison view - placeholder until US-015."""
-    st.title("Comparison Analysis")
-    st.info("This view will be implemented in US-015. It will show interactive comparison with tabs matching paper sections 4.1-4.5.")
+    """Comparison view - loads from dashboard/views/comparison_analysis.py."""
+    from dashboard.views.comparison_analysis import show_comparison_analysis as _show
+    _show()
 
 
 def show_llm_judge():
