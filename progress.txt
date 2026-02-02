@@ -11,6 +11,8 @@ Started: Mon Feb  2 16:01:56 EST 2026
 - All pipeline dataclasses must be `frozen=True` for immutability; use tuples not lists
 - Pre-existing mypy errors in cost_calculator.py, task_schema.py, orchestrator.py are unrelated to pipeline work
 - Test fixtures use `tmp_path` and helper functions like `_make_result_json()` for building trial structures
+- `analyze._flatten_trials()` converts nested categories/experiments/trials to flat list; reuse in downstream steps
+- Statistical tests: Welch's t-test for continuous, proportion z-test for rates; Cohen's d for effect sizes
 
 ---
 
@@ -39,4 +41,22 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - Fuzzy matching sorted by pattern length descending ensures "swe-bench-pro" matches before "swe-bench"
   - `PurePosixPath` from pathlib handles cross-platform path parsing without OS dependency
   - SDLC phases stored as tuples in the map for immutability; `get_sdlc_phases()` returns a new list each call
+---
+
+## 2026-02-02 - US-005
+- Implemented `scripts/ccb_pipeline/analyze.py` with `__main__` entry point
+- Files created: `scripts/ccb_pipeline/analyze.py`, `tests/test_analyze.py`
+- Consumes experiment_metrics.json from US-003 extract step
+- Computes per-configuration aggregate metrics: mean reward (with SE), pass rate (with SE), median duration, mean input/output tokens
+- Pairwise statistical tests for all config pairs: Welch's t-test for continuous metrics (reward, duration, input_tokens), proportion z-test for pass rate
+- Cohen's d effect sizes for continuous metrics with interpretation (negligible/small/medium/large)
+- Outputs analysis_results.json with sections: aggregate_metrics, pairwise_tests, effect_sizes
+- CLI: `python -m scripts.ccb_pipeline.analyze --input experiment_metrics.json --output analysis_results.json`
+- 46 unit tests, all passing; mypy clean
+- **Learnings for future iterations:**
+  - `scipy.stats.ttest_ind` with `equal_var=False` gives Welch's t-test (more robust for unequal variances)
+  - Proportion z-test uses pooled proportion for standard error calculation
+  - Cohen's d uses pooled standard deviation; interpretation thresholds: 0.2 small, 0.5 medium, 0.8 large
+  - scipy may warn about precision loss with nearly-identical data; this is expected in tests with synthetic data
+  - The `_flatten_trials()` helper is reusable for any step that needs to iterate all trials regardless of category/experiment nesting
 ---
