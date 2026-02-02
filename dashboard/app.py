@@ -401,9 +401,9 @@ def show_comparison():
 
 
 def show_llm_judge():
-    """LLM Judge view - placeholder until US-016."""
-    st.title("LLM Judge")
-    st.info("This view will be implemented in US-016. It will show judge results and allow re-running with different templates.")
+    """LLM Judge view - loads from dashboard/views/judge_viewer.py."""
+    from dashboard.views.judge_viewer import show_judge_viewer as _show
+    _show()
 
 
 def show_export():

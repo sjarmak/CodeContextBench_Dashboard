@@ -27,6 +27,7 @@ Started: Mon Feb  2 16:01:56 EST 2026
 - `judge._augment_metrics()` builds new category/experiment/trial dicts (immutable pattern); adds `judge_scores` field to each trial
 - Plotly `fig.to_image()` requires `kaleido` package; mock in tests with `@patch("plotly.graph_objects.Figure.to_image", return_value=b"fake-png")`
 - `px.colors.qualitative.T10` is Plotly's colorblind-safe palette (equivalent to matplotlib `tab10`)
+- `st.columns` mock needs `side_effect` with dynamic length: `mock_st.columns.side_effect = lambda *a, **kw: [MagicMock() for _ in range(a[0] if isinstance(a[0], int) else len(a[0]))]`
 - `anthropic` import is lazy (inside `run_judge()`); mock with `patch.object(anthropic, "Anthropic")` in tests
 - Solution text priority: `agent/solution.md` > `agent/claude-code.txt` (JSONL assistant messages) > `submission/diff.patch`
 
@@ -273,4 +274,25 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - `px.imshow()` with `color_continuous_midpoint=0` and `RdYlGn` diverging colorscale works well for reward delta heatmaps
   - Significance lookup pattern: build `(benchmark, config) -> min p-value` dict from `per_benchmark_significance` for marking significance in tables
   - View delegation pattern from app.py: `from dashboard.views.comparison_analysis import show_comparison_analysis as _show; _show()`
+---
+
+## 2026-02-02 - US-016
+- Implemented `dashboard/views/judge_viewer.py` as the LLM Judge Viewer
+- Updated `dashboard/app.py` to import and delegate to the new view module instead of placeholder
+- Files created: `dashboard/views/judge_viewer.py`, `tests/test_judge_viewer.py`
+- Files modified: `dashboard/app.py`
+- Loads judge scores from `experiment_metrics.json` in `output/` directory
+- Aggregated scores table: groups by (benchmark, config), shows mean judge score, vote confidence, and error count
+- Per-task breakdown with expandable rows showing vote distribution per dimension (score, confidence, reasoning, vote counts)
+- Template selector dropdown loading from `configs/judge_templates/` (JSON files); defaults to auto-selection by benchmark type
+- Re-run Judge button for selected tasks with chosen template (calls `judge.py` via subprocess with `--judge-template` flag)
+- Side-by-side score comparison for tasks with multiple config results (BASELINE vs MCP-Base vs MCP-Full)
+- CSV export buttons for aggregated scores and comparison tables
+- 35 unit tests, all passing; mypy clean
+- **Learnings for future iterations:**
+  - `st.columns` mock in tests needs `side_effect` with dynamic length when different sections call `st.columns` with varying column counts
+  - `_extract_judge_data()` handles 3 judge_scores formats: numeric, dict with dimensions, and dict without dimensions; returns normalized structure
+  - Judge data confidence is computed as average of dimension confidences; defaults to 0.0 when no dimensions present
+  - Side-by-side comparison groups by task_name and shows only tasks with multiple configs for meaningful comparison
+  - Template discovery uses `glob("*.json")` on `configs/judge_templates/`; display name is the stem (filename without extension)
 ---
