@@ -110,6 +110,26 @@ class SDLCPhaseMetrics:
     mean_reward_delta: float | None  # delta vs BASELINE, None for BASELINE itself
 
 
+@dataclass(frozen=True)
+class EfficiencyMetrics:
+    """Token consumption and timing efficiency metrics for a single config."""
+
+    config: str
+    n_trials: int
+    total_input_tokens: int
+    total_output_tokens: int
+    total_cached_tokens: int
+    mean_input_tokens: float
+    se_input_tokens: float
+    mean_output_tokens: float
+    se_output_tokens: float
+    input_to_output_ratio: float | None  # None if output is 0
+    median_wall_clock_seconds: float | None
+    n_passing: int
+    tokens_per_success: float | None  # total tokens / n_passing, None if 0 passing
+    mcp_token_overhead: float | None  # delta vs BASELINE mean tokens, None for BASELINE
+
+
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
@@ -451,6 +471,94 @@ def compute_effect_sizes(
 
 
 # ---------------------------------------------------------------------------
+# Efficiency analysis
+# ---------------------------------------------------------------------------
+
+
+def compute_efficiency_metrics(
+    config_groups: dict[str, list[dict]],
+) -> list[EfficiencyMetrics]:
+    """Compute token consumption and timing efficiency metrics per config.
+
+    Computes total tokens, input-to-output ratio, median wall-clock time,
+    tokens-per-success, and MCP token overhead vs BASELINE.
+    """
+    # First pass: compute baseline mean total tokens for overhead calc
+    baseline_mean_total: float | None = None
+    if "BASELINE" in config_groups:
+        bl_totals = [
+            (t.get("input_tokens", 0) or 0)
+            + (t.get("output_tokens", 0) or 0)
+            for t in config_groups["BASELINE"]
+        ]
+        baseline_mean_total = _safe_mean([float(x) for x in bl_totals])
+
+    results: list[EfficiencyMetrics] = []
+
+    for config in sorted(config_groups.keys()):
+        trials = config_groups[config]
+        n = len(trials)
+
+        input_vals = [t.get("input_tokens", 0) or 0 for t in trials]
+        output_vals = [t.get("output_tokens", 0) or 0 for t in trials]
+        cached_vals = [t.get("cached_tokens", 0) or 0 for t in trials]
+
+        total_input = sum(input_vals)
+        total_output = sum(output_vals)
+        total_cached = sum(cached_vals)
+
+        input_floats = [float(x) for x in input_vals]
+        output_floats = [float(x) for x in output_vals]
+
+        mean_input = _safe_mean(input_floats)
+        mean_output = _safe_mean(output_floats)
+
+        input_to_output: float | None = None
+        if mean_output > 0:
+            input_to_output = mean_input / mean_output
+
+        durations = [
+            t["duration_seconds"]
+            for t in trials
+            if t.get("duration_seconds") is not None
+        ]
+        median_wall = _safe_median(durations)
+
+        n_passing = sum(1 for t in trials if t.get("pass_fail") == "pass")
+
+        total_tokens = total_input + total_output
+        tokens_per_success: float | None = None
+        if n_passing > 0:
+            tokens_per_success = total_tokens / n_passing
+
+        mcp_overhead: float | None = None
+        if config != "BASELINE" and baseline_mean_total is not None:
+            mean_total = _safe_mean([float(i + o) for i, o in zip(input_vals, output_vals)])
+            mcp_overhead = mean_total - baseline_mean_total
+
+        results.append(
+            EfficiencyMetrics(
+                config=config,
+                n_trials=n,
+                total_input_tokens=total_input,
+                total_output_tokens=total_output,
+                total_cached_tokens=total_cached,
+                mean_input_tokens=mean_input,
+                se_input_tokens=_safe_se(input_floats),
+                mean_output_tokens=mean_output,
+                se_output_tokens=_safe_se(output_floats),
+                input_to_output_ratio=input_to_output,
+                median_wall_clock_seconds=median_wall,
+                n_passing=n_passing,
+                tokens_per_success=tokens_per_success,
+                mcp_token_overhead=mcp_overhead,
+            )
+        )
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Per-benchmark breakdown
 # ---------------------------------------------------------------------------
 
@@ -707,6 +815,7 @@ def analyze(categories: list[dict]) -> dict:
             "per_benchmark": [],
             "per_benchmark_significance": [],
             "per_sdlc_phase": [],
+            "efficiency": [],
         }
 
     config_groups = _group_by_config(all_trials)
@@ -717,6 +826,7 @@ def analyze(categories: list[dict]) -> dict:
     per_benchmark = compute_per_benchmark_metrics(all_trials)
     per_benchmark_sig = compute_per_benchmark_significance(all_trials)
     per_sdlc = compute_per_sdlc_phase_metrics(all_trials)
+    efficiency = compute_efficiency_metrics(config_groups)
 
     return {
         "aggregate_metrics": [asdict(m) for m in aggregate],
@@ -725,6 +835,7 @@ def analyze(categories: list[dict]) -> dict:
         "per_benchmark": [asdict(b) for b in per_benchmark],
         "per_benchmark_significance": [asdict(s) for s in per_benchmark_sig],
         "per_sdlc_phase": [asdict(p) for p in per_sdlc],
+        "efficiency": [asdict(e) for e in efficiency],
     }
 
 
@@ -785,6 +896,7 @@ def main(argv: list[str] | None = None) -> int:
     n_effects = len(results["effect_sizes"])
     n_benchmarks = len(results["per_benchmark"])
     n_phases = len(results["per_sdlc_phase"])
+    n_efficiency = len(results["efficiency"])
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
@@ -794,12 +906,13 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info(
         "Analysis complete: %d configs, %d pairwise tests, %d effect sizes, "
-        "%d benchmark entries, %d SDLC phase entries -> %s",
+        "%d benchmark entries, %d SDLC phase entries, %d efficiency entries -> %s",
         n_agg,
         n_tests,
         n_effects,
         n_benchmarks,
         n_phases,
+        n_efficiency,
         output_path,
     )
 

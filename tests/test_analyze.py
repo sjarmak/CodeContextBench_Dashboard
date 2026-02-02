@@ -13,6 +13,7 @@ from scripts.ccb_pipeline.analyze import (
     BenchmarkSignificanceResult,
     ConfigAggregateMetrics,
     EffectSizeResult,
+    EfficiencyMetrics,
     PairwiseTestResult,
     SDLCPhaseMetrics,
     _cohens_d,
@@ -30,6 +31,7 @@ from scripts.ccb_pipeline.analyze import (
     analyze,
     compute_aggregate_metrics,
     compute_effect_sizes,
+    compute_efficiency_metrics,
     compute_pairwise_tests,
     compute_per_benchmark_metrics,
     compute_per_benchmark_significance,
@@ -744,6 +746,232 @@ class TestAnalyzeWithBreakdowns:
             _make_trial(agent_config="BASELINE", benchmark="swe-bench-pro", reward=1.0),
             _make_trial(agent_config="MCP_FULL", benchmark="swe-bench-pro", reward=1.0),
             _make_trial(agent_config="MCP_FULL", benchmark="swe-bench-pro", reward=0.5),
+        ]
+        result = analyze(_make_categories(trials))
+        json.dumps(result)  # Should not raise
+
+
+# ---------------------------------------------------------------------------
+# Efficiency analysis tests (US-007)
+# ---------------------------------------------------------------------------
+
+
+class TestComputeEfficiencyMetrics:
+    def test_single_config_totals(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(input_tokens=1000, output_tokens=200, cached_tokens=50, pass_fail="pass", duration_seconds=100.0),
+                _make_trial(input_tokens=3000, output_tokens=400, cached_tokens=150, pass_fail="fail", duration_seconds=200.0),
+            ]
+        }
+        result = compute_efficiency_metrics(groups)
+        assert len(result) == 1
+        eff = result[0]
+        assert eff.config == "BASELINE"
+        assert eff.n_trials == 2
+        assert eff.total_input_tokens == 4000
+        assert eff.total_output_tokens == 600
+        assert eff.total_cached_tokens == 200
+        assert eff.mean_input_tokens == 2000.0
+        assert eff.mean_output_tokens == 300.0
+        assert eff.n_passing == 1
+        assert eff.mcp_token_overhead is None  # Baseline has no overhead
+
+    def test_input_to_output_ratio(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(input_tokens=1000, output_tokens=500),
+            ]
+        }
+        result = compute_efficiency_metrics(groups)
+        assert result[0].input_to_output_ratio is not None
+        assert abs(result[0].input_to_output_ratio - 2.0) < 1e-10
+
+    def test_input_to_output_ratio_zero_output(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(input_tokens=1000, output_tokens=0),
+            ]
+        }
+        result = compute_efficiency_metrics(groups)
+        assert result[0].input_to_output_ratio is None
+
+    def test_median_wall_clock(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(duration_seconds=100.0),
+                _make_trial(duration_seconds=200.0),
+                _make_trial(duration_seconds=300.0),
+            ]
+        }
+        result = compute_efficiency_metrics(groups)
+        assert result[0].median_wall_clock_seconds == 200.0
+
+    def test_median_wall_clock_none_durations(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(duration_seconds=None),
+                _make_trial(duration_seconds=None),
+            ]
+        }
+        result = compute_efficiency_metrics(groups)
+        assert result[0].median_wall_clock_seconds is None
+
+    def test_tokens_per_success(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(input_tokens=1000, output_tokens=200, pass_fail="pass"),
+                _make_trial(input_tokens=3000, output_tokens=400, pass_fail="fail"),
+            ]
+        }
+        result = compute_efficiency_metrics(groups)
+        # total tokens = 4000 + 600 = 4600, n_passing = 1
+        assert result[0].tokens_per_success == 4600.0
+
+    def test_tokens_per_success_no_passing(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(input_tokens=1000, output_tokens=200, pass_fail="fail"),
+            ]
+        }
+        result = compute_efficiency_metrics(groups)
+        assert result[0].tokens_per_success is None
+
+    def test_mcp_token_overhead(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(input_tokens=1000, output_tokens=200),
+                _make_trial(input_tokens=1000, output_tokens=200),
+            ],
+            "MCP_FULL": [
+                _make_trial(input_tokens=5000, output_tokens=800),
+                _make_trial(input_tokens=5000, output_tokens=800),
+            ],
+        }
+        result = compute_efficiency_metrics(groups)
+        baseline = [r for r in result if r.config == "BASELINE"][0]
+        mcp = [r for r in result if r.config == "MCP_FULL"][0]
+
+        assert baseline.mcp_token_overhead is None
+        # baseline mean total = 1200, mcp mean total = 5800
+        assert mcp.mcp_token_overhead is not None
+        assert abs(mcp.mcp_token_overhead - 4600.0) < 1e-10
+
+    def test_standard_errors_included(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(input_tokens=1000, output_tokens=200),
+                _make_trial(input_tokens=3000, output_tokens=400),
+            ]
+        }
+        result = compute_efficiency_metrics(groups)
+        eff = result[0]
+        assert eff.se_input_tokens > 0
+        assert eff.se_output_tokens > 0
+
+    def test_standard_errors_single_trial(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(input_tokens=1000, output_tokens=200),
+            ]
+        }
+        result = compute_efficiency_metrics(groups)
+        assert result[0].se_input_tokens == 0.0
+        assert result[0].se_output_tokens == 0.0
+
+    def test_multiple_configs_sorted(self) -> None:
+        groups = {
+            "MCP_FULL": [_make_trial()],
+            "BASELINE": [_make_trial()],
+            "MCP_BASE": [_make_trial()],
+        }
+        result = compute_efficiency_metrics(groups)
+        assert [r.config for r in result] == ["BASELINE", "MCP_BASE", "MCP_FULL"]
+
+    def test_mcp_base_overhead_vs_baseline(self) -> None:
+        groups = {
+            "BASELINE": [
+                _make_trial(input_tokens=1000, output_tokens=200),
+            ],
+            "MCP_BASE": [
+                _make_trial(input_tokens=2000, output_tokens=300),
+            ],
+        }
+        result = compute_efficiency_metrics(groups)
+        mcp_base = [r for r in result if r.config == "MCP_BASE"][0]
+        # baseline mean total = 1200, mcp_base mean total = 2300
+        assert mcp_base.mcp_token_overhead is not None
+        assert abs(mcp_base.mcp_token_overhead - 1100.0) < 1e-10
+
+    def test_none_token_values_treated_as_zero(self) -> None:
+        trial = _make_trial(input_tokens=0, output_tokens=0, cached_tokens=0)
+        trial["input_tokens"] = None
+        trial["output_tokens"] = None
+        trial["cached_tokens"] = None
+        groups = {"BASELINE": [trial]}
+        result = compute_efficiency_metrics(groups)
+        assert result[0].total_input_tokens == 0
+        assert result[0].total_output_tokens == 0
+        assert result[0].total_cached_tokens == 0
+
+
+class TestAnalyzeWithEfficiency:
+    def test_efficiency_section_present(self) -> None:
+        trials = [
+            _make_trial(agent_config="BASELINE", reward=0.5, pass_fail="pass"),
+            _make_trial(agent_config="MCP_FULL", reward=0.8, pass_fail="pass"),
+        ]
+        result = analyze(_make_categories(trials))
+        assert "efficiency" in result
+        assert len(result["efficiency"]) == 2
+
+    def test_efficiency_structure(self) -> None:
+        trials = [
+            _make_trial(agent_config="BASELINE", reward=1.0, pass_fail="pass",
+                        input_tokens=1000, output_tokens=200),
+            _make_trial(agent_config="MCP_FULL", reward=1.0, pass_fail="pass",
+                        input_tokens=5000, output_tokens=800),
+        ]
+        result = analyze(_make_categories(trials))
+        eff = result["efficiency"][0]
+        assert "config" in eff
+        assert "total_input_tokens" in eff
+        assert "total_output_tokens" in eff
+        assert "mean_input_tokens" in eff
+        assert "se_input_tokens" in eff
+        assert "input_to_output_ratio" in eff
+        assert "median_wall_clock_seconds" in eff
+        assert "tokens_per_success" in eff
+        assert "mcp_token_overhead" in eff
+
+    def test_empty_returns_efficiency_section(self) -> None:
+        result = analyze([])
+        assert result["efficiency"] == []
+
+    def test_cli_output_includes_efficiency(self, tmp_path: Path) -> None:
+        trials = [
+            _make_trial(agent_config="BASELINE", reward=0.0, pass_fail="fail"),
+            _make_trial(agent_config="BASELINE", reward=1.0, pass_fail="pass"),
+            _make_trial(agent_config="MCP_FULL", reward=1.0, pass_fail="pass"),
+            _make_trial(agent_config="MCP_FULL", reward=0.5, pass_fail="partial"),
+        ]
+        input_file = tmp_path / "metrics.json"
+        input_file.write_text(json.dumps(_make_categories(trials)), encoding="utf-8")
+        output_file = tmp_path / "results.json"
+
+        result = main(["--input", str(input_file), "--output", str(output_file)])
+        assert result == 0
+
+        data = json.loads(output_file.read_text(encoding="utf-8"))
+        assert "efficiency" in data
+        assert len(data["efficiency"]) == 2
+
+    def test_json_serializable_with_efficiency(self) -> None:
+        trials = [
+            _make_trial(agent_config="BASELINE", reward=0.0, input_tokens=1000, output_tokens=200),
+            _make_trial(agent_config="BASELINE", reward=1.0, input_tokens=2000, output_tokens=400),
+            _make_trial(agent_config="MCP_FULL", reward=1.0, input_tokens=5000, output_tokens=800),
+            _make_trial(agent_config="MCP_FULL", reward=0.5, input_tokens=6000, output_tokens=900),
         ]
         result = analyze(_make_categories(trials))
         json.dumps(result)  # Should not raise

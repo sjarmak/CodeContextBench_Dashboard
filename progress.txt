@@ -80,3 +80,18 @@ Started: Mon Feb  2 16:01:56 EST 2026
   - Trials can map to multiple SDLC phases (e.g., swe-bench-pro -> Implementation + Testing); the phase grouping correctly counts them in each phase
   - `_is_mcp_improvement()` uses an ordinal ranking (BASELINE=0, MCP_BASE=1, MCP_FULL=2) to determine which config is "better"
 ---
+
+## 2026-02-02 - US-007
+- Added efficiency analysis to `scripts/ccb_pipeline/analyze.py`
+- Files modified: `scripts/ccb_pipeline/analyze.py`, `tests/test_analyze.py`
+- New dataclass: `EfficiencyMetrics` (frozen) with 14 fields covering token totals, means with SE, ratios, and overhead
+- New function: `compute_efficiency_metrics()` computes per-config token consumption, input-to-output ratio, median wall-clock time, tokens-per-success, and MCP token overhead vs BASELINE
+- MCP token overhead = mean total tokens for MCP config minus mean total tokens for BASELINE
+- Tokens-per-success = total tokens (input + output) / number of passing tasks; None if no passing tasks
+- Results added to analysis_results.json under `efficiency` section
+- 89 tests passing (18 new), mypy clean
+- **Learnings for future iterations:**
+  - `tokens_per_success` uses total tokens (input + output) divided by pass count; cached tokens are informational only (subset of input)
+  - MCP token overhead is computed as delta of mean totals, not delta of totals, to normalize for different trial counts
+  - The `or 0` pattern for token fields handles both missing keys and None values from dict.get()
+---
