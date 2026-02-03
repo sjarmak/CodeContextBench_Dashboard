@@ -102,7 +102,7 @@ def main():
     # Navigation items - simplified sidebar
     nav_home = ["Home"]
     nav_benchmarks = ["Benchmark Manager"]
-    nav_results = ["Run Results"]
+    nav_results = ["Run Results", "Task Comparison"]
     nav_items_analysis = ["Analysis Hub", "LLM Judge", "Unified Judge", "Judge Calibration", "Annotate"]
 
     def render_nav_section(items, section_label=None):
@@ -154,6 +154,8 @@ def main():
         show_benchmark_manager()
     elif page == "Run Results":
         show_run_results()
+    elif page == "Task Comparison":
+        show_task_comparison()
     elif page == "Analysis Hub":
         show_analysis_hub()
     elif page == "LLM Judge":
@@ -335,6 +337,12 @@ def show_run_results():
     """Run results viewer page."""
     from views.run_results import show_run_results as show_results
     show_results()
+
+
+def show_task_comparison():
+    """Task comparison view for baseline vs MCP paired analysis."""
+    from dashboard.views.task_comparison import show_task_comparison as show_comparison
+    show_comparison()
 
 
 def show_analysis_hub():
