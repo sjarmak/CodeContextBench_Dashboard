@@ -110,11 +110,18 @@ def load_external_experiments_from_dir(runs_dir: Path, skip_dirs: set | None = N
         result_file = exp_dir / "result.json"
         config_file = exp_dir / "config.json"
 
-        # Check for paired comparison structure (baseline/ and deepsearch/ subdirs)
-        baseline_dir = exp_dir / "baseline"
-        deepsearch_dir = exp_dir / "deepsearch"
+        # Check for paired comparison structure (mode subdirs like baseline/, sourcegraph_base/, etc.)
+        _KNOWN_MODE_DIRS = {
+            "baseline", "deepsearch", "mcp",
+            "sourcegraph", "sourcegraph_hybrid",
+            "sourcegraph_base", "sourcegraph_full",
+        }
+        found_modes = [
+            exp_dir / d for d in _KNOWN_MODE_DIRS
+            if (exp_dir / d).is_dir()
+        ]
 
-        if baseline_dir.exists() or deepsearch_dir.exists():
+        if found_modes:
             # This is a paired comparison experiment (LoCoBench/SWE-bench style)
             try:
                 exp_data = {
@@ -126,20 +133,11 @@ def load_external_experiments_from_dir(runs_dir: Path, skip_dirs: set | None = N
                     "modes": {},
                 }
 
-                # Load baseline results
-                if baseline_dir.exists():
-                    baseline_tasks = _scan_paired_mode_tasks(baseline_dir)
-                    exp_data["modes"]["baseline"] = {
-                        "path": baseline_dir,
-                        "tasks": baseline_tasks,
-                    }
-
-                # Load deepsearch results
-                if deepsearch_dir.exists():
-                    deepsearch_tasks = _scan_paired_mode_tasks(deepsearch_dir)
-                    exp_data["modes"]["deepsearch"] = {
-                        "path": deepsearch_dir,
-                        "tasks": deepsearch_tasks,
+                for mode_dir in found_modes:
+                    mode_tasks = _scan_paired_mode_tasks(mode_dir)
+                    exp_data["modes"][mode_dir.name] = {
+                        "path": mode_dir,
+                        "tasks": mode_tasks,
                     }
 
                 # Calculate summary stats
@@ -491,6 +489,226 @@ def show_run_results():
         _show_individual_mode(filtered_experiments)
     else:
         _show_paired_mode(filtered_experiments, external_experiments)
+
+
+def _load_manifest_pairs(experiments: list) -> list[dict]:
+    """Load paired run definitions from manifest.json files.
+
+    Each experiment directory may contain a manifest.json with a ``pairs``
+    list describing baseline/variant pairings.
+
+    Returns a flat list of pair dicts with keys: pair_id, baseline_run_id,
+    variant_run_id, status, source_experiment.
+    """
+    pairs: list[dict] = []
+    for exp in experiments:
+        manifest_path = exp["path"] / "manifest.json"
+        if not manifest_path.is_file():
+            continue
+        try:
+            with open(manifest_path) as f:
+                manifest = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        for pair in manifest.get("pairs", []):
+            pairs.append({
+                "pair_id": pair.get("pair_id", ""),
+                "baseline_run_id": pair.get("baseline_run_id", ""),
+                "variant_run_id": pair.get("mcp_run_id", ""),
+                "status": pair.get("status", ""),
+                "source_experiment": exp["name"],
+            })
+    return pairs
+
+
+def _find_experiment_for_run(
+    experiments: list, source_exp: dict, run_id: str,
+) -> dict | None:
+    """Find the experiment that matches a given run_id.
+
+    Checks paired experiment modes first, then falls back to experiment
+    name prefix matching.  Returns the experiment dict (with ``_matched_mode``
+    added for paired experiments), or None.
+    """
+    if not run_id:
+        return None
+
+    # Check paired mode names
+    for exp in experiments:
+        if exp.get("is_paired"):
+            for mode_name in exp.get("modes", {}):
+                if mode_name in run_id or run_id in mode_name:
+                    result = {**exp, "_matched_mode": mode_name}
+                    return result
+
+    # Fallback: experiment name is a prefix of run_id
+    for exp in experiments:
+        if run_id.startswith(exp["name"]):
+            return exp
+
+    return None
+
+
+def _get_experiment_task_ids(exp: dict) -> set[str]:
+    """Collect all task names from an experiment.
+
+    For paired experiments, unions task_name values across all modes.
+    For single experiments, scans subdirectories for agent/ dirs or result.json.
+    """
+    task_ids: set[str] = set()
+
+    if exp.get("is_paired"):
+        for mode_data in exp.get("modes", {}).values():
+            for task in mode_data.get("tasks", []):
+                task_ids.add(task["task_name"])
+    else:
+        exp_path = exp["path"]
+        if exp_path.is_dir():
+            for item in exp_path.iterdir():
+                if not item.is_dir() or item.name.startswith("."):
+                    continue
+                if (item / "agent").is_dir() or (item / "result.json").is_file():
+                    task_ids.add(item.name)
+
+    return task_ids
+
+
+def _find_common_task_runs(exp_a: dict, exp_b: dict) -> set[str]:
+    """Return the set of task names present in both experiments."""
+    return _get_experiment_task_ids(exp_a) & _get_experiment_task_ids(exp_b)
+
+
+def _show_paired_mode(filtered_experiments: list, all_experiments: list) -> None:
+    """Cross-experiment paired comparison: pick two experiments and compare tasks."""
+    import pandas as pd
+    from dashboard.utils.agent_labels import display_name
+
+    # Only show paired experiments that have multiple modes
+    paired_exps = [e for e in filtered_experiments if e.get("is_paired")]
+    if not paired_exps:
+        st.info("No paired experiments found in the current filter. "
+                "Paired experiments have mode subdirectories (baseline/, sourcegraph_base/, etc.).")
+        return
+
+    exp_names = [e["name"] for e in paired_exps]
+    selected_idx = st.selectbox(
+        "Select Paired Experiment",
+        range(len(exp_names)),
+        format_func=lambda i: exp_names[i],
+        key="paired_exp_select",
+    )
+    if selected_idx is None:
+        return
+
+    exp = paired_exps[selected_idx]
+    modes = exp.get("modes", {})
+    mode_names = sorted(modes.keys())
+
+    if len(mode_names) < 2:
+        st.warning("This experiment has only one mode. Select an experiment with at least two modes to compare.")
+        show_paired_experiment(exp)
+        return
+
+    # Let user pick two modes to compare
+    col_a, col_b = st.columns(2)
+    with col_a:
+        mode_a = st.selectbox("Baseline Mode", mode_names, index=0, key="paired_mode_a")
+    with col_b:
+        default_b = 1 if len(mode_names) > 1 else 0
+        mode_b = st.selectbox("Variant Mode", mode_names, index=default_b, key="paired_mode_b")
+
+    if mode_a == mode_b:
+        st.warning("Select two different modes to compare.")
+        return
+
+    tasks_a = {t["task_name"]: t for t in modes[mode_a]["tasks"]}
+    tasks_b = {t["task_name"]: t for t in modes[mode_b]["tasks"]}
+    common_tasks = sorted(set(tasks_a.keys()) & set(tasks_b.keys()))
+
+    label_a = display_name(mode_a)
+    label_b = display_name(mode_b)
+
+    # Summary metrics
+    st.markdown("---")
+    if not common_tasks:
+        st.warning("No tasks in common between the selected modes.")
+        return
+
+    rewards_a = [tasks_a[t].get("reward") or 0.0 for t in common_tasks]
+    rewards_b = [tasks_b[t].get("reward") or 0.0 for t in common_tasks]
+    deltas = [b - a for a, b in zip(rewards_a, rewards_b)]
+
+    wins = sum(1 for d in deltas if d > 0)
+    losses = sum(1 for d in deltas if d < 0)
+    ties = sum(1 for d in deltas if d == 0)
+    mean_delta = sum(deltas) / len(deltas)
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Common Tasks", len(common_tasks))
+    c2.metric(f"{label_b} Wins", wins)
+    c3.metric("Ties", ties)
+    c4.metric(f"{label_b} Losses", losses)
+    c5.metric("Mean Delta", f"{mean_delta:+.4f}")
+
+    st.markdown("---")
+
+    # Build comparison table
+    rows = []
+    for task_name in common_tasks:
+        ta = tasks_a[task_name]
+        tb = tasks_b[task_name]
+        r_a = ta.get("reward") or 0.0
+        r_b = tb.get("reward") or 0.0
+        rows.append({
+            "Task": task_name,
+            f"{label_a} Reward": r_a,
+            f"{label_b} Reward": r_b,
+            "Delta": r_b - r_a,
+            f"{label_a} Tokens": (ta.get("input_tokens") or 0),
+            f"{label_b} Tokens": (tb.get("input_tokens") or 0),
+        })
+
+    df = pd.DataFrame(rows)
+    event = st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="paired_comparison_table",
+    )
+
+    selected_rows = event.selection.rows
+    if selected_rows:
+        sel_task = common_tasks[selected_rows[0]]
+        st.markdown("---")
+        st.subheader(f"Task: {sel_task}")
+
+        col_left, col_right = st.columns(2)
+        with col_left:
+            st.markdown(f"**{label_a}**")
+            _render_paired_task_summary(tasks_a[sel_task])
+        with col_right:
+            st.markdown(f"**{label_b}**")
+            _render_paired_task_summary(tasks_b[sel_task])
+
+
+def _render_paired_task_summary(task: dict) -> None:
+    """Render summary metrics for one side of a paired task comparison."""
+    reward = task.get("reward") or 0.0
+    input_tok = task.get("input_tokens") or 0
+    output_tok = task.get("output_tokens") or 0
+    cache_create = task.get("cache_creation_tokens") or 0
+    cache_read = task.get("cache_read_tokens") or 0
+    new_input = max(input_tok - cache_create - cache_read, 0)
+
+    m1, m2 = st.columns(2)
+    m1.metric("Reward", f"{reward:.4f}")
+    m2.metric("Status", task.get("status", "unknown"))
+
+    m3, m4 = st.columns(2)
+    m3.metric("New Input Tokens", f"{new_input:,}")
+    m4.metric("Output Tokens", f"{output_tok:,}")
 
 
 def _show_individual_mode(filtered_experiments: list) -> None:

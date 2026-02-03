@@ -10,8 +10,10 @@ AGENT_LABEL_MAP: dict[str, str] = {
     "baseline": "baseline",
     "sourcegraph": "sourcegraph_no_ds",
     "sourcegraph_hybrid": "sourcegraph_no_ds",
+    "sourcegraph_base": "sourcegraph_no_ds",
     "deepsearch": "sourcegraph_full",
     "mcp": "sourcegraph_full",
+    "sourcegraph_full": "sourcegraph_full",
 }
 
 # Canonical label -> human-readable display name
