@@ -652,15 +652,94 @@ def _show_paired_mode(filtered_experiments: list, all_experiments: list) -> None
 
     st.markdown("---")
 
+    # --- Filters ---
+    # Collect filterable values from task_metrics across both modes
+    all_statuses: set[str] = set()
+    all_languages: set[str] = set()
+    all_difficulties: set[str] = set()
+    for t_name in common_tasks:
+        for t_dict in (tasks_a[t_name], tasks_b[t_name]):
+            tm = t_dict.get("task_metrics") or {}
+            status = _paired_task_status(t_dict)
+            if status:
+                all_statuses.add(status)
+            lang = tm.get("language") or t_dict.get("task_language") or ""
+            if lang:
+                all_languages.add(lang)
+            diff = tm.get("difficulty") or ""
+            if diff:
+                all_difficulties.add(diff)
+
+    with st.expander("Filters", expanded=False):
+        fc1, fc2, fc3, fc4 = st.columns(4)
+        with fc1:
+            sel_statuses = st.multiselect(
+                "Status",
+                sorted(all_statuses),
+                key="paired_filter_status",
+            )
+        with fc2:
+            sel_languages = st.multiselect(
+                "Language",
+                sorted(all_languages),
+                key="paired_filter_language",
+            )
+        with fc3:
+            sel_difficulties = st.multiselect(
+                "Difficulty",
+                sorted(all_difficulties),
+                key="paired_filter_difficulty",
+            )
+        with fc4:
+            search_text = st.text_input(
+                "Search tasks",
+                placeholder="Filter by name...",
+                key="paired_filter_search",
+            )
+
+    # Apply filters to common tasks
+    filtered_tasks = list(common_tasks)
+    if sel_statuses:
+        filtered_tasks = [
+            t for t in filtered_tasks
+            if _paired_task_status(tasks_a[t]) in sel_statuses
+            or _paired_task_status(tasks_b[t]) in sel_statuses
+        ]
+    if sel_languages:
+        filtered_tasks = [
+            t for t in filtered_tasks
+            if _get_task_language(tasks_a[t]) in sel_languages
+            or _get_task_language(tasks_b[t]) in sel_languages
+        ]
+    if sel_difficulties:
+        filtered_tasks = [
+            t for t in filtered_tasks
+            if _get_task_difficulty(tasks_a[t]) in sel_difficulties
+            or _get_task_difficulty(tasks_b[t]) in sel_difficulties
+        ]
+    if search_text.strip():
+        search_lower = search_text.strip().lower()
+        filtered_tasks = [t for t in filtered_tasks if search_lower in t.lower()]
+
+    st.caption(f"Showing {len(filtered_tasks)} of {len(common_tasks)} common tasks")
+
+    if not filtered_tasks:
+        st.info("No tasks match the selected filters.")
+        return
+
     # Build comparison table
     rows = []
-    for task_name in common_tasks:
+    for task_name in filtered_tasks:
         ta = tasks_a[task_name]
         tb = tasks_b[task_name]
         r_a = ta.get("reward") or 0.0
         r_b = tb.get("reward") or 0.0
         rows.append({
             "Task": task_name,
+            "Language": _get_task_language(ta),
+            "Difficulty": _get_task_difficulty(ta),
+            f"{label_a} Status": _paired_task_status(ta),
+            f"{label_b} Status": _paired_task_status(tb),
             f"{label_a} Reward": r_a,
             f"{label_b} Reward": r_b,
             "Delta": r_b - r_a,
@@ -680,35 +759,194 @@ def _show_paired_mode(filtered_experiments: list, all_experiments: list) -> None
 
     selected_rows = event.selection.rows
     if selected_rows:
-        sel_task = common_tasks[selected_rows[0]]
+        sel_task = filtered_tasks[selected_rows[0]]
         st.markdown("---")
         st.subheader(f"Task: {sel_task}")
 
         col_left, col_right = st.columns(2)
         with col_left:
             st.markdown(f"**{label_a}**")
-            _render_paired_task_summary(tasks_a[sel_task])
+            _render_paired_task_summary(tasks_a[sel_task], label_a)
         with col_right:
             st.markdown(f"**{label_b}**")
-            _render_paired_task_summary(tasks_b[sel_task])
+            _render_paired_task_summary(tasks_b[sel_task], label_b)
+
+        # Show task instructions side-by-side (reveals MCP preamble differences)
+        inst_a = _load_agent_instruction(tasks_a[sel_task].get("instance_dir"))
+        inst_b = _load_agent_instruction(tasks_b[sel_task].get("instance_dir"))
+        if inst_a or inst_b:
+            st.markdown("---")
+            st.subheader("Task Instructions")
+            st.caption(
+                "The instruction given to the agent. "
+                "MCP variant runs include a preamble describing available tools and the target repo."
+            )
+            ic_left, ic_right = st.columns(2)
+            with ic_left:
+                st.markdown(f"**{label_a}**")
+                if inst_a:
+                    with st.expander("instruction.txt", expanded=False):
+                        st.code(inst_a[:5000], language="markdown")
+                else:
+                    st.caption("No instruction found")
+            with ic_right:
+                st.markdown(f"**{label_b}**")
+                if inst_b:
+                    with st.expander("instruction.txt", expanded=False):
+                        st.code(inst_b[:5000], language="markdown")
+                else:
+                    st.caption("No instruction found")
 
 
-def _render_paired_task_summary(task: dict) -> None:
-    """Render summary metrics for one side of a paired task comparison."""
+def _paired_task_status(task: dict) -> str:
+    """Derive display status for a paired task (pass/fail/partial/error)."""
+    tm = task.get("task_metrics") or {}
+    status = tm.get("status") or task.get("status") or "unknown"
+    reward = task.get("reward")
+
+    if status == "error":
+        return "error"
+    if reward is not None:
+        try:
+            r = float(reward)
+            if r >= 1.0:
+                return "pass"
+            elif r > 0.0:
+                return "partial"
+            else:
+                return "fail"
+        except (ValueError, TypeError):
+            pass
+    if status == "completed":
+        return "pass"
+    return status
+
+
+def _get_task_language(task: dict) -> str:
+    """Extract language from task_metrics or task_language field."""
+    tm = task.get("task_metrics") or {}
+    return tm.get("language") or task.get("task_language") or "unknown"
+
+
+def _get_task_difficulty(task: dict) -> str:
+    """Extract difficulty from task_metrics."""
+    tm = task.get("task_metrics") or {}
+    return tm.get("difficulty") or "unknown"
+
+
+def _load_agent_instruction(instance_dir: Path) -> str:
+    """Load the task instruction sent to the agent.
+
+    Harbor stores the human-readable instruction (including any MCP preamble
+    for variant runs) at instruction.txt in the instance root directory.
+
+    Note: agent/command-1/command.txt is the shell bootstrap script
+    (base64-encoded blobs, container setup) and should NOT be displayed.
+    """
+    if not instance_dir:
+        return ""
+    candidates = [
+        instance_dir / "instruction.txt",
+        instance_dir / "agent" / "instruction.txt",
+    ]
+    for path in candidates:
+        if path.is_file():
+            try:
+                return path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+    return ""
+
+
+def _render_paired_task_summary(task: dict, label: str = "") -> None:
+    """Render detailed metrics for one side of a paired task comparison."""
     reward = task.get("reward") or 0.0
     input_tok = task.get("input_tokens") or 0
     output_tok = task.get("output_tokens") or 0
     cache_create = task.get("cache_creation_tokens") or 0
     cache_read = task.get("cache_read_tokens") or 0
     new_input = max(input_tok - cache_create - cache_read, 0)
+    status = _paired_task_status(task)
 
+    # Core metrics
     m1, m2 = st.columns(2)
     m1.metric("Reward", f"{reward:.4f}")
-    m2.metric("Status", task.get("status", "unknown"))
+    m2.metric("Status", status)
 
     m3, m4 = st.columns(2)
     m3.metric("New Input Tokens", f"{new_input:,}")
     m4.metric("Output Tokens", f"{output_tok:,}")
+
+    m5, m6 = st.columns(2)
+    m5.metric("Cache Create", f"{cache_create:,}")
+    m6.metric("Cache Read", f"{cache_read:,}")
+
+    # Detailed task_metrics if available
+    tm = task.get("task_metrics") or {}
+    if not tm:
+        return
+
+    with st.expander("Task Metrics", expanded=False):
+        tm_col1, tm_col2, tm_col3, tm_col4 = st.columns(4)
+
+        with tm_col1:
+            st.markdown("**Task Info**")
+            st.write(f"- Benchmark: {tm.get('benchmark', 'N/A')}")
+            st.write(f"- Config: {tm.get('config_name', 'N/A')}")
+            st.write(f"- Language: {tm.get('language', 'N/A')}")
+            st.write(f"- Difficulty: {tm.get('difficulty', 'N/A')}")
+            st.write(f"- SDLC Phase: {tm.get('sdlc_phase', 'N/A')}")
+            repo = tm.get("repo", "")
+            if repo:
+                st.write(f"- Repo: {repo}")
+
+        with tm_col2:
+            st.markdown("**Timing**")
+            wall = tm.get("wall_clock_seconds") or 0
+            agent_exec = tm.get("agent_execution_seconds") or 0
+            env_s = tm.get("environment_setup_seconds") or 0
+            verifier_s = tm.get("verifier_seconds") or 0
+            st.write(f"- Wall clock: {wall:.1f}s")
+            st.write(f"- Agent execution: {agent_exec:.1f}s")
+            st.write(f"- Env setup: {env_s:.1f}s")
+            st.write(f"- Verifier: {verifier_s:.1f}s")
+
+        with tm_col3:
+            st.markdown("**Tool Calls**")
+            st.write(f"- Total: {tm.get('tool_calls_total', 'N/A')}")
+            st.write(f"- Local: {tm.get('tool_calls_local', 'N/A')}")
+            st.write(f"- MCP: {tm.get('tool_calls_mcp', 'N/A')}")
+            mcp_ratio = tm.get("mcp_ratio")
+            if mcp_ratio is not None:
+                st.write(f"- MCP ratio: {mcp_ratio:.1%}")
+            by_name = tm.get("tool_calls_by_name") or {}
+            if by_name:
+                st.markdown("**By tool:**")
+                for tool, count in sorted(
+                    by_name.items(), key=lambda x: x[1], reverse=True
+                ):
+                    st.write(f"- {tool}: {count}")
+
+        with tm_col4:
+            st.markdown("**MCP Benefit Score**")
+            score = tm.get("mcp_benefit_score")
+            if score is not None:
+                st.write(f"- Overall: {score:.4f}")
+            breakdown = tm.get("mcp_benefit_breakdown") or {}
+            for key, val in breakdown.items():
+                bk_label = key.replace("_", " ").title()
+                st.write(f"- {bk_label}: {val}")
+            files_mod = tm.get("files_modified")
+            lines_add = tm.get("lines_added")
+            lines_rem = tm.get("lines_removed")
+            if any(v is not None for v in [files_mod, lines_add, lines_rem]):
+                st.markdown("**Code Changes**")
+                if files_mod is not None:
+                    st.write(f"- Files modified: {files_mod}")
+                if lines_add is not None:
+                    st.write(f"- Lines added: {lines_add}")
+                if lines_rem is not None:
+                    st.write(f"- Lines removed: {lines_rem}")
 
 
 def _show_individual_mode(filtered_experiments: list) -> None:
@@ -929,11 +1167,25 @@ def show_paired_task_detail(task):
             if config.get("agent", {}).get("model_name"):
                 st.markdown(f"**Model:** {config['agent']['model_name']}")
 
-        # Instruction
-        if instruction_content:
+        # Task instruction from instruction.txt (includes MCP preamble for variants)
+        agent_instruction = _load_agent_instruction(instance_dir) if instance_dir else ""
+
+        # Prefer instruction.txt over benchmark instruction.md since it
+        # contains the actual text sent to the agent (with MCP preamble).
+        if agent_instruction or instruction_content:
             st.markdown("---")
-            st.markdown("**Instruction:**")
-            # Show first 2000 chars with option to expand
+
+        if agent_instruction:
+            st.markdown("**Task Instruction** (includes MCP preamble if applicable)")
+            if len(agent_instruction) > 3000:
+                st.code(agent_instruction[:3000] + "\n...", language="markdown")
+                with st.expander("Show full instruction"):
+                    st.code(agent_instruction, language="markdown")
+            else:
+                st.code(agent_instruction, language="markdown")
+
+        if instruction_content and not agent_instruction:
+            st.markdown("**Instruction**")
             if len(instruction_content) > 2000:
                 st.markdown(instruction_content[:2000] + "...")
                 with st.expander("Show full instruction"):

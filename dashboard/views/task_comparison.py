@@ -73,6 +73,60 @@ def _load_experiment_metrics(output_dir: Path) -> list[dict]:
         return []
 
 
+def _resolve_instance_dir(instance_dir: str) -> str:
+    """Resolve a potentially stale instance_dir path to a valid one.
+
+    Handles two common staleness issues in experiment_metrics.json:
+    1. Experiments moved to archive/ after metrics were generated.
+    2. Mode directories renamed (sourcegraph_hybrid -> sourcegraph_full
+       or sourcegraph_base).
+
+    Returns the original path if no resolution is found.
+    """
+    if not instance_dir:
+        return instance_dir
+    p = Path(instance_dir)
+    if p.is_dir():
+        return instance_dir
+
+    # Strategy 1: insert /archive/ after the category folder
+    # e.g. .../official/experiment_name/... -> .../official/archive/experiment_name/...
+    parts = p.parts
+    for category in ("official", "experiment", "troubleshooting"):
+        if category in parts:
+            idx = parts.index(category)
+            if idx + 1 < len(parts) and parts[idx + 1] != "archive":
+                candidate = Path(*parts[: idx + 1]) / "archive" / Path(*parts[idx + 1 :])
+                if candidate.is_dir():
+                    return str(candidate)
+
+    # Strategy 2: replace mode directory names
+    _MODE_ALIASES = {
+        "sourcegraph_hybrid": ["sourcegraph_full", "sourcegraph_base"],
+        "sourcegraph": ["sourcegraph_base", "sourcegraph_full"],
+        "deepsearch": ["sourcegraph_full"],
+        "mcp": ["sourcegraph_full", "sourcegraph_base"],
+    }
+    for old_mode, replacements in _MODE_ALIASES.items():
+        if f"/{old_mode}/" in instance_dir:
+            for new_mode in replacements:
+                candidate = Path(instance_dir.replace(f"/{old_mode}/", f"/{new_mode}/"))
+                if candidate.is_dir():
+                    return str(candidate)
+                # Also try with archive insertion
+                cand_str = str(candidate)
+                for category in ("official", "experiment", "troubleshooting"):
+                    if f"/{category}/" in cand_str:
+                        parts2 = candidate.parts
+                        idx2 = parts2.index(category)
+                        if idx2 + 1 < len(parts2) and parts2[idx2 + 1] != "archive":
+                            candidate2 = Path(*parts2[: idx2 + 1]) / "archive" / Path(*parts2[idx2 + 1 :])
+                            if candidate2.is_dir():
+                                return str(candidate2)
+
+    return instance_dir
+
+
 def _flatten_trials(categories: list[dict]) -> list[dict]:
     trials: list[dict] = []
     for category in categories:
@@ -80,7 +134,11 @@ def _flatten_trials(categories: list[dict]) -> list[dict]:
         for experiment in category.get("experiments", []):
             exp_id = experiment.get("experiment_id", "unknown")
             for trial in experiment.get("trials", []):
-                trials.append({**trial, "run_category": run_cat, "experiment_id": exp_id})
+                resolved = {**trial, "run_category": run_cat, "experiment_id": exp_id}
+                idir = resolved.get("instance_dir", "")
+                if idir:
+                    resolved["instance_dir"] = _resolve_instance_dir(idir)
+                trials.append(resolved)
     return trials
 
 
@@ -372,16 +430,29 @@ def _render_side_metrics(row: pd.Series, prefix: str) -> None:
 
 
 def _load_instruction_text(instance_dir: str) -> str:
-    """Read instruction.txt from a trial instance directory."""
+    """Read the task instruction from a trial instance directory.
+
+    Checks multiple locations in priority order:
+    1. instruction.txt              (root level — contains MCP preamble for variants)
+    2. agent/instruction.txt        (alternate layout used by some experiments)
+
+    Note: agent/command-1/command.txt is the Harbor shell bootstrap script
+    (base64-encoded blobs, user-creation, etc.) and should NOT be displayed.
+    """
     if not instance_dir:
         return ""
-    path = Path(instance_dir) / "instruction.txt"
-    if not path.is_file():
-        return ""
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")[:5000]
-    except OSError:
-        return ""
+    base = Path(instance_dir)
+    candidates = [
+        base / "instruction.txt",
+        base / "agent" / "instruction.txt",
+    ]
+    for path in candidates:
+        if path.is_file():
+            try:
+                return path.read_text(encoding="utf-8", errors="ignore")[:8000]
+            except OSError:
+                continue
+    return ""
 
 
 def _load_mcp_config(instance_dir: str) -> dict | None:

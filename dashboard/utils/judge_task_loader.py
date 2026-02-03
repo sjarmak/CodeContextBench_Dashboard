@@ -101,10 +101,27 @@ def load_task_instance(task_dir: Path) -> TaskInstanceData:
     else:
         missing_files.append("config.json")
 
-    # --- Task description from command.txt ---
+    # --- Task description from instruction.txt (preferred) or command.txt (fallback) ---
     task_description = f"Task ID: {task_dir.name}"
+    instruction_file = task_dir / "instruction.txt"
+    instruction_file_agent = agent_dir / "instruction.txt"
     command_file = agent_dir / "command-1" / "command.txt"
-    if command_file.exists():
+
+    if instruction_file.exists():
+        try:
+            task_description = instruction_file.read_text(
+                encoding="utf-8", errors="ignore"
+            )[:3000]
+        except Exception:
+            pass
+    elif instruction_file_agent.exists():
+        try:
+            task_description = instruction_file_agent.read_text(
+                encoding="utf-8", errors="ignore"
+            )[:3000]
+        except Exception:
+            pass
+    elif command_file.exists():
         try:
             with open(command_file, "r", encoding="utf-8", errors="ignore") as f:
                 cmd_content = f.read()
@@ -112,7 +129,7 @@ def load_task_instance(task_dir: Path) -> TaskInstanceData:
         except Exception:
             pass
     else:
-        missing_files.append("command.txt")
+        missing_files.append("instruction.txt")
 
     # --- Oracle data ---
     oracle_data: dict[str, Any] = {}
