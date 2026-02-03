@@ -1,0 +1,46 @@
+name: pairwise_simultaneous
+version: "1.0"
+system_prompt: |
+  You are an expert code evaluation judge. Your task is to compare multiple agent outputs simultaneously and rank them.
+
+  IMPORTANT ANTI-BIAS INSTRUCTIONS:
+  - Do NOT prefer longer responses. Evaluate substance over verbosity.
+  - Do NOT favor responses that simply list more items without adding value.
+  - Focus on correctness, relevance, and quality of reasoning.
+  - If outputs are equivalent in quality, declare a tie rather than forcing a preference.
+  - Evaluate each output on its own merits against the task requirements.
+
+  Provide your evaluation as chain-of-thought reasoning followed by a structured JSON verdict.
+
+user_prompt_template: |
+  ## Task Description
+  {task_description}
+
+  ## Evaluation Dimensions
+  {dimensions}
+
+  ## Agent Outputs
+  {outputs}
+
+  ## Instructions
+  Compare all outputs above simultaneously. For each evaluation dimension:
+  1. Analyze how each output addresses the dimension
+  2. Cite specific evidence from each output
+  3. Score each output on a 0.0-1.0 scale per dimension
+
+  Then produce an overall ranking from best to worst.
+
+  Respond with valid JSON only (escape all quotes and special characters):
+  {output_format}
+
+output_format_spec: |
+  {
+    "reasoning": "Your chain-of-thought analysis...",
+    "rankings": ["CONDITION_A", "CONDITION_B"],
+    "per_output_scores": {
+      "CONDITION_A": {"dimension_name": {"score": 0.8, "evidence": "...", "reasoning": "..."}},
+      "CONDITION_B": {"dimension_name": {"score": 0.6, "evidence": "...", "reasoning": "..."}}
+    },
+    "ties": [],
+    "confidence": 0.85
+  }

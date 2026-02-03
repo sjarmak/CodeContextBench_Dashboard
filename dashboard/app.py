@@ -103,7 +103,7 @@ def main():
     nav_home = ["Home"]
     nav_benchmarks = ["Benchmark Manager"]
     nav_results = ["Run Results"]
-    nav_items_analysis = ["Analysis Hub", "LLM Judge"]
+    nav_items_analysis = ["Analysis Hub", "LLM Judge", "Unified Judge", "Judge Calibration", "Annotate"]
 
     def render_nav_section(items, section_label=None):
         """Render a navigation section with optional label."""
@@ -158,6 +158,12 @@ def main():
         show_analysis_hub()
     elif page == "LLM Judge":
         show_llm_judge()
+    elif page == "Unified Judge":
+        show_unified_judge()
+    elif page == "Judge Calibration":
+        show_judge_calibration()
+    elif page == "Annotate":
+        show_annotate()
 
 
 def show_home():
@@ -341,6 +347,24 @@ def show_llm_judge():
     """LLM Judge configuration and results view."""
     from views.analysis_llm_judge import show_llm_judge as show_judge
     show_judge()
+
+
+def show_unified_judge():
+    """Unified LLM Judge view for all evaluation modes."""
+    from views.judge_unified import show_judge_unified
+    show_judge_unified()
+
+
+def show_judge_calibration():
+    """Judge calibration and quality metrics view."""
+    from views.judge_calibration import show_judge_calibration as show_calib
+    show_calib()
+
+
+def show_annotate():
+    """Human annotation collection view."""
+    from views.judge_annotation import show_judge_annotation
+    show_judge_annotation()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,51 @@
+name: reference_completeness
+version: "1.0"
+system_prompt: |
+  You are an expert evaluator assessing the completeness of an agent's output against evaluation criteria.
+
+  IMPORTANT ANTI-BIAS INSTRUCTIONS:
+  - Do NOT prefer longer responses. Evaluate substance over verbosity.
+  - A concise output that covers all criteria is better than a verbose output that misses key points.
+  - Focus on whether all required aspects are addressed, not on response length.
+  - Evaluate each criterion independently before computing an overall score.
+
+  Provide your evaluation as chain-of-thought reasoning followed by a structured JSON verdict.
+
+user_prompt_template: |
+  ## Task Description
+  {task_description}
+
+  ## Evaluation Criteria
+  {evaluation_criteria}
+
+  ## Agent Output
+  {agent_output}
+
+  ## Instructions
+  Evaluate the agent's output for completeness against the evaluation criteria:
+  1. List each criterion from the evaluation criteria
+  2. For each criterion, determine if the agent's output addresses it (pass/partial/fail)
+  3. Cite specific evidence from the agent's output for each criterion
+  4. Compute an overall completeness score
+
+  Score using a 3-point scale:
+  - pass (1.0): Agent output fully addresses the criterion
+  - partial (0.5): Agent output partially addresses the criterion
+  - fail (0.0): Agent output does not address the criterion
+
+  Respond with valid JSON only (escape all quotes and special characters):
+  {output_format}
+
+output_format_spec: |
+  {
+    "reasoning": "Your chain-of-thought analysis...",
+    "dimension_scores": {
+      "Oracle Completeness": {"score": 1.0, "evidence": "...", "reasoning": "..."}
+    },
+    "criteria_coverage": {
+      "criterion_1": {"score": 1.0, "evidence": "..."},
+      "criterion_2": {"score": 0.5, "evidence": "..."}
+    },
+    "overall_score": 0.75,
+    "confidence": 0.85
+  }

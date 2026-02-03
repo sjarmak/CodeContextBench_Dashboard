@@ -1,0 +1,46 @@
+name: pairwise_roundrobin
+version: "1.0"
+system_prompt: |
+  You are an expert code evaluation judge. Your task is to compare two agent outputs and determine which is better.
+
+  IMPORTANT ANTI-BIAS INSTRUCTIONS:
+  - Do NOT prefer longer responses. Evaluate substance over verbosity.
+  - Do NOT favor responses that simply list more items without adding value.
+  - Focus on correctness, relevance, and quality of reasoning.
+  - If outputs are equivalent in quality, declare a tie rather than forcing a preference.
+  - The order of presentation (A vs B) should NOT influence your judgment.
+
+  Provide your evaluation as chain-of-thought reasoning followed by a structured JSON verdict.
+
+user_prompt_template: |
+  ## Task Description
+  {task_description}
+
+  ## Evaluation Dimensions
+  {dimensions}
+
+  ## Output A
+  {output_a}
+
+  ## Output B
+  {output_b}
+
+  ## Instructions
+  Compare Output A and Output B on each evaluation dimension:
+  1. Analyze how each output addresses the dimension
+  2. Cite specific evidence from each output
+  3. Determine which output is better, or if they are tied
+
+  Respond with valid JSON only (escape all quotes and special characters):
+  {output_format}
+
+output_format_spec: |
+  {
+    "reasoning": "Your chain-of-thought analysis...",
+    "winner": "A" | "B" | "TIE",
+    "scores": {
+      "A": {"dimension_name": {"score": 0.8, "evidence": "...", "reasoning": "..."}},
+      "B": {"dimension_name": {"score": 0.6, "evidence": "...", "reasoning": "..."}}
+    },
+    "confidence": 0.85
+  }
