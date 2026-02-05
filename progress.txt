@@ -16,6 +16,7 @@ Started: Thu Feb  5 08:09:21 EST 2026
 - `error_fingerprint` is a dict with keys `fingerprint_id`, `label`, `severity` (or null for no error)
 - Size bucketing uses `input_tokens` as proxy since `task_context_length` doesn't exist in actual data
 - Pandas converts `None` to `NaN` (float) in numeric columns — `val is None` checks fail; use `math.isnan()` as fallback in formatters
+- `_CONFIG_NAMES` tuple at module level for the 3 config directory names — reuse instead of hardcoding lists
 - Pandas Styler with `st.dataframe`: use `.style.apply(fn, axis=1)` for row-level backgrounds; return `["background-color: rgba(...)"] * len(row)` for each row
 - `sdlc_phase` is a real field in task_metrics.json — populated from `selected_benchmark_tasks.json` registry, not inferred
 - Streamlit `st.multiselect` returns `[]` when empty — use `sel or None` before passing to filter functions that treat `None` as "no filter"
@@ -165,4 +166,20 @@ Started: Thu Feb  5 08:09:21 EST 2026
   - Pandas `value_counts()` on a Series produces a clean config distribution for display (e.g., "baseline: 50, sourcegraph_full: 48")
   - `_SEVERITY_ORDER` list ensures consistent row ordering even when not all severities are present in the data
   - Using `map()` with a rank dict + `sort_values` is cleaner than custom sort logic for ordered categorical display
+---
+
+## 2026-02-05 - US-012
+- Added "Tool Errors" sub-section within the Error Analysis expander in `config_comparison.py`
+- Implemented `_build_tool_errors_df()` that aggregates `tool_errors_by_name` across tasks/configs with error rate computation from `tool_calls_by_name`
+- Implemented `_render_tool_errors()` with `st.multiselect` config filter (baseline/sourcegraph_base/sourcegraph_full)
+- Displays: Tool Name | Error Count | Affected Task Count | Avg Error Rate
+- Sorted by error count descending
+- Handles null `tool_errors_by_name` and `tool_calls_by_name` gracefully with informative empty state message
+- Files changed: `dashboard/views/config_comparison.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `tool_errors_by_name` is not currently populated in any task_metrics.json (always null) — the section shows an info message for now but is ready for when error data is present
+  - `tool_calls_by_name` IS populated in 723/859 tasks — maps tool name strings to integer call counts
+  - When accumulating across tasks, use a `set()` for affected task tracking to avoid counting duplicates
+  - Error rate formula: `errors / max(calls, 1) * 100` — uses `max(calls, 1)` to avoid division by zero when calls data is missing but errors exist
+  - `_CONFIG_NAMES` tuple at module level avoids duplicating the list of config directory names
 ---

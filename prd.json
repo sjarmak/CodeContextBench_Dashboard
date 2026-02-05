@@ -215,7 +215,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "tool_errors_by_name and tool_calls_by_name are dicts in task_metrics.json mapping tool name strings to integer counts. Both can be None."
     }
   ]

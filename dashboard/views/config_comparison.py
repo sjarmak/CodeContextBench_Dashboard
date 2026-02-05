@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Sequence
 
 import pandas as pd
 import streamlit as st
@@ -711,6 +711,130 @@ def _render_error_analysis(
     )
 
 
+_CONFIG_NAMES = ("baseline", "sourcegraph_base", "sourcegraph_full")
+
+
+def _build_tool_errors_df(
+    comparison_data: dict[str, dict[str, Optional[dict]]],
+    config_filter: Optional[Sequence[str]] = None,
+) -> pd.DataFrame:
+    """Build tool error breakdown: Tool Name | Error Count | Affected Task Count | Avg Error Rate.
+
+    Sources data from ``tool_errors_by_name`` and ``tool_calls_by_name``
+    dicts in task_metrics.json.  Both fields map tool-name strings to
+    integer counts and can be ``None``.
+
+    Args:
+        comparison_data: Comparison dict ``{task_id: {config: metrics}}``.
+        config_filter: Optional list of config names to include.  ``None``
+            means all configs.
+    """
+    # Accumulate per-tool totals across all matching tasks/configs
+    # tool -> { errors: int, calls: int, affected_tasks: set[str] }
+    tool_agg: dict[str, dict] = {}
+
+    configs_to_check = config_filter if config_filter else list(_CONFIG_NAMES)
+
+    for task_id, configs in comparison_data.items():
+        for config_name in configs_to_check:
+            metrics = configs.get(config_name)
+            if metrics is None:
+                continue
+
+            errors_map = metrics.get("tool_errors_by_name")
+            calls_map = metrics.get("tool_calls_by_name")
+
+            if not errors_map or not isinstance(errors_map, dict):
+                continue
+
+            for tool_name, err_count in errors_map.items():
+                if err_count is None:
+                    continue
+                err_count_int = int(err_count)
+                if err_count_int <= 0:
+                    continue
+
+                if tool_name not in tool_agg:
+                    tool_agg[tool_name] = {
+                        "errors": 0,
+                        "calls": 0,
+                        "affected_tasks": set(),
+                    }
+
+                tool_agg[tool_name]["errors"] += err_count_int
+                tool_agg[tool_name]["affected_tasks"].add(task_id)
+
+                # Add call count from tool_calls_by_name if available
+                if calls_map and isinstance(calls_map, dict):
+                    call_count = calls_map.get(tool_name)
+                    if call_count is not None:
+                        tool_agg[tool_name]["calls"] += int(call_count)
+
+    if not tool_agg:
+        return pd.DataFrame()
+
+    rows: list[dict[str, object]] = []
+    for tool_name, agg in tool_agg.items():
+        total_errors = agg["errors"]
+        total_calls = agg["calls"]
+        affected = len(agg["affected_tasks"])
+        error_rate = (total_errors / max(total_calls, 1)) * 100
+
+        rows.append({
+            "tool_name": tool_name,
+            "error_count": total_errors,
+            "affected_task_count": affected,
+            "avg_error_rate": error_rate,
+        })
+
+    df = pd.DataFrame(rows)
+    return df.sort_values("error_count", ascending=False).reset_index(drop=True)
+
+
+def _render_tool_errors(
+    comparison_data: dict[str, dict[str, Optional[dict]]],
+) -> None:
+    """Render the Tool Errors sub-section within Error Analysis."""
+    st.markdown("#### Tool Errors")
+    st.caption(
+        "Which tools are failing most, based on tool_errors_by_name "
+        "in task metrics. Error rate = errors / total calls for that tool."
+    )
+
+    # Config filter
+    sel_configs: Sequence[str] = st.multiselect(
+        "Config filter",
+        options=list(_CONFIG_NAMES),
+        default=list(_CONFIG_NAMES),
+        key="ccmp_tool_errors_config",
+    )
+    active_configs: Optional[Sequence[str]] = sel_configs or None
+
+    tool_df = _build_tool_errors_df(comparison_data, config_filter=active_configs)
+
+    if tool_df.empty:
+        st.info(
+            "No tool error data available. "
+            "The tool_errors_by_name field is not populated in the current dataset."
+        )
+        return
+
+    display = pd.DataFrame()
+    display["Tool Name"] = tool_df["tool_name"]
+    display["Error Count"] = tool_df["error_count"].astype(int)
+    display["Affected Task Count"] = tool_df["affected_task_count"].astype(int)
+    display["Avg Error Rate"] = tool_df["avg_error_rate"].apply(
+        lambda v: f"{v:.1f}%"
+    )
+
+    st.dataframe(
+        display,
+        use_container_width=True,
+        hide_index=True,
+        key="ccmp_tool_errors_table",
+    )
+
+
 def show_config_comparison() -> None:
     """Main entry point for the Config Comparison view."""
     st.title("Config Comparison")
@@ -839,3 +963,7 @@ def show_config_comparison() -> None:
     # --- Error Analysis ---
     with st.expander("Error Analysis", expanded=False):
         _render_error_analysis(filtered_data)
+
+        st.markdown("---")
+
+        _render_tool_errors(filtered_data)
