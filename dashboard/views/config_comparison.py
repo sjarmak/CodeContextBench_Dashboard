@@ -18,6 +18,7 @@ import streamlit as st
 from dashboard.utils.agent_labels import AGENT_DISPLAY_NAMES
 from dashboard.utils.comparison_filters import (
     _get_search_strategy_type,
+    _get_size_bucket,
     filter_comparison_tasks,
 )
 from dashboard.utils.comparison_loader import load_comparison_data
@@ -484,6 +485,133 @@ def _render_search_effectiveness(
     )
 
 
+_SIZE_BUCKET_ORDER = ["small", "medium", "large"]
+_SIZE_BUCKET_LABELS: dict[str, str] = {
+    "small": "Small (<300K)",
+    "medium": "Medium (300K-1M)",
+    "large": "Large (>1M)",
+}
+
+
+def _build_search_by_size_df(
+    comparison_data: dict[str, dict[str, Optional[dict]]],
+) -> pd.DataFrame:
+    """Build per-task rows with size bucket and search strategy for pivot.
+
+    Scans sourcegraph_base and sourcegraph_full configs only (baseline
+    has no search strategy). Each row has: size_bucket, strategy, reward.
+    """
+    rows: list[dict[str, object]] = []
+
+    for configs in comparison_data.values():
+        for config_name in ("sourcegraph_base", "sourcegraph_full"):
+            metrics = configs.get(config_name)
+            if metrics is None:
+                continue
+
+            strategy = _get_search_strategy_type(metrics)
+            if strategy is None:
+                continue
+
+            bucket = _get_size_bucket(metrics)
+            if bucket is None:
+                continue
+
+            reward = _safe_float(metrics.get("reward"))
+            rows.append({
+                "size_bucket": bucket,
+                "strategy": strategy,
+                "reward": reward,
+            })
+
+    if not rows:
+        return pd.DataFrame()
+
+    return pd.DataFrame(rows)
+
+
+def _render_search_by_size(
+    comparison_data: dict[str, dict[str, Optional[dict]]],
+) -> None:
+    """Render the 'Search by Size' pivot table with gradient coloring."""
+    st.markdown("#### Search by Size")
+    st.caption(
+        "Average reward by task size bucket and search strategy "
+        "(sourcegraph configs only)."
+    )
+
+    base_df = _build_search_by_size_df(comparison_data)
+
+    if base_df.empty:
+        st.info("No data with both size and search strategy information.")
+        return
+
+    # Pivot: rows = size_bucket, columns = strategy, values = mean reward
+    reward_pivot = pd.pivot_table(
+        base_df,
+        index="size_bucket",
+        columns="strategy",
+        values="reward",
+        aggfunc="mean",
+    )
+
+    # Pivot: task count per cell
+    count_pivot = pd.pivot_table(
+        base_df,
+        index="size_bucket",
+        columns="strategy",
+        values="reward",
+        aggfunc="count",
+    )
+
+    # Reindex to enforce row order (small, medium, large)
+    present_buckets = [b for b in _SIZE_BUCKET_ORDER if b in reward_pivot.index]
+    reward_pivot = reward_pivot.reindex(present_buckets)
+    count_pivot = count_pivot.reindex(present_buckets)
+
+    # Rename index for display
+    reward_pivot.index = [
+        _SIZE_BUCKET_LABELS.get(b, b) for b in reward_pivot.index
+    ]
+    count_pivot.index = [
+        _SIZE_BUCKET_LABELS.get(b, b) for b in count_pivot.index
+    ]
+
+    # Build combined display: "avg_reward (n=count)"
+    combined = reward_pivot.copy()
+    for col in combined.columns:
+        for idx in combined.index:
+            avg_val = reward_pivot.at[idx, col]
+            cnt_val = count_pivot.at[idx, col]
+            if pd.notna(avg_val) and pd.notna(cnt_val):
+                combined.at[idx, col] = f"{avg_val:.4f} (n={int(cnt_val)})"
+            else:
+                combined.at[idx, col] = _DASH
+
+    # Display pivot with gradient on numeric reward values
+    st.markdown("**Avg Reward (task count)**")
+
+    # Apply background gradient to the numeric reward pivot
+    styled_pivot = reward_pivot.style.background_gradient(
+        cmap="RdYlGn", axis=None
+    ).format(lambda v: f"{v:.4f}" if pd.notna(v) else _DASH)
+
+    st.dataframe(
+        styled_pivot,
+        use_container_width=True,
+        key="ccmp_search_by_size_gradient",
+    )
+
+    # Show count table separately for clarity
+    st.markdown("**Task count per cell**")
+    count_display = count_pivot.fillna(0).astype(int)
+    st.dataframe(
+        count_display,
+        use_container_width=True,
+        key="ccmp_search_by_size_counts",
+    )
+
+
 def show_config_comparison() -> None:
     """Main entry point for the Config Comparison view."""
     st.title("Config Comparison")
@@ -604,3 +732,7 @@ def show_config_comparison() -> None:
     # --- Search Effectiveness ---
     with st.expander("Search Effectiveness", expanded=False):
         _render_search_effectiveness(filtered_data)
+
+        st.markdown("---")
+
+        _render_search_by_size(filtered_data)

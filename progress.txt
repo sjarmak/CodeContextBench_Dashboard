@@ -133,3 +133,19 @@ Started: Thu Feb  5 08:09:21 EST 2026
   - The `_safe_float` / `_safe_int` / `_is_valid_number` helpers from earlier in the file are reusable for formatting aggregated values
   - `_get_search_strategy_type` returns `None` for baseline configs (no search calls) — filtering `if strategy is None: continue` naturally excludes baseline
 ---
+
+## 2026-02-05 - US-010
+- Added "Search by Size" sub-section within the search effectiveness expander in `config_comparison.py`
+- Implemented `_build_search_by_size_df()` to collect rows with (size_bucket, strategy, reward) from sourcegraph configs
+- Implemented `_render_search_by_size()` with `pd.pivot_table()` for cross-tabulation and `Styler.background_gradient(cmap='RdYlGn')` for heatmap
+- Imported `_get_size_bucket` from `comparison_filters.py` for consistent size classification
+- Displays two tables: gradient-styled reward pivot and plain task count pivot
+- Row order enforced: small, medium, large with human-readable labels
+- Files changed: `dashboard/views/config_comparison.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `pd.pivot_table()` with `aggfunc="mean"` and `aggfunc="count"` on same data produces parallel pivots for values and significance context
+  - Reindexing with a known order list (`_SIZE_BUCKET_ORDER`) ensures consistent row ordering even when some buckets are missing
+  - `_get_size_bucket` from `comparison_filters.py` is importable and reusable — no need to duplicate bucketing logic
+  - Pandas Styler `.background_gradient(cmap='RdYlGn', axis=None)` applies gradient across the entire table (not just per-row or per-column)
+  - `.format()` on Styler accepts a lambda for conditional formatting of NaN values
+---
