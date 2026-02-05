@@ -1,468 +1,222 @@
 {
-  "project": "CodeContextBench",
-  "branchName": "ralph/benchmark-trace-reviewer",
-  "description": "Benchmark Trace Reviewer & Experiment Explorer - GUI-driven experiment discovery, trace review, paired comparison, LLM judge configuration, and unified analysis hub for coding agent benchmarks",
+  "project": "CodeContextBench Dashboard",
+  "branchName": "ralph/dashboard-filtering-analytics",
+  "description": "Dashboard Filtering and Analytics Enhancement - Enable cross-config comparison, task filtering, and pattern discovery across baseline/sourcegraph_base/sourcegraph_full experiment configs",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Update data source path from jobs/ to runs/",
-      "description": "As a developer, I need the dashboard to read from ~/evals/custom_agents/agents/claudecode/runs/ instead of jobs/ so future benchmark runs are discovered automatically.",
+      "title": "Create comparison data loader",
+      "description": "As a dashboard backend, I need to load task_metrics.json files for all 3 configs (baseline, sourcegraph_base, sourcegraph_full) and join on (benchmark, task_id) so comparison views can work.",
       "acceptanceCriteria": [
-        "Find all references to 'jobs/' path in dashboard code (app.py, views/, utils/) and update to 'runs/'",
-        "Find all references to 'eval_runs_v2/' and update to use 'runs/'",
-        "Update the default RUNS_DIR in .env.local or config to ~/evals/custom_agents/agents/claudecode/runs/",
-        "Ensure harbor_parser.py and transcript_parser.py accept the new path",
+        "Create new file dashboard/utils/comparison_loader.py",
+        "Implement load_comparison_data(runs_dir: Path) that walks runs/official/<run_name>/<config>/<batch_timestamp>/<task_id__hash>/task_metrics.json",
+        "Config directory names are: 'baseline', 'sourcegraph_base', 'sourcegraph_full' (use _KNOWN_MODE_DIRS pattern from home_run_scanner.py)",
+        "runs_dir comes from CCB_EXTERNAL_RUNS_DIR env var or defaults to ~/evals/custom_agents/agents/claudecode/runs (same as home_run_scanner.py)",
+        "Join on (benchmark, task_id) — return dict: {task_id: {'baseline': dict, 'sourcegraph_base': dict, 'sourcegraph_full': dict}}",
+        "Handle missing tasks in any config gracefully (set to None)",
+        "Handle null/None values using data.get('key') or default pattern (per CLAUDE.md gotcha about dict.get returning None)",
+        "Cache result in st.session_state['comparison_data'] to avoid re-reading files on page interaction",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "Follow patterns from dashboard/utils/home_run_scanner.py for directory walking and RunSummary. Use json.loads(path.read_text()) for file reading. Config names must match _KNOWN_MODE_DIRS exactly."
     },
     {
       "id": "US-002",
-      "title": "Remove archived runs option from UI",
-      "description": "As a developer, I need to remove the 'include archived runs' toggle and related filtering logic from the dashboard.",
+      "title": "Create comparison metrics computation",
+      "description": "As a dashboard view, I need computed metrics (benefit_pct, efficiency, error_rate) derived from paired task_metrics data without modifying source data.",
       "acceptanceCriteria": [
-        "Remove the 'include archived runs' checkbox/toggle from all UI views (search in dashboard/views/ and dashboard/utils/)",
-        "Remove related filtering logic in filters.py and filter_ui.py that references 'archived' status",
-        "No references to 'archived' run status remain in the dashboard code",
+        "Create new file dashboard/utils/comparison_metrics.py",
+        "Implement compute_mcp_benefit(baseline: dict, variant: dict) returning dict with: benefit_pct, token_cost_pct, efficiency",
+        "benefit_pct = (variant_reward - baseline_reward) / max(baseline_reward, 0.001) * 100",
+        "token_cost_pct = (variant_tokens - baseline_tokens) / max(baseline_tokens, 1) * 100 where tokens = input_tokens + output_tokens",
+        "efficiency = benefit_pct / max(token_cost_pct, 1)",
+        "All divisions use max(denominator, threshold) to avoid divide-by-zero",
+        "Return None for any metric where inputs are None",
+        "Implement compute_task_ratios(task: dict) returning dict with: tool_error_rate_pct, backtrack_ratio, execution_phase_breakdown",
         "Typecheck passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": ""
+      "notes": "All task_metrics.json fields can be None. Use immutable return dicts (don't mutate inputs). Reward field is 'reward', token fields are 'input_tokens' and 'output_tokens'."
     },
     {
       "id": "US-003",
-      "title": "Add benchmark set detection utility",
-      "description": "As a developer, I need a utility function that derives the benchmark set name (LoCoBench, SWE-Bench Pro, etc.) from a run's manifest.json or directory name.",
+      "title": "Create comparison filter functions",
+      "description": "As a dashboard filter, I need to filter comparison task data by category, difficulty, size, error type, and search strategy.",
       "acceptanceCriteria": [
-        "Create a function in dashboard/utils/ that accepts a run directory path and returns the benchmark set name",
-        "Detection logic: first check manifest.json config.benchmarks field, then fall back to directory name pattern matching (locobench_* -> LoCoBench, swebenchpro_* -> SWE-Bench Pro, repoqa_* -> RepoQA, dibench_* -> DIBench)",
-        "Returns 'Unknown' for unrecognized patterns",
-        "Unit test verifying detection for each known benchmark set",
+        "Create new file dashboard/utils/comparison_filters.py",
+        "Implement filter_comparison_tasks(tasks: dict, benchmark=None, category=None, difficulty=None, size_bucket=None, error_severity=None, search_strategy_type=None) returning filtered dict",
+        "All filter params optional (None = no filter on that dimension)",
+        "size_bucket bucketing: small (<300K), medium (300K-1M), large (>1M) using task_context_length field, fall back to instruction_length_chars if task_context_length is None",
+        "Multi-value filters: category=['architectural_understanding', 'feature_implementation'] includes tasks matching either (OR within dimension)",
+        "AND across dimensions (e.g., category=X AND difficulty=Y)",
+        "Return new dict without modifying input (immutable pattern per coding style rules)",
+        "Reference existing patterns in dashboard/utils/filters.py and dashboard/utils/filter_ui.py for consistency",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Existing dashboard/utils/filters.py has filtering patterns for task metadata. Category values include: architectural_understanding, bug_investigation, cross_file_refactoring, feature_implementation. Difficulty values: easy, medium, hard, expert."
     },
     {
       "id": "US-004",
-      "title": "Benchmark set grouping in experiment selector",
-      "description": "As an evaluator, I want experiments grouped by benchmark set in the experiment selector so I can quickly find runs for a specific benchmark.",
+      "title": "Create config comparison view with raw values table",
+      "description": "As a researcher, I want to see baseline vs sourcegraph_base vs sourcegraph_full metrics side-by-side for the same task so I can evaluate MCP impact directly.",
       "acceptanceCriteria": [
-        "Experiment selector in run_results.py displays a two-level hierarchy: benchmark set header > experiment entries",
-        "Use the benchmark set detection utility from US-003 to categorize each experiment",
-        "Each benchmark group header shows the count of experiments in parentheses",
-        "Selecting a benchmark set filters to only show its experiments",
-        "Groups with no experiments are hidden",
+        "Create new file dashboard/views/config_comparison.py with function show_config_comparison()",
+        "Register the view in dashboard/app.py: add 'Config Comparison' to nav_results list and add routing in the if/elif page chain",
+        "Use load_comparison_data() from dashboard/utils/comparison_loader.py to load data",
+        "Display st.dataframe with columns: task_id, benchmark, baseline_reward, sg_base_reward, sg_full_reward, baseline_tokens, sg_base_tokens, sg_full_tokens",
+        "Use agent display names from dashboard/utils/agent_labels.py AGENT_DISPLAY_NAMES for column headers",
+        "Display dash character for null values in the dataframe",
+        "Use st.columns() for layout (avoid st.sidebar per CLAUDE.md gotcha about sidebar content being hidden)",
+        "Prefix all widget keys with 'ccmp_' to avoid StreamlitDuplicateElementKey errors",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Follow existing view patterns: see dashboard/views/task_comparison.py for reference. Import pattern: 'from dashboard.utils.comparison_loader import load_comparison_data'. App.py routing uses dynamic imports: 'from views.config_comparison import show_config_comparison'."
     },
     {
       "id": "US-005",
-      "title": "Paired vs individual experiment mode toggle",
-      "description": "As an evaluator, I want to toggle between paired comparison and individual review modes when selecting experiments.",
+      "title": "Add computed effectiveness columns to comparison table",
+      "description": "As a researcher, I want to see how much MCP helped (or hurt) on each task via benefit_pct, token_cost_pct, and efficiency columns.",
       "acceptanceCriteria": [
-        "Add a radio button toggle: 'Paired Comparison' | 'Individual Review' at the top of the experiment selector",
-        "In Individual mode: standard single-run selection (existing behavior)",
-        "In Paired mode: show two dropdowns for baseline and variant run selection",
-        "In Paired mode: auto-detect available pairs from pairs/ directory and pre-populate selections",
-        "In Paired mode: allow manual pairing of any two runs that share common task_ids",
-        "Store selection mode in Streamlit session state",
+        "Import compute_mcp_benefit from dashboard/utils/comparison_metrics.py in config_comparison.py",
+        "Add computed columns to dataframe: sg_base_benefit_pct, sg_full_benefit_pct, sg_full_token_cost_pct, sg_full_efficiency",
+        "Format percentages to 1 decimal (e.g., '+41.2%', '-5.3%')",
+        "Display dash character for null/missing computed values",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "compute_mcp_benefit returns None for metrics where inputs are None. Format in the view layer only (keep raw floats in the data)."
     },
     {
       "id": "US-006",
-      "title": "Task list with inline metrics and filtering",
-      "description": "As an evaluator, I want to filter and sort the task list within an experiment by status, language, task type, and other criteria.",
+      "title": "Add anomaly highlighting to comparison table",
+      "description": "As an analyst, I want to visually identify tasks where MCP had outsized impact or regressions so pattern-finding is faster.",
       "acceptanceCriteria": [
-        "Task list table shows columns: task_id (truncated), status badge (pass/fail/error), language, duration, token count, reward score",
-        "Filter sidebar with: status multiselect (pass/fail/error), language multiselect, task type multiselect, difficulty select",
-        "Text search input that filters by task_id substring",
-        "Sort dropdown: name, duration, token count, reward, status",
-        "In paired mode: show side-by-side status columns for baseline and variant",
-        "Clicking a task row sets it as the selected task in session state",
+        "Use Pandas Styler or st.dataframe column_config to apply row background colors based on sg_full_benefit_pct",
+        "Green background for rows where sg_full_benefit_pct > +50% (label: Win)",
+        "Red background for rows where sg_full_benefit_pct < -20% (label: Regression)",
+        "Yellow background for rows where sg_full_token_cost_pct > +200% (label: Token spike)",
+        "Add st.checkbox('Show highlights', value=True, key='ccmp_highlights') toggle to enable/disable highlighting",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Streamlit st.dataframe supports Pandas Styler objects. Use .applymap() or .apply() for conditional formatting. Keep widget key prefix 'ccmp_'."
     },
     {
       "id": "US-007",
-      "title": "Task detail view - metadata panel",
-      "description": "As an evaluator, I want to see task metadata, build environment, and execution metrics on the task detail page.",
+      "title": "Add filter panel to comparison view",
+      "description": "As a researcher, I want to filter the comparison to specific task categories, difficulties, or sizes to answer 'does MCP help with complex tasks?'",
       "acceptanceCriteria": [
-        "Display task metadata in a card: task_id, benchmark source, language, difficulty, tags",
-        "Display build environment from config.json: docker image, agent model name, agent name, environment type",
-        "Display execution metrics: total duration, token usage (input/output/cached), tool call count, reward score",
-        "Display agent result: exit code, pass/fail status",
-        "Display verifier output: test pass/fail counts, reward breakdown from verifier/output.json",
-        "All sections wrapped in st.expander for collapsibility",
+        "Add filter controls above the comparison table using st.columns() layout (not sidebar)",
+        "Create multiselect dropdowns for: Benchmark, Category, Difficulty, SDLC Phase, Search Strategy Type",
+        "Add radio button for Task Size bucket: All, Small (<300K), Medium (300K-1M), Large (>1M)",
+        "Use filter_comparison_tasks() from dashboard/utils/comparison_filters.py to apply filters",
+        "Display 'Showing X of Y tasks' summary above the table",
+        "Show helpful empty state message when no tasks match filters",
+        "All widget keys use 'ccmp_filter_' prefix",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Populate filter dropdowns dynamically from the loaded data (e.g., unique categories present). Use st.multiselect for multi-value, st.radio for single-value. Reference dashboard/utils/filter_ui.py for existing patterns."
     },
     {
       "id": "US-008",
-      "title": "Task detail view - CLAUDE.md and task prompt display",
-      "description": "As an evaluator, I want to see the CLAUDE.md content and the task instruction prompt on the task detail page.",
+      "title": "Add CSV export to comparison view",
+      "description": "As a researcher, I want to export the filtered comparison table to CSV for custom analysis in Excel or Python.",
       "acceptanceCriteria": [
-        "Extract CLAUDE.md content from the agent session directory (sessions/.claude.json or the project's CLAUDE.md if available)",
-        "Display CLAUDE.md content in a collapsible expander with markdown rendering",
-        "Extract the task instruction prompt from the first system message in claude-code.txt or from the task config",
-        "Display the task prompt in a collapsible expander with markdown rendering",
-        "If CLAUDE.md or prompt is not found, show 'Not available' message instead of error",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Add st.download_button with label 'Export CSV' to the comparison view",
+        "Export all visible (filtered) rows with all columns including computed metrics",
+        "Use Pandas to_csv() with index=False for clean output",
+        "Filename format: ccb-comparison-{timestamp}.csv",
+        "Include header row with human-readable column names",
+        "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Streamlit st.download_button(data=csv_string, file_name='...', mime='text/csv') handles the download. Generate CSV from the filtered Pandas DataFrame."
     },
     {
       "id": "US-009",
-      "title": "JSONL trace parser for claude-code.txt",
-      "description": "As a developer, I need a parser that reads claude-code.txt JSONL files and produces structured trace data for the UI to render.",
+      "title": "Add search strategy effectiveness section",
+      "description": "As a researcher, I want to see how search strategies (keyword_only, nls_focused, deepsearch_heavy, mixed) correlate with success across task categories.",
       "acceptanceCriteria": [
-        "Create src/ingest/trace_viewer_parser.py with a parse_trace(file_path) function",
-        "Parser reads each line as JSON, skipping malformed lines with a warning",
-        "Returns a list of TraceMessage dataclasses with fields: type, subtype, content, tool_name, tool_input, tool_result, token_usage, parent_tool_use_id, session_id, uuid, sequence_number",
-        "Extracts token usage from assistant message usage field (input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens)",
-        "Computes summary metrics: total_messages, total_tool_calls, unique_tools, total_tokens, tools_by_name (count dict), files_accessed (dict of path -> {read_count, write_count, edit_count})",
-        "Unit test with sample JSONL data verifying parsing and metrics computation",
-        "Typecheck passes"
+        "Add 'Search Effectiveness' tab or expander section to config_comparison.py view",
+        "Display aggregation table: Category | Strategy | Avg Reward | Avg Tokens | Task Count",
+        "Aggregate across sourcegraph_base and sourcegraph_full configs only (skip baseline which has no search)",
+        "Group by (category, search_strategy_type) from task_metrics.json fields",
+        "Show 'N tasks' count column for statistical significance context",
+        "Sort by Avg Reward descending within each category",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "search_strategy_type field is null on baseline configs. Values: keyword_only, nls_focused, deepsearch_heavy, mixed. Use Pandas groupby + agg for aggregation."
     },
     {
       "id": "US-010",
-      "title": "Trace summary overview panel",
-      "description": "As an evaluator, I want a summary panel at the top of the trace view showing tool call metrics, file access summary, and key statistics.",
+      "title": "Add search effectiveness by task size section",
+      "description": "As a researcher, I want to see if search strategy effectiveness varies with task complexity so I can optimize MCP deployment per scenario.",
       "acceptanceCriteria": [
-        "Summary panel uses metrics from US-009 parser output",
-        "Display metric cards in a row: total messages, total tool calls, unique tools, total tokens, session duration",
-        "Bar chart (Plotly) showing tool call count per tool name, sorted descending",
-        "File access table: file path, read count, write count, edit count - sorted by total access count descending",
-        "Panel rendered at top of trace tab, above the full trace",
+        "Add 'Search by Size' sub-section within the search effectiveness area",
+        "Display pivot table: rows = Task Size Bucket (small/medium/large), columns = search_strategy_type, values = Avg Reward",
+        "Size buckets use task_context_length: small (<300K), medium (300K-1M), large (>1M)",
+        "Show task count per cell for significance assessment",
+        "Apply background gradient coloring: red (low reward) to green (high reward) using Pandas Styler",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Use pd.pivot_table() for the cross-tabulation. Pandas Styler .background_gradient(cmap='RdYlGn') for heatmap coloring."
     },
     {
       "id": "US-011",
-      "title": "Full trace card rendering - message display",
-      "description": "As an evaluator, I want each trace message rendered as a styled card with type-specific formatting.",
+      "title": "Add error severity overview section",
+      "description": "As an operator, I want to see error distribution by type (infra, api, task, mcp, verifier, setup) so I can prioritize debugging.",
       "acceptanceCriteria": [
-        "Each TraceMessage from the parser is rendered as a card using st.container with custom CSS",
-        "System messages (type=system): gray background, show init metadata (model, tools, session_id)",
-        "Assistant text messages: white background, render content as markdown",
-        "Assistant tool_use messages: light blue background, show tool name as a badge, show input as syntax-highlighted JSON in a collapsible expander",
-        "User tool_result messages: light green background, show content with syntax highlighting for code, truncate results longer than 100 lines with 'Show more' expander",
-        "Token usage shown as a small label on assistant messages (e.g., 'in: 2349 | out: 1 | cached: 18053')",
-        "Pagination: show 50 messages per page with page navigation buttons",
+        "Add 'Error Analysis' tab or expander section to config_comparison.py view",
+        "Display table: Error Severity | Count | % of Total | Avg Reward | Config Distribution",
+        "Extract severity from error_fingerprint field in task_metrics.json (it contains {fingerprint_id, label, severity})",
+        "Group across all configs to show which configs have which error types",
+        "Handle tasks with no error_fingerprint (null = no error, show as 'No Error' row)",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "error_fingerprint is a dict with keys: fingerprint_id, label, severity. Severity values from scripts/status_fingerprints.py: infra, api, task, mcp, verifier, setup. Many tasks will have null error_fingerprint (no error)."
     },
     {
       "id": "US-012",
-      "title": "Trace search and type filtering",
-      "description": "As an evaluator, I want to search trace messages by text and filter by message type and tool name.",
+      "title": "Add tool error breakdown section",
+      "description": "As an operator, I want to drill into which tools are failing most so I can identify API/integration issues.",
       "acceptanceCriteria": [
-        "Text search input above the trace cards that filters messages containing the search term (case-insensitive)",
-        "Message type multiselect filter: system, assistant, user (tool_result)",
-        "Tool name dropdown filter populated from unique tool names in the trace",
-        "Toggle: show/hide tool results (hides user type messages to focus on agent decisions)",
-        "Result count indicator: 'Showing X of Y messages'",
-        "Filters applied in combination (AND logic)",
-        "Filtered state preserved in session state across interactions",
+        "Add 'Tool Errors' sub-section within the error analysis area",
+        "Display table: Tool Name | Error Count | Affected Task Count | Avg Error Rate",
+        "Source data from tool_errors_by_name dict field in task_metrics.json (maps tool name to error count)",
+        "Compute error rate = sum(errors for tool) / sum(tool_calls_by_name[tool] or 1) across tasks",
+        "Sort by error count descending",
+        "Add config filter (st.multiselect with baseline/sourcegraph_base/sourcegraph_full options)",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-013",
-      "title": "Tool call timeline visualization",
-      "description": "As an evaluator, I want a visual timeline showing tool calls in sequence with color-coded categories.",
-      "acceptanceCriteria": [
-        "Plotly timeline chart showing tool calls as markers on a vertical axis (sequence order) with horizontal position by tool category",
-        "Color coding by category: file read (blue: Read), file write (green: Write, Edit), search (yellow: Grep, Glob), bash (gray: Bash), planning (purple: EnterPlanMode, ExitPlanMode, TodoWrite), other (orange)",
-        "Hover tooltip shows: tool name, sequence number, brief description (file path for file ops, command preview for Bash, pattern for search)",
-        "Legend shows category colors with toggle to show/hide categories",
-        "Rendered in a tab alongside the full trace view",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-014",
-      "title": "Extract file diffs from trace Edit/Write operations",
-      "description": "As a developer, I need a utility that extracts file modifications from Edit and Write tool calls in the trace to build diff views.",
-      "acceptanceCriteria": [
-        "Create a function in dashboard/utils/ that takes a list of TraceMessages and returns a dict of file_path -> list of {operation (Edit/Write), old_string, new_string, sequence_number, full_content}",
-        "For Edit operations: extract old_string and new_string from tool input",
-        "For Write operations: extract file_path and content from tool input",
-        "For Read operations: capture file content as the baseline state for that file",
-        "Return results sorted by sequence number per file",
-        "Unit test with sample trace data",
-        "Typecheck passes"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-015",
-      "title": "Embedded file tree from trace data",
-      "description": "As an evaluator, I want a file tree showing all files the agent accessed, built from the trace data.",
-      "acceptanceCriteria": [
-        "Build a file tree structure from all file paths in Read/Edit/Write tool calls",
-        "Display as a nested tree using st.expander for directories",
-        "Each file shows an icon badge: read-only (eye), modified (pencil), created (plus)",
-        "Files the agent did not access are not shown (we only know about accessed files)",
-        "Clicking a file name sets it as the selected file in session state for the diff viewer",
-        "Rendered in a sidebar or left panel of the trace detail view",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-016",
-      "title": "File diff viewer panel",
-      "description": "As an evaluator, I want to see diffs for files modified by the agent with syntax highlighting.",
-      "acceptanceCriteria": [
-        "When a modified file is selected from the file tree, show its edit history",
-        "For Edit operations: show old_string -> new_string as a unified diff with red/green highlighting using difflib",
-        "For Write operations: show the full file content that was written",
-        "Each diff entry shows the sequence number linking back to the trace message",
-        "Toggle between unified and side-by-side diff format",
-        "Include a link to the GitHub locobench* repo for the file path (constructed from repo reference in task config)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-017",
-      "title": "LLM judge - prompt and rubric editor UI",
-      "description": "As an evaluator, I want to edit the LLM judge system prompt, scoring dimensions, and rubric from the GUI.",
-      "acceptanceCriteria": [
-        "System prompt text area (large, resizable) pre-populated with current judge prompt from config",
-        "Scoring dimensions list: each dimension shown as a row with name input, weight slider (0-1), and delete button",
-        "Add dimension button to append a new dimension row",
-        "Per-dimension criteria text area: editable description of what each score level (1-5) means",
-        "Model selection dropdown populated from available Anthropic models",
-        "Temperature slider (0.0-1.0) and max_tokens numeric input",
-        "Save button that writes the config to configs/judge_templates/active_config.json",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-018",
-      "title": "LLM judge - test prompt on single task",
-      "description": "As an evaluator, I want to test the current judge configuration on a single task and see the result inline.",
-      "acceptanceCriteria": [
-        "Test Prompt button on the judge config page",
-        "Task selector dropdown to pick a task from the currently loaded experiment",
-        "Clicking Test Prompt calls the existing llm_judge_analyzer with current config on the selected task",
-        "Result displayed inline: per-dimension scores, overall score, judge reasoning text",
-        "Error handling: if API call fails, show error message without crashing",
-        "Loading spinner while judge is running",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-019",
-      "title": "LLM judge - template save and load",
-      "description": "As an evaluator, I want to save the current judge config as a named template and load previously saved templates.",
-      "acceptanceCriteria": [
-        "Save Template button with a text input for template name",
-        "Saves current config (prompt, dimensions, weights, model, temperature, max_tokens) as JSON to configs/judge_templates/{name}.json",
-        "Template list sidebar showing all saved templates with name, creation date, and model used",
-        "Load button on each template that populates all editor fields with the template's values",
-        "Delete button on each template with confirmation",
-        "Duplicate button that creates a copy with '-copy' suffix",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-020",
-      "title": "LLM judge - A/B comparison mode",
-      "description": "As an evaluator, I want to run two different judge templates on the same tasks and compare scores side-by-side.",
-      "acceptanceCriteria": [
-        "A/B Comparison tab on the judge page",
-        "Two template selectors: Template A and Template B",
-        "Task set selector: choose which experiment and tasks to evaluate",
-        "Run Comparison button that executes both judges on all selected tasks",
-        "Results table: task_id, Template A scores (per dimension), Template B scores (per dimension), delta",
-        "Summary stats: mean score per template, correlation between templates, agreement rate",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-021",
-      "title": "LLM judge - human alignment score entry",
-      "description": "As an evaluator, I want to enter human scores alongside LLM judge scores and see agreement metrics.",
-      "acceptanceCriteria": [
-        "Human Alignment tab on the judge page",
-        "Table showing: task_id, LLM scores per dimension, editable human score inputs (1-5) per dimension",
-        "Human scores saved to SQLite table (task_id, dimension, human_score, llm_score, annotator, timestamp)",
-        "Progress indicator: 'X of Y tasks reviewed'",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 21,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-022",
-      "title": "LLM judge - alignment agreement metrics",
-      "description": "As an evaluator, I want to see statistical agreement between human and LLM judge scores.",
-      "acceptanceCriteria": [
-        "Compute and display Cohen's kappa between human and LLM scores (treating as ordinal categories)",
-        "Compute and display Pearson correlation between human and LLM scores",
-        "Compute and display mean absolute error between human and LLM scores",
-        "Disagreement highlighter: rows where |human - LLM| > configurable threshold (default 2) are highlighted red",
-        "Export button: download human+LLM scores as CSV",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 22,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-023",
-      "title": "Analysis Hub - card-based navigation page",
-      "description": "As an evaluator, I want the Analysis Hub to show cards for each analysis type that I can click to configure and run.",
-      "acceptanceCriteria": [
-        "Analysis Hub page (dashboard/views/analysis_hub.py) displays 6 cards in a 2x3 grid: Statistical, Comparison, Time Series, Cost, Failure, LLM Judge",
-        "Each card shows: icon, title, brief description, and a 'Configure & Run' button",
-        "Clicking a card navigates to the corresponding analysis view using Streamlit session state",
-        "Cards show a status badge if results are already available (green check) or not (gray dash)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 23,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-024",
-      "title": "Analysis Hub - GUI-driven statistical analysis config",
-      "description": "As an evaluator, I want to configure and run statistical analysis from the GUI without using the terminal.",
-      "acceptanceCriteria": [
-        "Statistical analysis page has: experiment selector (multiselect), task filter (reuse existing filters), significance level input (default 0.05), test type selector (t-test, Mann-Whitney, chi-squared), effect size threshold input",
-        "Run Analysis button that calls the existing statistical_analyzer.py with selected parameters",
-        "Results displayed inline: p-values table, confidence intervals, effect sizes with Plotly charts",
-        "Export button: download results as CSV",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 24,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-025",
-      "title": "Analysis Hub - GUI-driven comparison analysis config",
-      "description": "As an evaluator, I want to configure and run comparison analysis between two runs from the GUI.",
-      "acceptanceCriteria": [
-        "Comparison page has: two run selectors (baseline and variant), metric selector (pass rate, reward, duration, tokens), task filter",
-        "Run Comparison button that calls the existing comparator.py",
-        "Results: comparison table with deltas, bar chart of pass rates, scatter plot of per-task metrics",
-        "Export button: download comparison report as CSV",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 25,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-026",
-      "title": "Analysis Hub - GUI-driven cost and failure analysis config",
-      "description": "As an evaluator, I want to configure and run cost analysis and failure analysis from the GUI.",
-      "acceptanceCriteria": [
-        "Cost analysis page: experiment selector, view token costs (input/output/cached), execution time per task, cost per model - all using existing cost_analyzer.py",
-        "Cost results: Plotly bar charts for token distribution, cost breakdown table, exportable as CSV",
-        "Failure analysis page: experiment selector, view error clusters, failure patterns, top error messages - using existing failure_analyzer.py",
-        "Failure results: error category pie chart, failure pattern table, root cause summary",
-        "Both pages require no CLI commands",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 26,
       "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-027",
-      "title": "Analysis Hub - GUI-driven time series analysis config",
-      "description": "As an evaluator, I want to configure and run time series analysis from the GUI.",
-      "acceptanceCriteria": [
-        "Time series page: metric selector (pass rate, reward, duration, tokens), date range picker, aggregation level (per-run, per-day, per-week)",
-        "Run Analysis button that calls existing time_series_analyzer.py",
-        "Results: Plotly line chart with trend line, anomaly markers, data table below chart",
-        "Export button: download data as CSV",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 27,
-      "passes": false,
-      "notes": ""
+      "notes": "tool_errors_by_name and tool_calls_by_name are dicts in task_metrics.json mapping tool name strings to integer counts. Both can be None."
     }
   ]
 }

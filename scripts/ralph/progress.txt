@@ -1,0 +1,30 @@
+# Dashboard Filtering & Analytics Implementation Progress
+
+## Codebase Patterns
+- task_metrics.json fields (`reward`, `input_tokens`, `output_tokens`, `tool_errors_by_name`, etc.) are frequently None. Always use `data.get("key")` and guard against None before arithmetic.
+- Config directory names are `baseline`, `sourcegraph_base`, `sourcegraph_full` under each run directory.
+- Directory structure: `runs/official/<run_name>/<config>/<batch_timestamp>/<task_id__hash>/task_metrics.json`
+- US-001 was committed in a previous session but PRD wasn't updated. Always verify PRD `passes` state matches actual codebase.
+- Pre-existing test failures (27 failures) in `test_trace_diff_viewer.py` and `test_trace_summary.py` are unrelated to comparison work.
+- Dashboard utils follow pattern: pure functions, Optional return types, immutable dicts, logging.getLogger(__name__).
+
+---
+
+## 2026-02-05 - US-001 (verified)
+- US-001 was already implemented and committed in a prior session
+- File: `dashboard/utils/comparison_loader.py` - verified all acceptance criteria pass
+- Marked `passes: true` in PRD
+- **Learnings for future iterations:**
+  - Previous Ralph sessions may commit code but fail to update PRD. Always check git log against PRD passes state.
+---
+
+## 2026-02-05 - US-002
+- What was implemented: `compute_mcp_benefit()` and `compute_task_ratios()` functions
+- Files changed: `dashboard/utils/comparison_metrics.py` (new), `scripts/ralph/prd.json`
+- **Learnings for future iterations:**
+  - All task_metrics.json numerical fields can be None. Guard every arithmetic operation.
+  - `tool_errors_by_name` and `tool_calls_by_name` are dicts mapping tool name to int count, or None.
+  - Execution phase fields: `wall_clock_seconds`, `agent_execution_seconds`, `environment_setup_seconds`, `verifier_seconds`.
+  - Use `max(denominator, threshold)` pattern for all divisions to avoid ZeroDivisionError.
+---
+
