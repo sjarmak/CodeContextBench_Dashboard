@@ -15,6 +15,7 @@ Started: Thu Feb  5 08:09:21 EST 2026
 - `search_strategy_type` field doesn't exist directly in task_metrics.json - must be inferred from `search_calls_keyword`, `search_calls_nls`, `search_calls_deepsearch` fields
 - `error_fingerprint` is a dict with keys `fingerprint_id`, `label`, `severity` (or null for no error)
 - Size bucketing uses `input_tokens` as proxy since `task_context_length` doesn't exist in actual data
+- Pandas converts `None` to `NaN` (float) in numeric columns — `val is None` checks fail; use `math.isnan()` as fallback in formatters
 ---
 
 ## 2026-02-05 - US-001
@@ -56,4 +57,16 @@ Started: Thu Feb  5 08:09:21 EST 2026
   - Tokens are split as `input_tokens` + `output_tokens` in task_metrics.json — combine for total display
   - Use `_safe_float` / `_safe_int` helpers for null coercion since task_metrics fields can all be None
   - Em-dash character (`\u2014`) for null display values in dataframes
+---
+
+## 2026-02-05 - US-005
+- Added computed effectiveness columns (benefit %, token cost %, efficiency) to config comparison table
+- Imported `compute_mcp_benefit` and computed sg_base and sg_full benefit metrics vs baseline in `_build_comparison_df`
+- Added `_fmt_pct` formatter for signed percentage display (e.g., `+41.2%`, `-5.3%`)
+- Added formatted computed columns to `_format_display_df`: SG Base Benefit %, SG Full Benefit %, SG Full Token Cost %, SG Full Efficiency
+- Files changed: `dashboard/views/config_comparison.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - Pandas converts `None` to `NaN` (float) in numeric DataFrame columns — `val is None` check fails for NaN. Must also check `math.isnan(val)` in all display formatters
+  - Keep raw floats in the DataFrame, format only in display layer (`_format_display_df`) — this preserves numeric operations on raw_df
+  - `_fmt_float` already handles the NaN case so can be used directly in apply() without wrapping lambda
 ---

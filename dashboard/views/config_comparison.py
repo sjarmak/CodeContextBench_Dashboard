@@ -8,6 +8,7 @@ always-current data.
 
 from __future__ import annotations
 
+import math
 from typing import Optional
 
 import pandas as pd
@@ -15,6 +16,7 @@ import streamlit as st
 
 from dashboard.utils.agent_labels import AGENT_DISPLAY_NAMES
 from dashboard.utils.comparison_loader import load_comparison_data
+from dashboard.utils.comparison_metrics import compute_mcp_benefit
 
 # Column display names keyed by config directory name
 _CONFIG_DISPLAY: dict[str, str] = {
@@ -51,8 +53,8 @@ def _safe_int(value: object) -> Optional[int]:
 
 
 def _fmt_float(val: Optional[float], decimals: int = 2) -> str:
-    """Format a float or return dash for None."""
-    if val is None:
+    """Format a float or return dash for None/NaN."""
+    if val is None or (isinstance(val, float) and math.isnan(val)):
         return _DASH
     return f"{val:.{decimals}f}"
 
@@ -62,6 +64,13 @@ def _fmt_int(val: Optional[int]) -> str:
     if val is None:
         return _DASH
     return f"{val:,}"
+
+
+def _fmt_pct(val: Optional[float], decimals: int = 1) -> str:
+    """Format a float as a signed percentage or return dash for None/NaN."""
+    if val is None or (isinstance(val, float) and math.isnan(val)):
+        return _DASH
+    return f"{val:+.{decimals}f}%"
 
 
 def _build_comparison_df(
@@ -109,6 +118,28 @@ def _build_comparison_df(
                 row[f"{prefix}_reward"] = None
                 row[f"{prefix}_tokens"] = None
 
+        # Compute MCP benefit metrics for sg_base and sg_full vs baseline
+        baseline_metrics = configs.get("baseline")
+        sg_base_benefit = compute_mcp_benefit(
+            baseline_metrics, configs.get("sourcegraph_base")
+        )
+        sg_full_benefit = compute_mcp_benefit(
+            baseline_metrics, configs.get("sourcegraph_full")
+        )
+
+        row["sg_base_benefit_pct"] = (
+            sg_base_benefit["benefit_pct"] if sg_base_benefit else None
+        )
+        row["sg_full_benefit_pct"] = (
+            sg_full_benefit["benefit_pct"] if sg_full_benefit else None
+        )
+        row["sg_full_token_cost_pct"] = (
+            sg_full_benefit["token_cost_pct"] if sg_full_benefit else None
+        )
+        row["sg_full_efficiency"] = (
+            sg_full_benefit["efficiency"] if sg_full_benefit else None
+        )
+
         rows.append(row)
 
     if not rows:
@@ -145,6 +176,12 @@ def _format_display_df(df: pd.DataFrame) -> pd.DataFrame:
     display[f"{sg_full_display} Tokens"] = df["sg_full_tokens"].apply(
         lambda v: _fmt_int(_safe_int(v))
     )
+
+    # Computed effectiveness columns
+    display["SG Base Benefit %"] = df["sg_base_benefit_pct"].apply(_fmt_pct)
+    display["SG Full Benefit %"] = df["sg_full_benefit_pct"].apply(_fmt_pct)
+    display["SG Full Token Cost %"] = df["sg_full_token_cost_pct"].apply(_fmt_pct)
+    display["SG Full Efficiency"] = df["sg_full_efficiency"].apply(_fmt_float)
 
     return display
 

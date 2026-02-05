@@ -93,7 +93,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "compute_mcp_benefit returns None for metrics where inputs are None. Format in the view layer only (keep raw floats in the data)."
     },
     {
