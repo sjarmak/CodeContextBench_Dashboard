@@ -110,7 +110,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Streamlit st.dataframe supports Pandas Styler objects. Use .applymap() or .apply() for conditional formatting. Keep widget key prefix 'ccmp_'."
     },
     {

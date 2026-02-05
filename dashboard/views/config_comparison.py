@@ -186,6 +186,85 @@ def _format_display_df(df: pd.DataFrame) -> pd.DataFrame:
     return display
 
 
+# Anomaly highlighting thresholds
+_WIN_THRESHOLD = 50.0  # sg_full_benefit_pct > +50%
+_REGRESSION_THRESHOLD = -20.0  # sg_full_benefit_pct < -20%
+_TOKEN_SPIKE_THRESHOLD = 200.0  # sg_full_token_cost_pct > +200%
+
+# Background colors (light, legible on white/dark Streamlit themes)
+_WIN_BG = "background-color: rgba(0, 180, 0, 0.15)"
+_REGRESSION_BG = "background-color: rgba(220, 0, 0, 0.15)"
+_TOKEN_SPIKE_BG = "background-color: rgba(220, 180, 0, 0.15)"
+_NO_HIGHLIGHT = ""
+
+
+def _is_valid_number(val: Optional[float]) -> bool:
+    """Check if a value is a usable numeric (not None, not NaN)."""
+    if val is None:
+        return False
+    if isinstance(val, float) and math.isnan(val):
+        return False
+    return True
+
+
+def _classify_anomaly(
+    benefit_pct: Optional[float], token_cost_pct: Optional[float]
+) -> str:
+    """Return the anomaly label for a row based on thresholds.
+
+    Priority: Regression > Token spike > Win (regression is most important
+    to surface even if there's also a token spike or win).
+    """
+    if _is_valid_number(benefit_pct) and benefit_pct is not None:
+        if benefit_pct < _REGRESSION_THRESHOLD:
+            return "Regression"
+
+    if _is_valid_number(token_cost_pct) and token_cost_pct is not None:
+        if token_cost_pct > _TOKEN_SPIKE_THRESHOLD:
+            return "Token spike"
+
+    if _is_valid_number(benefit_pct) and benefit_pct is not None:
+        if benefit_pct > _WIN_THRESHOLD:
+            return "Win"
+
+    return ""
+
+
+def _build_anomaly_labels(raw_df: pd.DataFrame) -> pd.Series:
+    """Compute per-row anomaly labels from the raw DataFrame."""
+    return pd.Series(
+        [
+            _classify_anomaly(
+                raw_df.at[idx, "sg_full_benefit_pct"],
+                raw_df.at[idx, "sg_full_token_cost_pct"],
+            )
+            for idx in raw_df.index
+        ],
+        index=raw_df.index,
+    )
+
+
+def _apply_anomaly_styles(
+    display_df: pd.DataFrame, anomaly_labels: pd.Series
+) -> pd.io.formats.style.Styler:
+    """Apply row-level background highlighting based on anomaly labels.
+
+    Returns a Pandas Styler object compatible with st.dataframe().
+    """
+    color_map = {
+        "Win": _WIN_BG,
+        "Regression": _REGRESSION_BG,
+        "Token spike": _TOKEN_SPIKE_BG,
+    }
+
+    def _row_style(row: pd.Series) -> list[str]:
+        label = anomaly_labels.get(row.name, "")
+        bg = color_map.get(label, _NO_HIGHLIGHT)
+        return [bg] * len(row)
+
+    return display_df.style.apply(_row_style, axis=1)
+
+
 def show_config_comparison() -> None:
     """Main entry point for the Config Comparison view."""
     st.title("Config Comparison")
@@ -239,13 +318,34 @@ def show_config_comparison() -> None:
 
     st.markdown("---")
 
-    # Display table
+    # Highlighting toggle
+    show_highlights = st.checkbox(
+        "Show highlights", value=True, key="ccmp_highlights"
+    )
+
+    # Build display table
     display_df = _format_display_df(raw_df)
 
+    # Compute anomaly labels from raw data
+    anomaly_labels = _build_anomaly_labels(raw_df)
+
+    # Add label column to display DataFrame
+    display_df.insert(2, "Anomaly", anomaly_labels.values)
+
     st.subheader(f"Comparison Table ({len(display_df)} tasks)")
-    st.dataframe(
-        display_df,
-        use_container_width=True,
-        hide_index=True,
-        key="ccmp_comparison_table",
-    )
+
+    if show_highlights:
+        styled = _apply_anomaly_styles(display_df, anomaly_labels)
+        st.dataframe(
+            styled,
+            use_container_width=True,
+            hide_index=True,
+            key="ccmp_comparison_table",
+        )
+    else:
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+            key="ccmp_comparison_table",
+        )

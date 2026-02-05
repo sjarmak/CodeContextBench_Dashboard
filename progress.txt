@@ -16,6 +16,7 @@ Started: Thu Feb  5 08:09:21 EST 2026
 - `error_fingerprint` is a dict with keys `fingerprint_id`, `label`, `severity` (or null for no error)
 - Size bucketing uses `input_tokens` as proxy since `task_context_length` doesn't exist in actual data
 - Pandas converts `None` to `NaN` (float) in numeric columns — `val is None` checks fail; use `math.isnan()` as fallback in formatters
+- Pandas Styler with `st.dataframe`: use `.style.apply(fn, axis=1)` for row-level backgrounds; return `["background-color: rgba(...)"] * len(row)` for each row
 ---
 
 ## 2026-02-05 - US-001
@@ -69,4 +70,21 @@ Started: Thu Feb  5 08:09:21 EST 2026
   - Pandas converts `None` to `NaN` (float) in numeric DataFrame columns — `val is None` check fails for NaN. Must also check `math.isnan(val)` in all display formatters
   - Keep raw floats in the DataFrame, format only in display layer (`_format_display_df`) — this preserves numeric operations on raw_df
   - `_fmt_float` already handles the NaN case so can be used directly in apply() without wrapping lambda
+---
+
+## 2026-02-05 - US-006
+- Added anomaly highlighting to comparison table with Pandas Styler
+- Implemented `_classify_anomaly()` with priority-based classification: Regression > Token spike > Win
+- Added `_build_anomaly_labels()` to compute per-row anomaly labels from raw DataFrame
+- Added `_apply_anomaly_styles()` that returns a Pandas Styler with row-level background colors
+- Added "Anomaly" label column to display DataFrame showing Win/Regression/Token spike
+- Added `st.checkbox('Show highlights', value=True, key='ccmp_highlights')` toggle
+- When highlights enabled, `st.dataframe` receives Styler object; when disabled, plain DataFrame
+- Files changed: `dashboard/views/config_comparison.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - Pandas Styler `.apply(fn, axis=1)` applies row-wise — return list of CSS strings matching column count
+  - Use `rgba()` colors for backgrounds so they work on both light and dark Streamlit themes
+  - mypy requires explicit `is not None` checks after calling a helper like `_is_valid_number()` — the helper alone doesn't narrow the type
+  - Anomaly classification priority matters: Regression is most critical to surface, then Token spike, then Win
+  - `st.dataframe` accepts both `pd.DataFrame` and `pd.io.formats.style.Styler` — toggling between them with a checkbox works cleanly
 ---
