@@ -15,6 +15,10 @@ import pandas as pd
 import streamlit as st
 
 from dashboard.utils.agent_labels import AGENT_DISPLAY_NAMES
+from dashboard.utils.comparison_filters import (
+    filter_comparison_tasks,
+    _get_search_strategy_type,
+)
 from dashboard.utils.comparison_loader import load_comparison_data
 from dashboard.utils.comparison_metrics import compute_mcp_benefit
 
@@ -265,6 +269,131 @@ def _apply_anomaly_styles(
     return display_df.style.apply(_row_style, axis=1)
 
 
+def _extract_unique_values(
+    comparison_data: dict[str, dict[str, Optional[dict]]],
+) -> dict[str, list[str]]:
+    """Extract sorted unique values for each filter dimension.
+
+    Scans the representative config for every task to build the set of
+    distinct values present in the data.  Returns a dict keyed by
+    dimension name.
+    """
+    benchmarks: set[str] = set()
+    categories: set[str] = set()
+    difficulties: set[str] = set()
+    sdlc_phases: set[str] = set()
+    strategies: set[str] = set()
+
+    for configs in comparison_data.values():
+        for cfg_metrics in configs.values():
+            if cfg_metrics is None:
+                continue
+
+            bm = cfg_metrics.get("benchmark")
+            if bm:
+                benchmarks.add(bm)
+            cat = cfg_metrics.get("category")
+            if cat:
+                categories.add(cat)
+            diff = cfg_metrics.get("difficulty")
+            if diff:
+                difficulties.add(diff)
+            phase = cfg_metrics.get("sdlc_phase")
+            if phase:
+                sdlc_phases.add(phase)
+            strat = _get_search_strategy_type(cfg_metrics)
+            if strat:
+                strategies.add(strat)
+
+    return {
+        "benchmark": sorted(benchmarks),
+        "category": sorted(categories),
+        "difficulty": sorted(difficulties),
+        "sdlc_phase": sorted(sdlc_phases),
+        "search_strategy_type": sorted(strategies),
+    }
+
+
+_SIZE_OPTIONS = ("All", "Small (<300K)", "Medium (300K-1M)", "Large (>1M)")
+_SIZE_MAP: dict[str, Optional[str]] = {
+    "All": None,
+    "Small (<300K)": "small",
+    "Medium (300K-1M)": "medium",
+    "Large (>1M)": "large",
+}
+
+
+def _render_filter_panel(
+    unique_vals: dict[str, list[str]],
+) -> dict[str, object]:
+    """Render filter controls above the comparison table.
+
+    Uses st.columns() layout (not sidebar) per CLAUDE.md guidance.
+    All widget keys use the ``ccmp_filter_`` prefix.
+
+    Returns a dict of kwargs suitable for ``filter_comparison_tasks()``.
+    """
+    st.subheader("Filters")
+
+    # Row 1: Benchmark, Category, Difficulty
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        sel_benchmark = st.multiselect(
+            "Benchmark",
+            options=unique_vals["benchmark"],
+            default=None,
+            key="ccmp_filter_benchmark",
+        )
+    with col2:
+        sel_category = st.multiselect(
+            "Category",
+            options=unique_vals["category"],
+            default=None,
+            key="ccmp_filter_category",
+        )
+    with col3:
+        sel_difficulty = st.multiselect(
+            "Difficulty",
+            options=unique_vals["difficulty"],
+            default=None,
+            key="ccmp_filter_difficulty",
+        )
+
+    # Row 2: SDLC Phase, Search Strategy, Task Size
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        sel_sdlc = st.multiselect(
+            "SDLC Phase",
+            options=unique_vals["sdlc_phase"],
+            default=None,
+            key="ccmp_filter_sdlc_phase",
+        )
+    with col5:
+        sel_strategy = st.multiselect(
+            "Search Strategy Type",
+            options=unique_vals["search_strategy_type"],
+            default=None,
+            key="ccmp_filter_strategy",
+        )
+    with col6:
+        sel_size_label = st.radio(
+            "Task Size",
+            options=_SIZE_OPTIONS,
+            index=0,
+            key="ccmp_filter_size",
+            horizontal=True,
+        )
+
+    return {
+        "benchmark": sel_benchmark or None,
+        "category": sel_category or None,
+        "difficulty": sel_difficulty or None,
+        "sdlc_phase": sel_sdlc or None,
+        "size_bucket": _SIZE_MAP[sel_size_label],
+        "search_strategy_type": sel_strategy or None,
+    }
+
+
 def show_config_comparison() -> None:
     """Main entry point for the Config Comparison view."""
     st.title("Config Comparison")
@@ -284,14 +413,33 @@ def show_config_comparison() -> None:
         )
         return
 
-    # Build raw dataframe
-    raw_df = _build_comparison_df(comparison_data)
+    total_tasks = len(comparison_data)
+
+    # --- Filter panel ---
+    unique_vals = _extract_unique_values(comparison_data)
+    filter_kwargs = _render_filter_panel(unique_vals)
+    filtered_data = filter_comparison_tasks(comparison_data, **filter_kwargs)
+
+    st.markdown("---")
+
+    # Show task count summary
+    filtered_count = len(filtered_data)
+    if filtered_count == 0:
+        st.warning(
+            "No tasks match the current filters. "
+            "Try broadening your selection or resetting filters."
+        )
+        return
+
+    st.caption(f"Showing **{filtered_count}** of **{total_tasks}** tasks")
+
+    # Build raw dataframe from filtered data
+    raw_df = _build_comparison_df(filtered_data)
     if raw_df.empty:
         st.warning("Loaded comparison data but no rows could be built.")
         return
 
     # Summary metrics
-    total_tasks = len(raw_df)
     tasks_with_all = sum(
         1
         for _, row in raw_df.iterrows()
@@ -301,7 +449,7 @@ def show_config_comparison() -> None:
     )
 
     col_m1, col_m2, col_m3 = st.columns(3)
-    col_m1.metric("Total Tasks", total_tasks)
+    col_m1.metric("Total Tasks", filtered_count)
     col_m2.metric("Tasks with All 3 Configs", tasks_with_all)
 
     # Mean rewards

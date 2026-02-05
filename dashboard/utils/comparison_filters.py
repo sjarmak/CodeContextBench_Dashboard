@@ -84,6 +84,7 @@ def filter_comparison_tasks(
     benchmark: Optional[Sequence[str]] = None,
     category: Optional[Sequence[str]] = None,
     difficulty: Optional[Sequence[str]] = None,
+    sdlc_phase: Optional[Sequence[str]] = None,
     size_bucket: Optional[str] = None,
     error_severity: Optional[Sequence[str]] = None,
     search_strategy_type: Optional[Sequence[str]] = None,
@@ -99,6 +100,7 @@ def filter_comparison_tasks(
         benchmark: Allowed benchmark names (OR).
         category: Allowed category values (OR).
         difficulty: Allowed difficulty values (OR).
+        sdlc_phase: Allowed SDLC phase values (OR).
         size_bucket: Single size bucket — ``"small"``, ``"medium"``, or
             ``"large"``.
         error_severity: Allowed error severity values (OR).
@@ -111,7 +113,7 @@ def filter_comparison_tasks(
     # Fast path — no filters active
     if all(
         f is None
-        for f in (benchmark, category, difficulty, size_bucket,
+        for f in (benchmark, category, difficulty, sdlc_phase, size_bucket,
                   error_severity, search_strategy_type)
     ):
         return tasks
@@ -137,6 +139,8 @@ def filter_comparison_tasks(
         if not _matches(representative.get("category"), category):
             continue
         if not _matches(representative.get("difficulty"), difficulty):
+            continue
+        if not _matches(representative.get("sdlc_phase"), sdlc_phase):
             continue
 
         # Size bucket filter

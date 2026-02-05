@@ -129,7 +129,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Populate filter dropdowns dynamically from the loaded data (e.g., unique categories present). Use st.multiselect for multi-value, st.radio for single-value. Reference dashboard/utils/filter_ui.py for existing patterns."
     },
     {

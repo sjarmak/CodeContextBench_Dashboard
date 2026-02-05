@@ -17,6 +17,8 @@ Started: Thu Feb  5 08:09:21 EST 2026
 - Size bucketing uses `input_tokens` as proxy since `task_context_length` doesn't exist in actual data
 - Pandas converts `None` to `NaN` (float) in numeric columns — `val is None` checks fail; use `math.isnan()` as fallback in formatters
 - Pandas Styler with `st.dataframe`: use `.style.apply(fn, axis=1)` for row-level backgrounds; return `["background-color: rgba(...)"] * len(row)` for each row
+- `sdlc_phase` is a real field in task_metrics.json — populated from `selected_benchmark_tasks.json` registry, not inferred
+- Streamlit `st.multiselect` returns `[]` when empty — use `sel or None` before passing to filter functions that treat `None` as "no filter"
 ---
 
 ## 2026-02-05 - US-001
@@ -87,4 +89,20 @@ Started: Thu Feb  5 08:09:21 EST 2026
   - mypy requires explicit `is not None` checks after calling a helper like `_is_valid_number()` — the helper alone doesn't narrow the type
   - Anomaly classification priority matters: Regression is most critical to surface, then Token spike, then Win
   - `st.dataframe` accepts both `pd.DataFrame` and `pd.io.formats.style.Styler` — toggling between them with a checkbox works cleanly
+---
+
+## 2026-02-05 - US-007
+- Added filter panel to config comparison view with 6 filter dimensions
+- Added `sdlc_phase` filter parameter to `filter_comparison_tasks()` in `comparison_filters.py`
+- Created `_extract_unique_values()` to dynamically populate filter dropdowns from loaded data
+- Created `_render_filter_panel()` with 2 rows of 3 columns: Benchmark, Category, Difficulty, SDLC Phase, Search Strategy Type, Task Size (radio)
+- Integrated filtering into `show_config_comparison()` — filters run before DataFrame build
+- Added "Showing X of Y tasks" summary and empty state warning when no tasks match
+- Files changed: `dashboard/views/config_comparison.py`, `dashboard/utils/comparison_filters.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `sdlc_phase` is a real field in task_metrics.json (not inferred) — populated from `selected_benchmark_tasks.json` registry
+  - `_get_search_strategy_type` from comparison_filters.py is useful in the view layer for extracting unique strategy values across all configs
+  - Streamlit `st.multiselect` returns empty list `[]` when nothing is selected — convert to `None` with `sel or None` before passing to filter functions
+  - `st.radio(horizontal=True)` works well for single-value filters like size bucket in compact layouts
+  - Filter panel placement: above the data table, before metrics summary, so summary metrics reflect filtered data
 ---
