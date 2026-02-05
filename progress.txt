@@ -1,180 +1,26 @@
 # Ralph Progress Log
-Started: Fri Jan 30 23:15:14 EST 2026
----
+Started: Thu Feb  5 08:09:21 EST 2026
 
 ## Codebase Patterns
-- No root-level pyproject.toml exists; dependencies live in `dashboard/requirements.txt`
-- pip3 requires `--break-system-packages` on macOS (Homebrew Python, PEP 668)
-- No typechecker (mypy/pyright) is installed; typecheck criteria is met by not introducing type errors
-- Pre-commit hook blocks secrets; use `--no-verify` when files are verified clean (per CLAUDE.md)
-- Harbor trial dirs use `<task-name>__<hashSuffix>` naming; strip `__<hash>` to get canonical task ID when config.json is missing
-- Task ID resolution: prefer `config.json -> task.path -> Path(path).name` over directory name
-- Use `data.get("key") or default` pattern for Harbor result.json null fields (agent_info, verifier_result, etc.)
-- New experiment_comparator.py is in `src/analysis/` alongside the existing DB-backed `comparator.py` — filesystem-first approach per CLAUDE.md
-- Tool call counts in result.json can be in 3 locations: `agent_info.tool_calls` (int), `agent_info.tool_usage` (dict), `agent_result.n_tool_calls` (int)
-- `scipy.stats.spearmanr` returns NaN for constant inputs; always check for zero variance before calling
-
+- Run directory structure: `runs/<folder>/<run_name>/<config>/<batch_timestamp>/<task_id__hash>/task_metrics.json`
+- Config directory names: `baseline`, `sourcegraph_base`, `sourcegraph_full` (use `_KNOWN_CONFIG_DIRS` tuple)
+- Task ID extraction: directory names have hash suffix after `__` (e.g., `big-code-servo-001__jk4jiJS` -> `big-code-servo-001`), but `task_id` field in task_metrics.json is authoritative
+- Use `json.loads(path.read_text())` for file reading (matches home_run_scanner.py pattern)
+- Agent labels: use `dashboard/utils/agent_labels.py` `AGENT_DISPLAY_NAMES` for human-readable config names
+- `task_context_length` and `instruction_length_chars` fields do NOT exist in actual task_metrics.json data - size bucketing must use `input_tokens` or similar
+- All task_metrics.json fields can be `null` - always use `data.get('key') or default` pattern
+- Session state cache key for comparison data: `comparison_data`
+- Widget key prefixes: `ccmp_` for config comparison, `ccmp_filter_` for filters
+- Pre-existing test failures (27) are unrelated to new code - tests in `test_analysis_*_v2.py` have collection errors
 ---
 
-## 2026-01-30 - US-001
-- Added `scipy>=1.11.0` to `dashboard/requirements.txt`
-- No root pyproject.toml exists, so no changes needed there
-- Verified `pip install -r dashboard/requirements.txt` succeeds (scipy 1.17.0 installed)
-- Files changed: `dashboard/requirements.txt`
+## 2026-02-05 - US-001
+- Implemented `dashboard/utils/comparison_loader.py`
+- Files changed: `dashboard/utils/comparison_loader.py` (new), `prd.json`, `progress.txt`
 - **Learnings for future iterations:**
-  - Homebrew Python on macOS requires `--break-system-packages` flag for pip install
-  - There is no project-level pyproject.toml; all Python deps are in `dashboard/requirements.txt`
----
-
-## 2026-01-31 - US-002
-- Created `src/analysis/experiment_comparator.py` with `TaskAligner` class and `AlignmentResult` frozen dataclass
-- `TaskAligner.align()` scans two experiment directories, resolves task IDs via config.json task.path, and returns common/excluded task sets
-- Added `load_result()` and `load_reward()` helpers with defensive None handling for downstream stories
-- Created `tests/test_experiment_comparator.py` with 16 tests covering: identical sets, disjoint sets, partial overlap, missing config.json, null fields, empty dirs, hidden dirs, frozen dataclass
-- All 16 tests pass, typecheck passes
-- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - Existing `comparator.py` is DB-backed (uses MetricsDatabase); new `experiment_comparator.py` is filesystem-first per CLAUDE.md guidance
-  - `AlignmentResult` uses `frozen=True` for immutability per coding style rules
-  - Trial dir hash suffix stripping uses `rsplit("__", 1)[0]` to handle task names that contain underscores
----
-
-## 2026-01-31 - US-003
-- Added `RewardNormalizer` class to `src/analysis/experiment_comparator.py`
-- `normalize(reward, benchmark_type)` returns clamped [0.0, 1.0] values using min-max normalization from `BENCHMARK_NORMALIZATION` constants
-- `infer_benchmark_type(task_path)` resolves benchmark type from config.json metadata or path components
-- Normalization rules: LoCoBench (passthrough), SWE-bench (passthrough), big_code_mcp (passthrough, 0-1 scale), github_mined, tac_mcp_value
-- Added 19 new tests covering: each benchmark type, alias variants, unknown type errors, clamping, benchmark inference from path and config.json
-- All 35 tests pass (16 existing + 19 new), typecheck passes
-- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - All current benchmarks produce 0-1 rewards natively; normalization is passthrough + clamping for safety
-  - `BENCHMARK_NORMALIZATION` dict maps benchmark_type -> (min_raw, max_raw) for extensibility when non-0-1 benchmarks are added
-  - `_BENCHMARK_DIR_NAMES` frozenset enables O(1) lookups when scanning path components for benchmark type inference
-  - Benchmark type inference checks config.json first (more reliable), then falls back to scanning path components
----
-
-## 2026-01-31 - US-004
-- Added `BootstrapResult` frozen dataclass and `pairwise_bootstrap()` function to `src/analysis/experiment_comparator.py`
-- Bootstrap resamples paired differences using numpy vectorized indexing for performance
-- p-value computed as two-sided: proportion of bootstrap deltas crossing zero, multiplied by 2
-- Cohen's d computed on paired differences with `ddof=1`; returns `inf` when std=0 and mean!=0
-- Effect interpretation: negligible (<0.2), small (<0.5), medium (<0.8), large (>=0.8)
-- Added 13 new tests covering: identical rewards, large positive/negative deltas, single task, seed reproducibility, effect interpretation, CI properties, input validation
-- All 48 tests pass (35 existing + 13 new), typecheck passes
-- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - When constructing test data for Cohen's d, ensure paired differences have non-zero variance; identical differences yield std=0 and d=inf
-  - `numpy.random.default_rng(seed)` is the modern way to get reproducible RNG in numpy; avoids global state
-  - Vectorized bootstrap: `rng.integers(0, n, size=(n_resamples, n))` + fancy indexing is much faster than Python loops
-  - Two-sided p-value via `min(proportion * 2, 1.0)` matches standard bootstrap hypothesis testing
----
-
-## 2026-01-31 - US-005
-- Added `CategoryBreakdown` frozen dataclass and `compute_category_breakdown()` function to `src/analysis/experiment_comparator.py`
-- Added `extract_task_category()` helper for resolving task categories from config.json metadata or path components
-- `_build_category_breakdown()` private helper constructs individual category results with optional bootstrap
-- Categories with fewer than `min_category_size` (default 5) tasks skip bootstrap but still report raw means
-- Results sorted by absolute mean_delta descending; 'all' pseudo-category always included
-- Added 14 new tests covering: multiple categories, single category, small category (no bootstrap), missing category, empty input, 'all' aggregate, frozen dataclass, extract_task_category with config/path/missing/invalid
-- All 62 tests pass (48 existing + 14 new), typecheck passes
-- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - `from __future__ import annotations` enables forward type references, so `CategoryBreakdown` can reference `BootstrapResult` even when defined before it
-  - Python resolves function calls at runtime not definition time, so `_build_category_breakdown` can call `pairwise_bootstrap` even though it's defined later in the file
-  - Category inference from task.path uses the segment immediately after the benchmark directory name (e.g., `benchmarks/locobench_agent/<category>/task-name`)
-  - Immutable grouping pattern: `groups[cat] = [*groups[cat], item]` instead of `groups[cat].append(item)` per coding style immutability rules
----
-
-## 2026-01-31 - US-006
-- Added `ToolCorrelation` frozen dataclass and `compute_tool_correlation()` function to `src/analysis/experiment_comparator.py`
-- Added `_interpret_correlation()` helper for Spearman rho interpretation (strong positive/moderate positive/weak-no/moderate negative/strong negative)
-- Added `_extract_tool_call_count()` helper that checks three locations: `agent_info.tool_calls`, `agent_info.tool_usage` (sum of dict values), `agent_result.n_tool_calls`
-- Uses `scipy.stats.spearmanr` for rank correlation (nonlinear relationship support)
-- Handles zero-variance edge case (all tool counts or all deltas identical) by returning rho=0.0 instead of NaN
-- Returns None when fewer than 3 tasks have tool data
-- Added 11 new tests covering: positive correlation, no correlation, missing tool data, partial data below threshold, fewer than 3 tasks, per-task data fields, tool_usage dict format, n_tool_calls format, zero variance (both directions), frozen dataclass
-- All 73 tests pass (62 existing + 11 new)
-- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - `scipy.stats.spearmanr` returns NaN for constant inputs; must check for zero variance before calling
-  - Tool call count extraction must check multiple locations in result.json: agent_info.tool_calls (int), agent_info.tool_usage (dict of tool->count), agent_result.n_tool_calls (int)
-  - Spearman correlation needs at least 3 data points to be meaningful; returning None for < 3 is the right pattern
-  - When constructing "no correlation" test data, verify with actual Spearman computation -- intuitive "mixed" orderings can still produce significant correlations
----
-
-## 2026-01-31 - US-007
-- Added `ComparisonReport` frozen dataclass with `to_dict()` and `to_markdown()` methods to `src/analysis/experiment_comparator.py`
-- Added `ExperimentComparison` orchestrator class with `compare()` method that chains: task alignment -> reward loading/normalization -> bootstrap testing -> category breakdown -> tool correlation
-- Added `_significance_marker()` and `_format_excluded_list()` helpers for Markdown formatting
-- Pipeline stops early with `ValueError` if alignment produces 0 common tasks or all rewards are missing
-- `to_dict()` returns JSON-serializable dict with schema: version, generated_at, config, metadata, alignment, overall, categories, tool_correlation
-- `to_markdown()` produces complete report with Summary, Overall Result, Per-Category Breakdown table, Tool Usage Correlation, Excluded Tasks sections
-- Added 14 new tests covering: full pipeline, tool correlation present/absent, zero-overlap error, single-task edge case, to_dict round-trip + schema + null fields, to_markdown sections + table + formatting + no-tool message, frozen dataclass, missing rewards error
-- All 87 tests pass (73 existing + 14 new)
-- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - `ExperimentComparison` uses `TaskAligner._discover_tasks()` (private method) to get task-id-to-dir mappings; this is an internal coupling but avoids re-scanning directories
-  - Immutable list building with `[*existing, new_item]` pattern is used throughout per coding style rules, even in loops
-  - `_format_excluded_list()` collapses lists > 10 items into `<details>` HTML blocks for cleaner Markdown
-  - Significance markers follow standard convention: * p<0.05, ** p<0.01, *** p<0.001
-  - `datetime.now(timezone.utc).isoformat()` produces ISO 8601 timestamps with timezone info
----
-
-## 2026-01-31 - US-008
-- Verified existing `to_markdown()` implementation (built in US-007) already meets all US-008 acceptance criteria
-- Added 10 new tests specifically validating US-008 Markdown report formatting requirements:
-  - Summary section fields (baseline dir, treatment dir, date, common tasks, excluded)
-  - Overall Result section fields (mean delta + CI, p-value, effect size, significance)
-  - Per-Category Breakdown table columns (Category, N, Baseline Mean, Treatment Mean, Delta, 95% CI, Significant?)
-  - Tool Usage Correlation section fields (Spearman rho, p-value, interpretation, scatter plot data reference)
-  - Excluded Tasks collapsing (inline for <=10, HTML `<details>` for >10)
-  - Number formatting (4 decimal places for rewards, p-value pattern verification)
-  - Significance markers (* p<0.05, ** p<0.01, *** p<0.001)
-  - Complete document structure (title + all 5 sections in order)
-- All 97 tests pass (87 existing + 10 new)
-- Files changed: `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - US-007 already implemented `to_markdown()` with full formatting; US-008 was primarily about test coverage validation
-  - When an acceptance criterion says "Unit test verifies X", the work may be adding targeted tests rather than new implementation
-  - `_setup_experiment_dirs` helper is reusable for creating test experiment data across all story tests
----
-
-## 2026-01-31 - US-009
-- Added `save_json(path)` method to `ComparisonReport` that writes JSON with 2-space indentation
-- Added `load_json(path)` class method to `ComparisonReport` that reconstructs the full report from JSON
-- `load_json` reconstructs all frozen dataclasses: `AlignmentResult`, `BootstrapResult`, `CategoryBreakdown`, `ToolCorrelation`
-- Added 12 new tests covering: file creation, 2-space indentation, reconstruction, missing file error, invalid JSON error, full round-trip with/without tool correlation, alignment preservation, bootstrap field preservation, category preservation, JSON schema verification, no Path objects in output
-- All 109 tests pass (97 existing + 12 new)
-- Files changed: `src/analysis/experiment_comparator.py`, `tests/test_experiment_comparator.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - `load_json` uses nested helper functions (`_bootstrap_from_dict`, `_category_from_dict`, `_tool_corr_from_dict`) to mirror the `to_dict()` serialization helpers
-  - Round-trip equivalence is best tested by comparing `to_dict()` outputs rather than individual fields, since float precision is preserved through JSON
-  - `@classmethod` with `cls(...)` constructor call works with frozen dataclasses since `__init__` is still available
----
-
-## 2026-01-31 - US-010
-- Created `scripts/compare_experiments.py` CLI wrapper (~120 lines)
-- Uses argparse with positional baseline_dir/treatment_dir and options: --output-dir, --format, --resamples, --confidence, --seed, --min-category-size
-- Validates both directories exist before starting comparison; exits with code 1 and stderr message on error
-- Prints summary to stdout (common tasks, excluded, mean delta, CI, p-value, effect size)
-- Writes full report files to output directory (markdown, json, or both)
-- All 109 existing tests pass
-- Files changed: `scripts/compare_experiments.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - `sys.path.insert(0, str(_PROJECT_ROOT))` is needed for scripts/ to import from src/ since there's no installed package
-  - argparse `type=Path` auto-converts string args to Path objects, reducing boilerplate
-  - Using `main(argv)` parameter pattern enables testing the CLI without subprocess calls
----
-
-## 2026-01-31 - US-011
-- Added deprecation warning to `main()` in `runners/compare_results.py` using `warnings.warn()` with `DeprecationWarning` and `stacklevel=2`
-- Added `.. deprecated::` docstring block at the top of the file explaining the deprecation and migration path to `scripts/compare_experiments.py`
-- Added `import warnings` to imports
-- No functional changes to existing code — all original behavior preserved
-- All 109 experiment_comparator tests pass; 764 total tests pass (9 pre-existing failures in Playwright/dashboard tests)
-- Files changed: `runners/compare_results.py`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - `stacklevel=2` in `warnings.warn()` ensures the warning points to the caller of `main()`, not the `main()` function itself
-  - Deprecation stories are minimal-touch: import `warnings`, add docstring block, add `warnings.warn()` call — no functional changes
+  - Runs are in nested subdirectories (official/, experiment/, etc.) not just one folder - scanner must iterate all top-level folders
+  - task_id from task_metrics.json is authoritative over directory name parsing
+  - When merging across multiple runs, later runs should fill in missing config data (immutable merge via `{**existing, config: new}`)
+  - Verified: 118 tasks load successfully with all 3 configs populated
+  - `_KNOWN_CONFIG_DIRS` naming follows `home_run_scanner.py` pattern but uses `_CONFIG_DIRS` (configs not modes)
 ---

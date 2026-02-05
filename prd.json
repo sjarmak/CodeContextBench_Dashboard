@@ -1,196 +1,222 @@
 {
-  "project": "CodeContextBench",
-  "branchName": "ralph/unified-experiment-comparison",
-  "description": "Unified Experiment Comparison Pipeline with Statistical Rigor - Single CLI command and Python module for end-to-end experiment comparison with task alignment, reward normalization, pairwise bootstrap testing, per-category breakdown, and tool usage correlation",
+  "project": "CodeContextBench Dashboard",
+  "branchName": "ralph/dashboard-filtering-analytics",
+  "description": "Dashboard Filtering and Analytics Enhancement - Enable cross-config comparison, task filtering, and pattern discovery across baseline/sourcegraph_base/sourcegraph_full experiment configs",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add scipy to project dependencies",
-      "description": "As a developer, I need scipy listed in the project's requirements so that statistical analysis modules work without manual installation.",
+      "title": "Create comparison data loader",
+      "description": "As a dashboard backend, I need to load task_metrics.json files for all 3 configs (baseline, sourcegraph_base, sourcegraph_full) and join on (benchmark, task_id) so comparison views can work.",
       "acceptanceCriteria": [
-        "scipy>=1.11.0 is added to dashboard/requirements.txt",
-        "scipy>=1.11.0 is added to pyproject.toml if a [project.dependencies] or [tool.poetry.dependencies] section exists",
-        "pip install -r dashboard/requirements.txt succeeds without errors",
+        "Create new file dashboard/utils/comparison_loader.py",
+        "Implement load_comparison_data(runs_dir: Path) that walks runs/official/<run_name>/<config>/<batch_timestamp>/<task_id__hash>/task_metrics.json",
+        "Config directory names are: 'baseline', 'sourcegraph_base', 'sourcegraph_full' (use _KNOWN_MODE_DIRS pattern from home_run_scanner.py)",
+        "runs_dir comes from CCB_EXTERNAL_RUNS_DIR env var or defaults to ~/evals/custom_agents/agents/claudecode/runs (same as home_run_scanner.py)",
+        "Join on (benchmark, task_id) — return dict: {task_id: {'baseline': dict, 'sourcegraph_base': dict, 'sourcegraph_full': dict}}",
+        "Handle missing tasks in any config gracefully (set to None)",
+        "Handle null/None values using data.get('key') or default pattern (per CLAUDE.md gotcha about dict.get returning None)",
+        "Cache result in st.session_state['comparison_data'] to avoid re-reading files on page interaction",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "Follow patterns from dashboard/utils/home_run_scanner.py for directory walking and RunSummary. Use json.loads(path.read_text()) for file reading. Config names must match _KNOWN_MODE_DIRS exactly."
     },
     {
       "id": "US-002",
-      "title": "Create task alignment module",
-      "description": "As a researcher, I need to automatically match tasks across two experiment directories so that comparisons only include tasks present in both runs, with a clear report of what was excluded.",
+      "title": "Create comparison metrics computation",
+      "description": "As a dashboard view, I need computed metrics (benefit_pct, efficiency, error_rate) derived from paired task_metrics data without modifying source data.",
       "acceptanceCriteria": [
-        "New file src/analysis/experiment_comparator.py with a TaskAligner class",
-        "TaskAligner.align(baseline_dir: Path, treatment_dir: Path) returns a dataclass containing: common_tasks (list of task IDs), baseline_only (list), treatment_only (list), total_baseline, total_treatment",
-        "Task ID resolution reads config.json's task.path field when present, falling back to directory name",
-        "Handles result.json files that are missing or contain null for key fields (uses data.get('key') or default pattern)",
-        "Unit tests cover: identical task sets, disjoint task sets, partial overlap, missing config.json, null fields in result.json",
+        "Create new file dashboard/utils/comparison_metrics.py",
+        "Implement compute_mcp_benefit(baseline: dict, variant: dict) returning dict with: benefit_pct, token_cost_pct, efficiency",
+        "benefit_pct = (variant_reward - baseline_reward) / max(baseline_reward, 0.001) * 100",
+        "token_cost_pct = (variant_tokens - baseline_tokens) / max(baseline_tokens, 1) * 100 where tokens = input_tokens + output_tokens",
+        "efficiency = benefit_pct / max(token_cost_pct, 1)",
+        "All divisions use max(denominator, threshold) to avoid divide-by-zero",
+        "Return None for any metric where inputs are None",
+        "Implement compute_task_ratios(task: dict) returning dict with: tool_error_rate_pct, backtrack_ratio, execution_phase_breakdown",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "All task_metrics.json fields can be None. Use immutable return dicts (don't mutate inputs). Reward field is 'reward', token fields are 'input_tokens' and 'output_tokens'."
     },
     {
       "id": "US-003",
-      "title": "Create reward normalization module",
-      "description": "As a researcher, I need rewards normalized to a 0-1 scale across benchmark types so that cross-benchmark aggregation produces valid results.",
+      "title": "Create comparison filter functions",
+      "description": "As a dashboard filter, I need to filter comparison task data by category, difficulty, size, error type, and search strategy.",
       "acceptanceCriteria": [
-        "RewardNormalizer class added to src/analysis/experiment_comparator.py",
-        "normalize(reward: float, benchmark_type: str) -> float returns a value in [0.0, 1.0]",
-        "Normalization rules documented as constants: LoCoBench (already 0-1, passthrough), SWE-bench (binary 0/1, passthrough), big_code_mcp (map from raw scale to 0-1 using min-max from benchmark metadata)",
-        "benchmark_type is inferred from the task directory path or config.json metadata",
-        "Unknown benchmark types raise ValueError with a descriptive message",
-        "Unit tests cover each benchmark type and the unknown-type error case",
+        "Create new file dashboard/utils/comparison_filters.py",
+        "Implement filter_comparison_tasks(tasks: dict, benchmark=None, category=None, difficulty=None, size_bucket=None, error_severity=None, search_strategy_type=None) returning filtered dict",
+        "All filter params optional (None = no filter on that dimension)",
+        "size_bucket bucketing: small (<300K), medium (300K-1M), large (>1M) using task_context_length field, fall back to instruction_length_chars if task_context_length is None",
+        "Multi-value filters: category=['architectural_understanding', 'feature_implementation'] includes tasks matching either (OR within dimension)",
+        "AND across dimensions (e.g., category=X AND difficulty=Y)",
+        "Return new dict without modifying input (immutable pattern per coding style rules)",
+        "Reference existing patterns in dashboard/utils/filters.py and dashboard/utils/filter_ui.py for consistency",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Existing dashboard/utils/filters.py has filtering patterns for task metadata. Category values include: architectural_understanding, bug_investigation, cross_file_refactoring, feature_implementation. Difficulty values: easy, medium, hard, expert."
     },
     {
       "id": "US-004",
-      "title": "Implement pairwise bootstrap statistical testing",
-      "description": "As a researcher, I need pairwise bootstrap significance testing with confidence intervals so I can determine whether observed reward deltas are statistically meaningful.",
+      "title": "Create config comparison view with raw values table",
+      "description": "As a researcher, I want to see baseline vs sourcegraph_base vs sourcegraph_full metrics side-by-side for the same task so I can evaluate MCP impact directly.",
       "acceptanceCriteria": [
-        "BootstrapResult dataclass with fields: mean_delta, ci_lower, ci_upper, p_value, effect_size (Cohen's d), effect_interpretation (negligible/small/medium/large), n_resamples, n_tasks",
-        "pairwise_bootstrap(baseline_rewards: list[float], treatment_rewards: list[float], n_resamples: int = 10000, confidence: float = 0.95) -> BootstrapResult function",
-        "Bootstrap resamples paired differences (not independent), preserving task pairing",
-        "p-value computed as the proportion of bootstrap deltas that cross zero",
-        "Effect size computed as Cohen's d on the paired differences",
-        "Effect interpretation follows standard thresholds: |d| < 0.2 negligible, < 0.5 small, < 0.8 medium, >= 0.8 large",
-        "Deterministic results when random_seed parameter is provided (for testing)",
-        "Unit tests cover: identical rewards (delta=0), large positive delta, large negative delta, single-task edge case, seed reproducibility",
-        "Typecheck passes"
+        "Create new file dashboard/views/config_comparison.py with function show_config_comparison()",
+        "Register the view in dashboard/app.py: add 'Config Comparison' to nav_results list and add routing in the if/elif page chain",
+        "Use load_comparison_data() from dashboard/utils/comparison_loader.py to load data",
+        "Display st.dataframe with columns: task_id, benchmark, baseline_reward, sg_base_reward, sg_full_reward, baseline_tokens, sg_base_tokens, sg_full_tokens",
+        "Use agent display names from dashboard/utils/agent_labels.py AGENT_DISPLAY_NAMES for column headers",
+        "Display dash character for null values in the dataframe",
+        "Use st.columns() for layout (avoid st.sidebar per CLAUDE.md gotcha about sidebar content being hidden)",
+        "Prefix all widget keys with 'ccmp_' to avoid StreamlitDuplicateElementKey errors",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Follow existing view patterns: see dashboard/views/task_comparison.py for reference. Import pattern: 'from dashboard.utils.comparison_loader import load_comparison_data'. App.py routing uses dynamic imports: 'from views.config_comparison import show_config_comparison'."
     },
     {
       "id": "US-005",
-      "title": "Implement per-category breakdown",
-      "description": "As a researcher, I need results grouped by task category (architectural_understanding, bug_investigation, etc.) so I can identify where MCP tools provide the most value.",
+      "title": "Add computed effectiveness columns to comparison table",
+      "description": "As a researcher, I want to see how much MCP helped (or hurt) on each task via benefit_pct, token_cost_pct, and efficiency columns.",
       "acceptanceCriteria": [
-        "CategoryBreakdown dataclass with fields: category (str), n_tasks (int), baseline_mean (float), treatment_mean (float), mean_delta (float), bootstrap (BootstrapResult or None -- None when n_tasks < 5)",
-        "compute_category_breakdown(aligned_results: list, categories: dict[str, str]) -> list[CategoryBreakdown] function",
-        "Task category is extracted from config.json metadata or inferred from the task directory path",
-        "Categories with fewer than 5 tasks skip bootstrap (insufficient data) but still report raw means",
-        "Results sorted by absolute mean_delta descending (most impactful categories first)",
-        "An 'all' pseudo-category is included with the aggregate result",
-        "Unit tests cover: multiple categories, single-category, category with < 5 tasks, missing category metadata",
-        "Typecheck passes"
+        "Import compute_mcp_benefit from dashboard/utils/comparison_metrics.py in config_comparison.py",
+        "Add computed columns to dataframe: sg_base_benefit_pct, sg_full_benefit_pct, sg_full_token_cost_pct, sg_full_efficiency",
+        "Format percentages to 1 decimal (e.g., '+41.2%', '-5.3%')",
+        "Display dash character for null/missing computed values",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "compute_mcp_benefit returns None for metrics where inputs are None. Format in the view layer only (keep raw floats in the data)."
     },
     {
       "id": "US-006",
-      "title": "Implement tool usage correlation analysis",
-      "description": "As a researcher, I need to correlate MCP tool call counts with reward deltas per task so I can assess whether more tool usage leads to better outcomes.",
+      "title": "Add anomaly highlighting to comparison table",
+      "description": "As an analyst, I want to visually identify tasks where MCP had outsized impact or regressions so pattern-finding is faster.",
       "acceptanceCriteria": [
-        "ToolCorrelation dataclass with fields: spearman_rho (float), spearman_p_value (float), n_tasks (int), interpretation (str), per_task (list of dicts with task_id, tool_calls, reward_delta)",
-        "compute_tool_correlation(treatment_results: list, reward_deltas: dict[str, float]) -> ToolCorrelation function",
-        "Tool call count is extracted from result.json's agent_info or the trace file's tool usage summary",
-        "Spearman rank correlation used (not Pearson) because the relationship may be nonlinear",
-        "Interpretation string generated: 'strong positive' (rho > 0.5), 'moderate positive' (0.3-0.5), 'weak/no correlation' (-0.3 to 0.3), 'moderate negative' (-0.5 to -0.3), 'strong negative' (< -0.5)",
-        "Returns None gracefully when treatment run has no tool call data (baseline-only scenario)",
-        "Unit tests cover: positive correlation, no correlation, missing tool data, fewer than 3 tasks",
-        "Typecheck passes"
+        "Use Pandas Styler or st.dataframe column_config to apply row background colors based on sg_full_benefit_pct",
+        "Green background for rows where sg_full_benefit_pct > +50% (label: Win)",
+        "Red background for rows where sg_full_benefit_pct < -20% (label: Regression)",
+        "Yellow background for rows where sg_full_token_cost_pct > +200% (label: Token spike)",
+        "Add st.checkbox('Show highlights', value=True, key='ccmp_highlights') toggle to enable/disable highlighting",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Streamlit st.dataframe supports Pandas Styler objects. Use .applymap() or .apply() for conditional formatting. Keep widget key prefix 'ccmp_'."
     },
     {
       "id": "US-007",
-      "title": "Build the ExperimentComparison orchestrator",
-      "description": "As a researcher, I need a single orchestrator class that combines task alignment, normalization, bootstrap testing, category breakdown, and tool correlation into one comparison pipeline.",
+      "title": "Add filter panel to comparison view",
+      "description": "As a researcher, I want to filter the comparison to specific task categories, difficulties, or sizes to answer 'does MCP help with complex tasks?'",
       "acceptanceCriteria": [
-        "ExperimentComparison class in src/analysis/experiment_comparator.py with method compare(baseline_dir: Path, treatment_dir: Path) -> ComparisonReport",
-        "ComparisonReport dataclass with fields: baseline_dir, treatment_dir, alignment (TaskAligner result), overall_bootstrap (BootstrapResult), category_breakdown (list[CategoryBreakdown]), tool_correlation (ToolCorrelation or None), generated_at (ISO timestamp), config (dict of parameters used)",
-        "Constructor accepts optional parameters: n_resamples (default 10000), confidence (default 0.95), random_seed (default None), min_category_size (default 5)",
-        "ComparisonReport.to_dict() -> dict for JSON serialization",
-        "ComparisonReport.to_markdown() -> str for human-readable output",
-        "Pipeline stops early with a clear error if alignment produces 0 common tasks",
-        "All null/None fields in result.json are handled defensively (no AttributeError on None)",
-        "Unit tests cover: full pipeline with mock data, zero-overlap error, single-task edge case, to_dict round-trip, to_markdown output format",
-        "Typecheck passes"
+        "Add filter controls above the comparison table using st.columns() layout (not sidebar)",
+        "Create multiselect dropdowns for: Benchmark, Category, Difficulty, SDLC Phase, Search Strategy Type",
+        "Add radio button for Task Size bucket: All, Small (<300K), Medium (300K-1M), Large (>1M)",
+        "Use filter_comparison_tasks() from dashboard/utils/comparison_filters.py to apply filters",
+        "Display 'Showing X of Y tasks' summary above the table",
+        "Show helpful empty state message when no tasks match filters",
+        "All widget keys use 'ccmp_filter_' prefix",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Populate filter dropdowns dynamically from the loaded data (e.g., unique categories present). Use st.multiselect for multi-value, st.radio for single-value. Reference dashboard/utils/filter_ui.py for existing patterns."
     },
     {
       "id": "US-008",
-      "title": "Create Markdown report formatter",
-      "description": "As a researcher, I need the comparison output formatted as a Markdown report suitable for pasting into research documents or nightly reports.",
+      "title": "Add CSV export to comparison view",
+      "description": "As a researcher, I want to export the filtered comparison table to CSV for custom analysis in Excel or Python.",
       "acceptanceCriteria": [
-        "ComparisonReport.to_markdown() produces a complete Markdown document with sections: Summary, Overall Result, Per-Category Breakdown, Tool Usage Correlation, Excluded Tasks",
-        "Summary section includes: baseline dir, treatment dir, date, number of common tasks, number excluded",
-        "Overall Result section includes: mean delta with 95% CI, p-value, effect size with interpretation, pass/fail significance at alpha=0.05",
-        "Per-Category Breakdown section includes: table with columns: Category, N, Baseline Mean, Treatment Mean, Delta, 95% CI, Significant?",
-        "Tool Usage Correlation section includes: Spearman rho, p-value, interpretation sentence, scatter plot data reference",
-        "Excluded Tasks section includes: lists of baseline-only and treatment-only task IDs (collapsed if > 10 items)",
-        "Numbers formatted to 4 decimal places for rewards, 2 decimal places for percentages",
-        "Significance marked with asterisks: * p<0.05, ** p<0.01, *** p<0.001",
-        "Unit test verifies output contains all required section headers and table formatting",
+        "Add st.download_button with label 'Export CSV' to the comparison view",
+        "Export all visible (filtered) rows with all columns including computed metrics",
+        "Use Pandas to_csv() with index=False for clean output",
+        "Filename format: ccb-comparison-{timestamp}.csv",
+        "Include header row with human-readable column names",
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Streamlit st.download_button(data=csv_string, file_name='...', mime='text/csv') handles the download. Generate CSV from the filtered Pandas DataFrame."
     },
     {
       "id": "US-009",
-      "title": "Create JSON output formatter",
-      "description": "As a developer, I need the comparison output as a structured JSON file so the dashboard and nightly compound loop can ingest results programmatically.",
+      "title": "Add search strategy effectiveness section",
+      "description": "As a researcher, I want to see how search strategies (keyword_only, nls_focused, deepsearch_heavy, mixed) correlate with success across task categories.",
       "acceptanceCriteria": [
-        "ComparisonReport.to_dict() returns a dict that is JSON-serializable (no Path objects, no numpy types)",
-        "JSON schema includes: version (string, '1.0.0'), generated_at (ISO 8601), config (parameters used), alignment (counts and task lists), overall (bootstrap result dict), categories (list of category dicts), tool_correlation (correlation dict or null), metadata (baseline_dir, treatment_dir as strings)",
-        "ComparisonReport.save_json(path: Path) writes the JSON file with 2-space indentation",
-        "ComparisonReport.load_json(path: Path) -> ComparisonReport class method reconstructs the report from JSON (for dashboard loading)",
-        "Round-trip test: save_json then load_json produces equivalent data",
-        "Typecheck passes"
+        "Add 'Search Effectiveness' tab or expander section to config_comparison.py view",
+        "Display aggregation table: Category | Strategy | Avg Reward | Avg Tokens | Task Count",
+        "Aggregate across sourcegraph_base and sourcegraph_full configs only (skip baseline which has no search)",
+        "Group by (category, search_strategy_type) from task_metrics.json fields",
+        "Show 'N tasks' count column for statistical significance context",
+        "Sort by Avg Reward descending within each category",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "search_strategy_type field is null on baseline configs. Values: keyword_only, nls_focused, deepsearch_heavy, mixed. Use Pandas groupby + agg for aggregation."
     },
     {
       "id": "US-010",
-      "title": "Create CLI wrapper script",
-      "description": "As a researcher, I need a CLI command to run experiment comparisons from the terminal with configurable parameters.",
+      "title": "Add search effectiveness by task size section",
+      "description": "As a researcher, I want to see if search strategy effectiveness varies with task complexity so I can optimize MCP deployment per scenario.",
       "acceptanceCriteria": [
-        "New file scripts/compare_experiments.py (~100 lines)",
-        "Usage: python scripts/compare_experiments.py <baseline_dir> <treatment_dir> [options]",
-        "Options: --output-dir (default: current directory), --format (markdown, json, both; default: both), --resamples (default: 10000), --confidence (default: 0.95), --seed (optional), --min-category-size (default: 5)",
-        "Uses argparse for argument parsing",
-        "Validates that both directories exist before starting comparison",
-        "Prints summary to stdout and writes full report to output files",
-        "Exit code 0 on success, 1 on error with descriptive message to stderr",
-        "Typecheck passes"
+        "Add 'Search by Size' sub-section within the search effectiveness area",
+        "Display pivot table: rows = Task Size Bucket (small/medium/large), columns = search_strategy_type, values = Avg Reward",
+        "Size buckets use task_context_length: small (<300K), medium (300K-1M), large (>1M)",
+        "Show task count per cell for significance assessment",
+        "Apply background gradient coloring: red (low reward) to green (high reward) using Pandas Styler",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Use pd.pivot_table() for the cross-tabulation. Pandas Styler .background_gradient(cmap='RdYlGn') for heatmap coloring."
     },
     {
       "id": "US-011",
-      "title": "Deprecate runners/compare_results.py",
-      "description": "As a developer, I need the old comparison script deprecated with a pointer to the new module so no one accidentally uses the statistically naive version.",
+      "title": "Add error severity overview section",
+      "description": "As an operator, I want to see error distribution by type (infra, api, task, mcp, verifier, setup) so I can prioritize debugging.",
       "acceptanceCriteria": [
-        "runners/compare_results.py has a deprecation warning added at the top of main(): warnings.warn('compare_results.py is deprecated. Use scripts/compare_experiments.py instead.', DeprecationWarning, stacklevel=2)",
-        "A comment block at the top of the file explains the deprecation and points to the replacement",
-        "No functional changes to the existing code (preserving backward compatibility for any existing automation)",
-        "Typecheck passes"
+        "Add 'Error Analysis' tab or expander section to config_comparison.py view",
+        "Display table: Error Severity | Count | % of Total | Avg Reward | Config Distribution",
+        "Extract severity from error_fingerprint field in task_metrics.json (it contains {fingerprint_id, label, severity})",
+        "Group across all configs to show which configs have which error types",
+        "Handle tasks with no error_fingerprint (null = no error, show as 'No Error' row)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "error_fingerprint is a dict with keys: fingerprint_id, label, severity. Severity values from scripts/status_fingerprints.py: infra, api, task, mcp, verifier, setup. Many tasks will have null error_fingerprint (no error)."
+    },
+    {
+      "id": "US-012",
+      "title": "Add tool error breakdown section",
+      "description": "As an operator, I want to drill into which tools are failing most so I can identify API/integration issues.",
+      "acceptanceCriteria": [
+        "Add 'Tool Errors' sub-section within the error analysis area",
+        "Display table: Tool Name | Error Count | Affected Task Count | Avg Error Rate",
+        "Source data from tool_errors_by_name dict field in task_metrics.json (maps tool name to error count)",
+        "Compute error rate = sum(errors for tool) / sum(tool_calls_by_name[tool] or 1) across tasks",
+        "Sort by error count descending",
+        "Add config filter (st.multiselect with baseline/sourcegraph_base/sourcegraph_full options)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "tool_errors_by_name and tool_calls_by_name are dicts in task_metrics.json mapping tool name strings to integer counts. Both can be None."
     }
   ]
 }
