@@ -17,8 +17,8 @@ import streamlit as st
 
 from dashboard.utils.agent_labels import AGENT_DISPLAY_NAMES
 from dashboard.utils.comparison_filters import (
-    filter_comparison_tasks,
     _get_search_strategy_type,
+    filter_comparison_tasks,
 )
 from dashboard.utils.comparison_loader import load_comparison_data
 from dashboard.utils.comparison_metrics import compute_mcp_benefit
@@ -395,6 +395,95 @@ def _render_filter_panel(
     }
 
 
+def _build_search_effectiveness_df(
+    comparison_data: dict[str, dict[str, Optional[dict]]],
+) -> pd.DataFrame:
+    """Build aggregation table: Category | Strategy | Avg Reward | Avg Tokens | Task Count.
+
+    Aggregates across sourcegraph_base and sourcegraph_full configs only
+    (baseline has no search strategy). Groups by (category, search_strategy_type).
+    """
+    rows: list[dict[str, object]] = []
+
+    for configs in comparison_data.values():
+        for config_name in ("sourcegraph_base", "sourcegraph_full"):
+            metrics = configs.get(config_name)
+            if metrics is None:
+                continue
+
+            strategy = _get_search_strategy_type(metrics)
+            if strategy is None:
+                continue
+
+            category = metrics.get("category") or "unknown"
+            reward = _safe_float(metrics.get("reward"))
+            input_tok = _safe_int(metrics.get("input_tokens"))
+            output_tok = _safe_int(metrics.get("output_tokens"))
+
+            total_tokens: Optional[int] = None
+            if input_tok is not None and output_tok is not None:
+                total_tokens = input_tok + output_tok
+
+            rows.append({
+                "category": category,
+                "strategy": strategy,
+                "reward": reward,
+                "tokens": total_tokens,
+            })
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+
+    agg_df = (
+        df.groupby(["category", "strategy"], as_index=False)
+        .agg(
+            avg_reward=("reward", "mean"),
+            avg_tokens=("tokens", "mean"),
+            task_count=("reward", "size"),
+        )
+        .sort_values(["category", "avg_reward"], ascending=[True, False])
+    )
+
+    return agg_df
+
+
+def _render_search_effectiveness(
+    comparison_data: dict[str, dict[str, Optional[dict]]],
+) -> None:
+    """Render the Search Effectiveness section."""
+    st.subheader("Search Effectiveness")
+    st.caption(
+        "How search strategies correlate with success across task categories "
+        "(sourcegraph_base and sourcegraph_full configs only)."
+    )
+
+    agg_df = _build_search_effectiveness_df(comparison_data)
+
+    if agg_df.empty:
+        st.info("No search strategy data available in the current dataset.")
+        return
+
+    display = pd.DataFrame()
+    display["Category"] = agg_df["category"]
+    display["Strategy"] = agg_df["strategy"]
+    display["Avg Reward"] = agg_df["avg_reward"].apply(
+        lambda v: _fmt_float(v, decimals=4)
+    )
+    display["Avg Tokens"] = agg_df["avg_tokens"].apply(
+        lambda v: _fmt_int(_safe_int(v)) if _is_valid_number(v) else _DASH
+    )
+    display["N Tasks"] = agg_df["task_count"].astype(int)
+
+    st.dataframe(
+        display,
+        use_container_width=True,
+        hide_index=True,
+        key="ccmp_search_effectiveness",
+    )
+
+
 def show_config_comparison() -> None:
     """Main entry point for the Config Comparison view."""
     st.title("Config Comparison")
@@ -509,3 +598,9 @@ def show_config_comparison() -> None:
         mime="text/csv",
         key="ccmp_export_csv",
     )
+
+    st.markdown("---")
+
+    # --- Search Effectiveness ---
+    with st.expander("Search Effectiveness", expanded=False):
+        _render_search_effectiveness(filtered_data)

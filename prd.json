@@ -163,7 +163,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "search_strategy_type field is null on baseline configs. Values: keyword_only, nls_focused, deepsearch_heavy, mixed. Use Pandas groupby + agg for aggregation."
     },
     {

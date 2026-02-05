@@ -118,3 +118,18 @@ Started: Thu Feb  5 08:09:21 EST 2026
   - CSV export should use the display DataFrame (formatted strings) not the raw DataFrame, so users get the same values they see on screen
   - Widget key `ccmp_export_csv` follows the established prefix convention
 ---
+
+## 2026-02-05 - US-009
+- Added "Search Effectiveness" expander section to config_comparison.py
+- Implemented `_build_search_effectiveness_df()` that aggregates across sourcegraph_base and sourcegraph_full configs only
+- Groups by (category, search_strategy_type) using Pandas groupby + agg
+- Displays: Category | Strategy | Avg Reward | Avg Tokens | N Tasks
+- Sorted by Avg Reward descending within each category
+- Used `_get_search_strategy_type` from comparison_filters.py to infer strategy from search call counts
+- Files changed: `dashboard/views/config_comparison.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `st.expander("title", expanded=False)` is cleaner than tabs for optional analysis sections — doesn't require tab switching
+  - Pandas `groupby().agg()` with named aggregations (`avg_reward=("reward", "mean")`) produces clean column names directly
+  - The `_safe_float` / `_safe_int` / `_is_valid_number` helpers from earlier in the file are reusable for formatting aggregated values
+  - `_get_search_strategy_type` returns `None` for baseline configs (no search calls) — filtering `if strategy is None: continue` naturally excludes baseline
+---
