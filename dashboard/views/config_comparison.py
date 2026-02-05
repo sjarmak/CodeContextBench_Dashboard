@@ -9,6 +9,7 @@ always-current data.
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 from typing import Optional
 
 import pandas as pd
@@ -497,3 +498,14 @@ def show_config_comparison() -> None:
             hide_index=True,
             key="ccmp_comparison_table",
         )
+
+    # --- CSV Export ---
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
+    csv_data = display_df.to_csv(index=False)
+    st.download_button(
+        label="Export CSV",
+        data=csv_data,
+        file_name=f"ccb-comparison-{timestamp}.csv",
+        mime="text/csv",
+        key="ccmp_export_csv",
+    )

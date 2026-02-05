@@ -106,3 +106,15 @@ Started: Thu Feb  5 08:09:21 EST 2026
   - `st.radio(horizontal=True)` works well for single-value filters like size bucket in compact layouts
   - Filter panel placement: above the data table, before metrics summary, so summary metrics reflect filtered data
 ---
+
+## 2026-02-05 - US-008
+- Added CSV export button to config comparison view
+- Uses `display_df.to_csv(index=False)` to export filtered rows with human-readable column headers
+- Filename format: `ccb-comparison-{timestamp}.csv` using UTC timestamp
+- Files changed: `dashboard/views/config_comparison.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `st.download_button` accepts `data` as a string directly — `pd.DataFrame.to_csv(index=False)` returns a string suitable for this
+  - Use `datetime.now(tz=timezone.utc)` for timezone-aware timestamps (avoids deprecation warnings from naive `utcnow()`)
+  - CSV export should use the display DataFrame (formatted strings) not the raw DataFrame, so users get the same values they see on screen
+  - Widget key `ccmp_export_csv` follows the established prefix convention
+---

@@ -145,7 +145,7 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Streamlit st.download_button(data=csv_string, file_name='...', mime='text/csv') handles the download. Generate CSV from the filtered Pandas DataFrame."
     },
     {
