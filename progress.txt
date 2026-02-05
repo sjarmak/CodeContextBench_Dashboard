@@ -12,6 +12,9 @@ Started: Thu Feb  5 08:09:21 EST 2026
 - Session state cache key for comparison data: `comparison_data`
 - Widget key prefixes: `ccmp_` for config comparison, `ccmp_filter_` for filters
 - Pre-existing test failures (27) are unrelated to new code - tests in `test_analysis_*_v2.py` have collection errors
+- `search_strategy_type` field doesn't exist directly in task_metrics.json - must be inferred from `search_calls_keyword`, `search_calls_nls`, `search_calls_deepsearch` fields
+- `error_fingerprint` is a dict with keys `fingerprint_id`, `label`, `severity` (or null for no error)
+- Size bucketing uses `input_tokens` as proxy since `task_context_length` doesn't exist in actual data
 ---
 
 ## 2026-02-05 - US-001
@@ -23,4 +26,22 @@ Started: Thu Feb  5 08:09:21 EST 2026
   - When merging across multiple runs, later runs should fill in missing config data (immutable merge via `{**existing, config: new}`)
   - Verified: 118 tasks load successfully with all 3 configs populated
   - `_KNOWN_CONFIG_DIRS` naming follows `home_run_scanner.py` pattern but uses `_CONFIG_DIRS` (configs not modes)
+---
+
+## 2026-02-05 - US-002
+- Verified existing `dashboard/utils/comparison_metrics.py` (already committed)
+- Updated PRD to mark US-002 as passes: true
+- Files changed: `prd.json`
+- **Learnings for future iterations:**
+  - US-002 was already committed but PRD wasn't updated - always verify PRD state matches git history
+---
+
+## 2026-02-05 - US-003
+- Implemented `dashboard/utils/comparison_filters.py`
+- Files changed: `dashboard/utils/comparison_filters.py` (new), `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `search_strategy_type` must be inferred from search call counts (`search_calls_keyword`, `search_calls_nls`, `search_calls_deepsearch`)
+  - Error severity filtering checks across ALL configs for a task (OR within a task's configs) — a task matches if ANY config has matching severity
+  - "no_error" is a pseudo-value for tasks with null `error_fingerprint` — useful for filtering to successful tasks
+  - Size bucketing uses `input_tokens` since `task_context_length`/`instruction_length_chars` don't exist in real data
 ---

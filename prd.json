@@ -38,7 +38,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "All task_metrics.json fields can be None. Use immutable return dicts (don't mutate inputs). Reward field is 'reward', token fields are 'input_tokens' and 'output_tokens'."
     },
     {
@@ -57,7 +57,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Existing dashboard/utils/filters.py has filtering patterns for task metadata. Category values include: architectural_understanding, bug_investigation, cross_file_refactoring, feature_implementation. Difficulty values: easy, medium, hard, expert."
     },
     {
