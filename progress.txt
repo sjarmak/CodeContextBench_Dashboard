@@ -149,3 +149,20 @@ Started: Thu Feb  5 08:09:21 EST 2026
   - Pandas Styler `.background_gradient(cmap='RdYlGn', axis=None)` applies gradient across the entire table (not just per-row or per-column)
   - `.format()` on Styler accepts a lambda for conditional formatting of NaN values
 ---
+
+## 2026-02-05 - US-011
+- Added "Error Analysis" expander section to `config_comparison.py`
+- Implemented `_build_error_severity_df()` that aggregates across all 3 configs (baseline, sourcegraph_base, sourcegraph_full)
+- Groups by error severity from `error_fingerprint` dict, with `null` mapped to "No Error"
+- Displays: Error Severity | Count | % of Total | Avg Reward | Config Distribution
+- Config Distribution shows per-config breakdown (e.g., "baseline: 50, sourcegraph_full: 48")
+- Sorted by severity order: infra, api, task, mcp, verifier, setup, No Error
+- Imported `_get_error_severity` from `comparison_filters.py` for consistent severity extraction
+- Files changed: `dashboard/views/config_comparison.py`, `prd.json`, `progress.txt`
+- **Learnings for future iterations:**
+  - `_get_error_severity` from `comparison_filters.py` handles the null/dict type checking — reuse it instead of duplicating
+  - In the current dataset, all `error_fingerprint` values are `null` — the section will show 100% "No Error" but is ready for when errors are populated
+  - Pandas `value_counts()` on a Series produces a clean config distribution for display (e.g., "baseline: 50, sourcegraph_full: 48")
+  - `_SEVERITY_ORDER` list ensures consistent row ordering even when not all severities are present in the data
+  - Using `map()` with a rank dict + `sort_values` is cleaner than custom sort logic for ordered categorical display
+---

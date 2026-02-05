@@ -17,6 +17,7 @@ import streamlit as st
 
 from dashboard.utils.agent_labels import AGENT_DISPLAY_NAMES
 from dashboard.utils.comparison_filters import (
+    _get_error_severity,
     _get_search_strategy_type,
     _get_size_bucket,
     filter_comparison_tasks,
@@ -612,6 +613,104 @@ def _render_search_by_size(
     )
 
 
+_SEVERITY_ORDER = ["infra", "api", "task", "mcp", "verifier", "setup", "No Error"]
+
+
+def _build_error_severity_df(
+    comparison_data: dict[str, dict[str, Optional[dict]]],
+) -> pd.DataFrame:
+    """Build error severity aggregation across all configs.
+
+    Each row in the output represents one severity level (or 'No Error')
+    with: Error Severity, Count, % of Total, Avg Reward, Config Distribution.
+    """
+    rows: list[dict[str, object]] = []
+
+    for configs in comparison_data.values():
+        for config_name, metrics in configs.items():
+            if metrics is None:
+                continue
+
+            severity = _get_error_severity(metrics)
+            effective_severity = severity if severity is not None else "No Error"
+            reward = _safe_float(metrics.get("reward"))
+
+            rows.append({
+                "severity": effective_severity,
+                "config": config_name,
+                "reward": reward,
+            })
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    total_count = len(df)
+
+    # Group by severity
+    agg = (
+        df.groupby("severity", as_index=False)
+        .agg(
+            count=("reward", "size"),
+            avg_reward=("reward", "mean"),
+        )
+    )
+
+    agg["pct_of_total"] = agg["count"] / max(total_count, 1) * 100
+
+    # Config distribution: for each severity, which configs contribute
+    config_dist: dict[str, str] = {}
+    for sev in agg["severity"]:
+        subset = df[df["severity"] == sev]
+        dist_counts = subset["config"].value_counts()
+        parts = [f"{cfg}: {cnt}" for cfg, cnt in dist_counts.items()]
+        config_dist[sev] = ", ".join(parts)
+
+    agg["config_distribution"] = agg["severity"].map(config_dist)
+
+    # Sort by severity order
+    sev_rank = {s: i for i, s in enumerate(_SEVERITY_ORDER)}
+    agg["_rank"] = agg["severity"].map(lambda s: sev_rank.get(s, len(sev_rank)))
+    agg = agg.sort_values("_rank").drop(columns=["_rank"])
+
+    return agg
+
+
+def _render_error_analysis(
+    comparison_data: dict[str, dict[str, Optional[dict]]],
+) -> None:
+    """Render the Error Analysis section."""
+    st.subheader("Error Analysis")
+    st.caption(
+        "Error distribution by severity across all configs. "
+        "'No Error' represents tasks where no error was recorded."
+    )
+
+    agg_df = _build_error_severity_df(comparison_data)
+
+    if agg_df.empty:
+        st.info("No task data available for error analysis.")
+        return
+
+    display = pd.DataFrame()
+    display["Error Severity"] = agg_df["severity"]
+    display["Count"] = agg_df["count"].astype(int)
+    display["% of Total"] = agg_df["pct_of_total"].apply(
+        lambda v: f"{v:.1f}%"
+    )
+    display["Avg Reward"] = agg_df["avg_reward"].apply(
+        lambda v: _fmt_float(v, decimals=4)
+    )
+    display["Config Distribution"] = agg_df["config_distribution"]
+
+    st.dataframe(
+        display,
+        use_container_width=True,
+        hide_index=True,
+        key="ccmp_error_severity",
+    )
+
+
 def show_config_comparison() -> None:
     """Main entry point for the Config Comparison view."""
     st.title("Config Comparison")
@@ -736,3 +835,7 @@ def show_config_comparison() -> None:
         st.markdown("---")
 
         _render_search_by_size(filtered_data)
+
+    # --- Error Analysis ---
+    with st.expander("Error Analysis", expanded=False):
+        _render_error_analysis(filtered_data)

@@ -197,7 +197,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "error_fingerprint is a dict with keys: fingerprint_id, label, severity. Severity values from scripts/status_fingerprints.py: infra, api, task, mcp, verifier, setup. Many tasks will have null error_fingerprint (no error)."
     },
     {
